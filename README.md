@@ -1,6 +1,20 @@
-# Docling Extraction Studio
+# Solvay Spark Spine AI
 
-A local split-screen tool for checking document extraction quality. Load a
+Solvay's SPARK programme, its move from SAP ECC to S/4HANA, has built up a
+large body of knowledge: workshop decks and transcripts, functional specs,
+process spreadsheets, interface designs and BPML process maps. Solvay Spark
+Spine AI turns that material into something the team can search, question and
+reason over. It converts the documents to clean Markdown, indexes them for
+question answering, links them into a knowledge graph of streams, processes,
+systems and specs, and puts AI agents on top. The agents answer with citations,
+gather evidence, and run SAP Fit-to-Standard analysis for country rollouts.
+
+Everything runs locally. Documents stay on the machine unless you ask a
+question or choose a cloud vision model (see [Notes](#notes)).
+
+## What it does
+
+It starts as a split-screen tool for checking document extraction quality. Load a
 PPTX, DOCX, XLSX, PDF, or a PNG/JPEG image on the left, click **Convert to Markdown**, and see the
 extracted Markdown on the right next to the original.
 
@@ -93,6 +107,18 @@ ollama serve &                      # or open the Ollama app; skip if it runs at
 
 `run.sh` also starts Podman, Neo4j and Hindsight when they are installed and
 configured, and skips anything already running. Sign in with **test** / **test**.
+
+To start the backend services by hand instead, from the repository root:
+
+```bash
+podman machine start                               # only if Neo4j runs under Podman
+docker compose -f compose.neo4j.yml up -d          # Neo4j (optional: the Cypher view)
+nohup sh ./scripts/hindsight.sh >> hindsight.log 2>&1 &   # Hindsight (optional: Evidence Agent memory)
+.venv/bin/uvicorn backend.api.app:app --port 8000 --reload --reload-dir backend   # the backend API + UI
+```
+
+Ctrl+C stops only the backend; Neo4j and Hindsight keep running. See
+[docs/running-the-app.md](docs/running-the-app.md) for how to stop them.
 
 Then: **Open document** (or drop a file on the page) → wait for the preview →
 **Convert to Markdown**. Use **Add to knowledge base** to make it searchable

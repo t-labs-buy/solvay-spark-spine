@@ -1557,6 +1557,7 @@
                     <li>Postgres + pgvector (the database).</li>
                     <li>Ollama (turns text into vectors).</li>
                     <li>Neo4j (the graph database).</li>
+                    <li>Hindsight (the agent's memory).</li>
                   </ol>
                 </div>
               </div>
@@ -1745,7 +1746,7 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
             <span class="phase-tag">Step 2 · Understand the files</span>
             <h2>The deployment files explained</h2>
             <p>
-              Seven files in the repository make deployment work. You don't need to
+              Eight files in the repository make deployment work. You don't need to
               edit them to deploy, but knowing what each one does makes every later
               step, and every error message, make sense.
             </p>
@@ -1755,9 +1756,10 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                 <thead><tr><th>File</th><th>Its job in one line</th><th>Where it is used</th></tr></thead>
                 <tbody>
                   <tr><td><code>Dockerfile</code></td><td>The recipe for building the app image.</td><td>Your Mac, when building</td></tr>
+                  <tr><td><code>Dockerfile.hindsight</code></td><td>The recipe for the memory server's image.</td><td>Your Mac, when building</td></tr>
                   <tr><td><code>.dockerignore</code></td><td>What must <em>not</em> go into the image.</td><td>Your Mac, when building</td></tr>
                   <tr><td><code>constraints.txt</code></td><td>Exact versions of every Python library.</td><td>Your Mac, when building</td></tr>
-                  <tr><td><code>scripts/docker-publish.sh</code></td><td>Builds the image and pushes it to the registry.</td><td>Your Mac</td></tr>
+                  <tr><td><code>scripts/docker-publish.sh</code></td><td>Builds an image and pushes it to the registry.</td><td>Your Mac</td></tr>
                   <tr><td><code>scripts/db-export.sh</code></td><td>Saves your local database to a file.</td><td>Your Mac</td></tr>
                   <tr><td><code>compose.yml</code></td><td>Describes the whole running stack.</td><td>The server</td></tr>
                   <tr><td><code>.env.example</code></td><td>Template for the server's settings and passwords.</td><td>The server, copied to <code>.env</code></td></tr>
@@ -1812,6 +1814,37 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                 </tbody>
               </table>
             </div>
+
+            <h3 id="dockerfile-hindsight">Dockerfile.hindsight: the memory server's image</h3>
+            <p>
+              <strong>Purpose.</strong> Hindsight is the Evidence Agent's long-term
+              memory: after each investigation it files what was found, and before
+              the next one it recalls what is relevant. It is a separate server with
+              its own image, because its libraries conflict with Docling's: installing
+              both together would downgrade the document converter.
+            </p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Stage</th><th>What it does</th><th>Why it is done this way</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code>models</code></td>
+                    <td>Downloads two small models: <code>BAAI/bge-small-en-v1.5</code> (turns memories into vectors) and <code>cross-encoder/ms-marco-MiniLM-L-6-v2</code> (ranks recalled memories).</td>
+                    <td>Runs natively on your Mac, like the app's model stage. The files are the same on every computer.</td>
+                  </tr>
+                  <tr>
+                    <td>runtime (final)</td>
+                    <td>Installs CPU-only PyTorch and <code>hindsight-api==0.10.1</code>, copies in the models, and runs <code>hindsight-api</code> on port 8888 as user <code>app</code>.</td>
+                    <td>Version 0.10.1 is pinned to match the Mac setup. <code>HF_HUB_OFFLINE=1</code> makes it use the bundled models without checking the internet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              It keeps no data inside the container: the memories live in a
+              <code>hindsight</code> database in the stack's Postgres, so they survive
+              updates and restarts.
+            </p>
 
             <h3 id="dockerignore">.dockerignore and constraints.txt: the supporting files</h3>
             <p>
@@ -1880,6 +1913,16 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                     <td><code>neo4j:5-community</code></td>
                     <td>The graph database behind the Cypher view. User <code>neo4j</code>, password from <code>NEO4J_PASSWORD</code>. The app loads the knowledge graph into it at startup.</td>
                   </tr>
+                  <tr>
+                    <td><code>hindsight-db</code></td>
+                    <td><code>pgvector/pgvector:pg18</code></td>
+                    <td>A one-off helper that waits for Postgres, creates the <code>hindsight</code> database if it is missing, then exits. Seeing it as <em>Exited</em> is normal.</td>
+                  </tr>
+                  <tr>
+                    <td><code>hindsight</code></td>
+                    <td><code>reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight:latest</code></td>
+                    <td>The memory server, on port 8888 inside the stack. Uses <code>ANTHROPIC_API_KEY</code> from <code>.env</code>: Claude Opus reads each investigation and files its facts; Claude Sonnet answers "Ask memory". The app finds it at <code>HINDSIGHT_URL=http://hindsight:8888</code>.</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1890,7 +1933,7 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                 <tbody>
                   <tr><td><code>./solvay-spark</code></td><td>folder on the server, read-only</td><td>The SPARK corpus you copy from your Mac.</td></tr>
                   <tr><td><code>./knowledge_base</code></td><td>folder on the server, writable</td><td>The BPML hierarchy (<code>BPML_Process_xlsx.md</code>) and documents added from the UI. Without it the graph loses most of its processes.</td></tr>
-                  <tr><td><code>pgdata</code></td><td>volume</td><td>The database.</td></tr>
+                  <tr><td><code>pgdata</code></td><td>volume</td><td>Both databases: <code>solvay</code> (search index, run history) and <code>hindsight</code> (agent memories).</td></tr>
                   <tr><td><code>neo4j-data</code></td><td>volume</td><td>Neo4j's copy of the graph.</td></tr>
                   <tr><td><code>ollama</code></td><td>volume</td><td>The downloaded <code>bge-m3</code> model.</td></tr>
                   <tr><td><code>workdir</code></td><td>volume</td><td>Uploads and document previews.</td></tr>
@@ -1903,11 +1946,14 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
             <p>
               <strong>Purpose.</strong> Builds the image for the server's type of
               processor and uploads it to the registry, so you don't have to remember a
-              long build command. Its instructions, in order:
+              long build command. Run it bare for the app, or as
+              <code>./scripts/docker-publish.sh hindsight</code> for the memory server.
+              Its instructions, in order:
             </p>
             <ol class="steps">
               <li><strong>Moves to the repository root</strong>, so it works from any folder.</li>
-              <li><strong>Sets the image name</strong> to <code>reg.ivolve.cloud/ivolve/solvay-spark-spine</code> and the <strong>tag</strong> to the current git commit (e.g. <code>7dbac01</code>).</li>
+              <li><strong>Picks the recipe and name</strong>: <code>Dockerfile</code> → <code>reg.ivolve.cloud/ivolve/solvay-spark-spine</code>, or with <code>hindsight</code>, <code>Dockerfile.hindsight</code> → <code>…/solvay-spark-spine-hindsight</code>. Anything else prints the usage and stops.</li>
+              <li><strong>Sets the tag</strong> to the current git commit (e.g. <code>7dbac01</code>).</li>
               <li><strong>Warns about uncommitted changes.</strong> They're still built in, but the tag then doesn't describe exactly what's inside.</li>
               <li><strong>Builds for <code>linux/amd64</code></strong>, the server's processor type. Your Mac is ARM, so this part runs under emulation and is slower.</li>
               <li><strong>Uses Podman</strong> (<code>podman build --format docker</code>) when Docker's <code>buildx</code> isn't available, which is the case on our Macs. <code>--format docker</code> keeps the healthcheck, which Podman's default format drops.</li>
@@ -1977,6 +2023,15 @@ podman login reg.ivolve.cloud</pre>
             </p>
             <pre>
 Pushed reg.ivolve.cloud/ivolve/solvay-spark-spine:7dbac01 and reg.ivolve.cloud/ivolve/solvay-spark-spine:latest</pre>
+
+            <div class="step-h"><span class="n">4</span>Build and push the memory server (first time, then only when it changes)</div>
+            <pre class="language-bash">
+./scripts/docker-publish.sh hindsight</pre>
+            <p>
+              Builds <code>Dockerfile.hindsight</code> and pushes
+              <code>solvay-spark-spine-hindsight</code>. It rarely changes, so after the
+              first time, run it only when <code>Dockerfile.hindsight</code> does.
+            </p>
 
             <div class="why">
               <span class="label">Why the push can be slow</span>
@@ -2215,8 +2270,9 @@ docker compose pull
 docker compose up -d postgres ollama ollama-pull neo4j
 docker compose ps
 docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
-docker compose up -d app
-curl localhost:8030/api/health</pre>
+docker compose up -d hindsight-db hindsight app
+curl localhost:8030/api/health
+docker compose exec app curl -s http://hindsight:8888/health</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Command</th><th>What it does</th></tr></thead>
@@ -2226,8 +2282,9 @@ curl localhost:8030/api/health</pre>
                   <tr><td><code>docker compose up -d postgres ollama ollama-pull neo4j</code></td><td>Starts the supporting services in the background (<code>-d</code>, "detached"). The app waits until the database is restored.</td></tr>
                   <tr><td><code>docker compose ps</code></td><td>Lists the services. Wait until <code>postgres</code> and <code>neo4j</code> show <code>(healthy)</code>; Neo4j can take 1–3 minutes the first time.</td></tr>
                   <tr><td><code>docker compose exec -T postgres pg_restore … &lt; spark-….dump</code></td><td>Runs <code>pg_restore</code> inside the Postgres container and feeds it the dump file (<code>&lt;</code> means "read from this file"). It loads the search index and run history into the <code>solvay</code> database.</td></tr>
-                  <tr><td><code>docker compose up -d app</code></td><td>Starts the application.</td></tr>
+                  <tr><td><code>docker compose up -d hindsight-db hindsight app</code></td><td>Creates the memory database, starts the memory server and starts the application.</td></tr>
                   <tr><td><code>curl localhost:8030/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
+                  <tr><td><code>docker compose exec app curl -s http://hindsight:8888/health</code></td><td>Asks the memory server, from inside the app container, whether it is up. Expect <code>"status":"healthy"</code>. It takes 1–2 minutes after starting.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2239,8 +2296,8 @@ curl localhost:8030/api/health</pre>
               <p>
                 <code>WARN No services to build</code> from compose is normal. So is a
                 <code>pg_restore</code> warning that <code>extension "vector" already
-                exists</code>. <code>ollama-pull</code> showing <em>Exited</em> is normal:
-                it finished its one job.
+                exists</code>. <code>ollama-pull</code> and <code>hindsight-db</code> showing
+                <em>Exited</em> is normal: they finished their one job.
               </p>
             </div>
             <div class="win">
@@ -2296,6 +2353,7 @@ ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8030:
               <li><strong>Ask tab</strong> — ask a question. An answer with cited excerpts proves Postgres, Ollama and the Anthropic key all work.</li>
               <li><strong>Knowledge Graph</strong> — counts should match your Mac: 217 documents, 1976 BPML processes, 165 specifications.</li>
               <li><strong>Cypher view</strong> — a query runs, so Neo4j works.</li>
+              <li><strong>Evidence Agent</strong> — the memory indicator shows as available, so Hindsight works. After a finished investigation, <em>Ask memory</em> can answer from it.</li>
               <li><strong>Convert a document</strong> — a small PPTX or PDF converts, so LibreOffice, Tesseract and Docling work.</li>
             </ol>
             <div class="win">
@@ -2318,7 +2376,7 @@ docker compose logs --tail 50 app</pre>
               <table>
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
-                  <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>postgres</code> and <code>neo4j</code> also <code>(healthy)</code>.</td></tr>
+                  <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>postgres</code>, <code>neo4j</code> and <code>hindsight</code> also <code>(healthy)</code>. <code>ollama-pull</code> and <code>hindsight-db</code> show <em>Exited</em>; that's correct.</td></tr>
                   <tr><td><code>curl localhost:8030/api/health</code></td><td>Whether the app answers. Expect <code>{"ok":true,…}</code>.</td></tr>
                   <tr><td><code>docker compose logs --tail 50 app</code></td><td>The app's last 50 log lines: errors show up here. Use <code>-f</code> instead of <code>--tail 50</code> to follow live; <kbd>Ctrl</kbd>+<kbd>C</kbd> stops following.</td></tr>
                 </tbody>
@@ -2388,6 +2446,14 @@ curl localhost:8030/api/health</pre>
                 the line to follow <code>latest</code> again.
               </p>
             </div>
+
+            <h3>After changing Dockerfile.hindsight</h3>
+            <p>On your Mac, <code>./scripts/docker-publish.sh hindsight</code>. Then on the server:</p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose pull hindsight
+docker compose up -d hindsight</pre>
+            <p>The memories are in the database, so they survive the update.</p>
 
             <h3>After changing compose.yml</h3>
             <pre class="language-bash">
@@ -2527,6 +2593,24 @@ docker compose up -d app</pre>
               </p>
             </div>
 
+            <div class="qa">
+              <p class="q">The Evidence Agent says memory is unavailable.</p>
+              <p>Check the memory server and its log:</p>
+              <pre class="language-bash">
+docker compose ps hindsight hindsight-db
+docker compose logs --tail 50 hindsight
+docker compose exec app curl -s http://hindsight:8888/health</pre>
+              <p>
+                <code>hindsight-db</code> must have exited with code 0. If it failed,
+                Postgres wasn't ready or the password is wrong: run
+                <code>docker compose up -d hindsight-db hindsight</code> again. If
+                <code>hindsight</code> is still <em>starting</em>, wait 1–2 minutes. An
+                <code>AuthenticationError</code> in its log means
+                <code>ANTHROPIC_API_KEY</code> in <code>.env</code> is missing or wrong;
+                fix it, then <code>docker compose up -d hindsight</code>.
+              </p>
+            </div>
+
             <h3>Data looks wrong</h3>
             <div class="qa">
               <p class="q">The knowledge graph counts differ from my Mac.</p>
@@ -2599,21 +2683,20 @@ docker compose up -d postgres</pre>
             <ol class="steps">
               <li><strong>Keep secrets out of git</strong>: the <code>.pem</code> key, <code>.env</code> and database dumps. <code>.gitignore</code> and <code>.dockerignore</code> already exclude <code>.env</code> and <code>backup/</code>.</li>
               <li><strong>Share credentials one to one</strong>, not in team channels.</li>
-              <li><strong>Data leaves the server</strong> when someone asks a question: the question and the retrieved excerpts go to Anthropic.</li>
+              <li><strong>Data leaves the server</strong> when someone asks a question: the question and the retrieved excerpts go to Anthropic. Hindsight also sends each investigation's findings to Anthropic, to file them as memories.</li>
             </ol>
             <h3>Not included on the server</h3>
-            <div class="cards">
-              <div class="card">
-                <span class="card-title">Agent memory (Hindsight)</span>
-                Off (<code>HINDSIGHT_URL=""</code>). It needs its own environment. The
-                Evidence Agent works without it; it just doesn't remember past
-                investigations.
-              </div>
-              <div class="card">
-                <span class="card-title">Local MLX vision model</span>
-                Runs on Apple chips only. The Claude and OpenAI vision options and
-                Tesseract still work.
-              </div>
+            <p>
+              <strong>The local MLX vision model.</strong> It runs on Apple chips only.
+              The Claude and OpenAI vision options and Tesseract still work.
+            </p>
+            <div class="why">
+              <span class="label">Memories start empty on the server</span>
+              <p>
+                The server's Hindsight has its own memory bank. Memories built up on a
+                Mac aren't copied over; the server's bank fills as people run
+                investigations there.
+              </p>
             </div>
           </section>
 
@@ -2627,7 +2710,7 @@ docker compose up -d postgres</pre>
               <strong>Keeping this accurate:</strong> written after the first deployment
               on 29 September 2026. Server address, ports and counts are from that
               deployment. The files it describes are <code>Dockerfile</code>,
-              <code>compose.yml</code>, <code>constraints.txt</code>,
+              <code>Dockerfile.hindsight</code>, <code>compose.yml</code>, <code>constraints.txt</code>,
               <code>scripts/docker-publish.sh</code> and <code>scripts/db-export.sh</code>;
               when one changes, update the matching section here.
             </p>

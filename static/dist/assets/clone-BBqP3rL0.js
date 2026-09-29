@@ -1,0 +1,1 @@
+import{S as e}from"./graphlib-BTvO7m_w.js";var t=4;function n(n){return e(n,t)}export{n as t};

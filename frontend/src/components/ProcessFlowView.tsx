@@ -312,7 +312,7 @@ export default function ProcessFlowView({ graph, onFocusNode }: Props) {
               <Chip
                 size="small"
                 variant="outlined"
-                label={node.in_bpml ? "in BPML workbook" : "not in workbook"}
+                label={node.in_bpml ? "in BPML hierarchy" : "not in BPML hierarchy"}
                 sx={{ height: 20, fontSize: 11 }}
               />
             </Stack>

@@ -94,90 +94,82 @@ def test_the_cached_graph_matches_a_fresh_build():
 
 # --- every input is fingerprinted ----------------------------------------------
 #
-# "Pure function of the corpus" is not enough, because the corpus is not the
-# only input. The BPML workbook is read directly -- its Markdown conversion is
-# a stub saying "9096 rows x 50 columns; too wide to render as a table" -- so
-# it never appears in collect_files(). While the fingerprint covered only those
-# files you could correct the process hierarchy, rebuild, and be served the
+# "Pure function of the corpus" is not enough: the process hierarchy is read
+# from the BPML process house document, and the corpus files are fingerprinted
+# by size, which correcting a process name can leave unchanged. While the
+# fingerprint did not cover the hierarchy's source by content you
+# could correct the process hierarchy, rebuild, and be served the
 # graph built from the version you had just replaced, with no error anywhere.
 
 
-def _workbook_copy(tmp: Path):
-    """The builder pointed at a disposable copy of the workbook.
+def _document_copy(tmp: Path):
+    """The builder pointed at a disposable copy of the process house document.
 
-    The real one is never written to: it is 2.1 MB of somebody's source data,
-    and a test that edits it is one interrupted run away from corrupting it."""
+    The real one is never written to: a test that edits it is one interrupted
+    run away from corrupting the source of every agent's scope."""
     import shutil
     from backend.graph import knowledge_graph as kg
 
-    shutil.copy(kg.BPML_XLSX, tmp)
-    original = kg.BPML_XLSX
-    kg.BPML_XLSX = tmp
+    shutil.copy(kg.BPML_MD, tmp)
+    original = kg.BPML_MD
+    kg.BPML_MD = tmp
     kg._bpml_cache = kg._bpml_cache_key = None
     return kg, original
 
 
 def _append_process(path: Path, label: str) -> None:
-    import openpyxl
-
-    wb = openpyxl.load_workbook(path)
-    ws = wb.worksheets[0]
-    row = [None] * 50
-    row[2] = label
-    row[48] = f"Value Chain > {label}"
-    ws.append(row)
-    wb.save(path)
-    wb.close()
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"\n## {label}\n\n- **Level:** 2\n- **Path:** 9.0 Record to Report\n")
 
 
-def test_editing_the_bpml_workbook_changes_the_fingerprint():
-    tmp = Path("/tmp/kg_fingerprint_test.xlsx")
-    kg, original = _workbook_copy(tmp)
+def test_editing_the_bpml_document_changes_the_fingerprint():
+    tmp = Path("/tmp/kg_fingerprint_test.md")
+    kg, original = _document_copy(tmp)
     try:
         files = kg.collect_files()
         before = kg._sources_fingerprint(files)
         _append_process(tmp, "9.9 Added By A Test")
         after = kg._sources_fingerprint(files)
         assert before != after, (
-            "the workbook changed and the fingerprint did not, so a cached graph "
+            "the document changed and the fingerprint did not, so a cached graph "
             "built from the old hierarchy is served as though it were current"
         )
     finally:
-        kg.BPML_XLSX = original
+        kg.BPML_MD = original
         kg._bpml_cache = kg._bpml_cache_key = None
         tmp.unlink(missing_ok=True)
 
 
-def test_a_live_process_reloads_the_hierarchy_when_the_workbook_changes():
+def test_a_live_process_reloads_the_hierarchy_when_the_document_changes():
     """The nastier half: force=True could not fix it.
 
     load_bpml_hierarchy cached into a module global and never looked at its
     source again, so a server running for days rebuilt every node from a
-    hierarchy read before the workbook was corrected."""
-    tmp = Path("/tmp/kg_cache_test.xlsx")
-    kg, original = _workbook_copy(tmp)
+    hierarchy read before its source was corrected."""
+    tmp = Path("/tmp/kg_cache_test.md")
+    kg, original = _document_copy(tmp)
     try:
         before = kg.load_bpml_hierarchy()["name"]
-        assert "9.9" not in before, "the fixture code is already in the workbook"
+        assert "9.9" not in before, "the fixture code is already in the document"
         _append_process(tmp, "9.9 Added By A Test")
         after = kg.load_bpml_hierarchy()["name"]
         assert "9.9" in after, (
-            "the hierarchy is still the one loaded before the workbook changed; "
+            "the hierarchy is still the one loaded before the document changed; "
             "the module cache is not keyed on its source"
         )
         assert len(after) == len(before) + 1
     finally:
-        kg.BPML_XLSX = original
+        kg.BPML_MD = original
         kg._bpml_cache = kg._bpml_cache_key = None
         tmp.unlink(missing_ok=True)
 
 
-def test_a_missing_workbook_is_a_different_fingerprint_from_a_present_one():
-    """Absent is a state too. Losing the workbook degrades the graph -- every
+def test_a_missing_document_is_a_different_fingerprint_from_a_present_one():
+    """Absent is a state too. Losing the document degrades the graph -- every
     process loses its parent chain -- and that must not be served from a cache
     built when it was there."""
-    tmp = Path("/tmp/kg_missing_test.xlsx")
-    kg, original = _workbook_copy(tmp)
+    tmp = Path("/tmp/kg_missing_test.md")
+    kg, original = _document_copy(tmp)
     try:
         files = kg.collect_files()
         present = kg._sources_fingerprint(files)
@@ -185,7 +177,7 @@ def test_a_missing_workbook_is_a_different_fingerprint_from_a_present_one():
         absent = kg._sources_fingerprint(files)
         assert present != absent
     finally:
-        kg.BPML_XLSX = original
+        kg.BPML_MD = original
         kg._bpml_cache = kg._bpml_cache_key = None
         tmp.unlink(missing_ok=True)
 

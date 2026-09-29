@@ -990,7 +990,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
   }, [reviewer]);
 
   // The scope picker is InsightLens's — both agents read the Global Template
-  // hierarchy out of the same BPML sheet.
+  // hierarchy out of the same BPML process house document in the corpus.
   const [scopeUnknown, setScopeUnknown] = useState(false);
 
   useEffect(() => {
@@ -1916,7 +1916,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
         {status && (!status.anthropic_key || status.error || !status.bpml.available) && (
           <Alert severity="warning" sx={{ mb: 3, fontSize: 12.5, borderRadius: RADIUS }}>
             {!status.anthropic_key && <div>No <code>ANTHROPIC_API_KEY</code> is set, so no analysis can run.</div>}
-            {!status.bpml.available && <div>The BPML sheet is not readable, so the Global Template hierarchy is unavailable.</div>}
+            {!status.bpml.available && <div>The BPML process house is not readable from the corpus ({status.bpml.error ?? status.bpml.document}), so the Global Template hierarchy is unavailable.</div>}
             {status.error && <div>{status.error}</div>}
           </Alert>
         )}

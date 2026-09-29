@@ -899,7 +899,7 @@ function BpmlTrace({ trace }: { trace: EvidenceBpmlTrace }) {
         lines={[
           `${trace.ancestry.length} level${trace.ancestry.length === 1 ? "" : "s"} above`,
           `${trace.children.length} child step${trace.children.length === 1 ? "" : "s"}`,
-          "read from the BPML sheet",
+          "read from the BPML process house in the corpus",
         ]}
         chips={[code(trace.process)].filter(Boolean)}
       />

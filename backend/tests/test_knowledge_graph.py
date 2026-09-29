@@ -2,7 +2,7 @@
 the invented process hierarchy, unbounded system keyword matching, and entities that
 only ever appear in a filename.
 
-Run: python backend/tests/test_knowledge_graph.py      (reads the corpus and the BPML workbook).
+Run: python backend/tests/test_knowledge_graph.py      (reads the corpus and the BPML process house document).
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ def has_edge(src, tgt, relation):
     return any(e["source"] == src and e["target"] == tgt and e["relation"] == relation for e in EDGES)
 
 
-# --- the process hierarchy comes from the workbook, not from string splitting ---
+# --- the process hierarchy comes from the BPML hierarchy, not from string splitting ---
 
-def test_every_subprocess_edge_is_backed_by_the_bpml_workbook():
+def test_every_subprocess_edge_is_backed_by_the_bpml_hierarchy():
     known = kg.load_bpml_hierarchy()["name"]
     unverified = [
         e for e in edges("subprocess_of")
@@ -45,7 +45,7 @@ def test_the_invented_letter_parents_are_gone():
 
 
 def test_a_process_points_at_its_real_numbered_parent():
-    # The BPML workbook puts O-030-010 Identify Order inside 4.5.2.4.
+    # The BPML hierarchy puts O-030-010 Identify Order inside 4.5.2.4.
     assert has_edge("proc:O-030-010", "proc:4.5.2.4", "subprocess_of")
     assert NODES["proc:4.5.2.4"]["description"] == "Validate/ Perform Order Readiness"
 
@@ -61,7 +61,7 @@ def test_the_ancestry_walks_up_to_the_value_chain():
     assert chain == ["4.5.2.4", "4.5.2", "4.5", "4.0"]
 
 
-def test_a_code_missing_from_the_workbook_gets_no_invented_parent():
+def test_a_code_missing_from_the_hierarchy_gets_no_invented_parent():
     # O-160-030 is named in a document but is not in the BPML export.
     assert "proc:O-160-030" in NODES
     assert NODES["proc:O-160-030"]["in_bpml"] is False

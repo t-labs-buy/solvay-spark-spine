@@ -256,7 +256,7 @@ def sync_in_background(force: bool = False, wait: float = 120.0) -> None:
     import logging
 
     def run():
-        log = logging.getLogger("docling_studio.neo4j")
+        log = logging.getLogger("solvay_spark_spine.neo4j")
         if not configured()[0]:
             return
         deadline = time.time() + wait

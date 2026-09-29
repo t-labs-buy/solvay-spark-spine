@@ -114,7 +114,7 @@ function sourcesHint(s: EvidenceToolSources): string {
       touched ? `this result names ${touched} document node(s)` : "this result names no document nodes",
     ].filter(Boolean).join(" · ");
   }
-  if (s.kind === "sheet") return "Read from the BPML spreadsheet, not from a database";
+  if (s.kind === "sheet") return "Read from the BPML spreadsheet (runs before the hierarchy moved into the corpus)";
   return s.label;
 }
 

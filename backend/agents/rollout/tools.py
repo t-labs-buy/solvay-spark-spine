@@ -1,7 +1,8 @@
 """The Fit-Gap Copilot's window onto its three sources.
 
-Retrieval, the graph and the BPML sheet are InsightLens's (backend/agents/fitgap/tools.py)
-and are reused as they are -- same retrieval log, same holdout masking, same
+Retrieval, the graph and the BPML hierarchy (parsed from the process house
+document in the corpus) are InsightLens's (backend/agents/fitgap/tools.py) and
+are reused as they are -- same retrieval log, same holdout masking, same
 source labelling in the investigation view. What is added here is the part the
 InsightLens has no need for: telling the three sides of the comparison apart.
 

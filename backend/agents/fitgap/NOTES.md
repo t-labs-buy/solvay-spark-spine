@@ -102,7 +102,19 @@ _9096 rows x 50 columns; too wide to render as a table._
 ```
 
 The hierarchy is in the index as a heading and nothing else. `backend/agents/fitgap/bpml.py`
-therefore reads the `.xlsx` directly with openpyxl.
+therefore read the `.xlsx` directly with openpyxl.
+
+**Update:** it no longer does. The hierarchy now comes from the corpus: Signavio's
+`BPML_Process.xlsx` export (the same 1,015 codes; `8.6.3` is only named in its
+sub-processes' Root Paths) is written by `backend/ingestion/bpml_markdown.py` as
+`knowledge_base/BPML_Process_xlsx.md`, one section per process, and `bpml.py`
+joins that document's indexed chunks back together and parses them. Rebuild and
+re-index it with `python -m backend.ingestion.bpml_markdown --index`. The
+knowledge graph reads its hierarchy from the same document
+(`bpml_markdown.hierarchy()`), and `BPML_ProcessesHierarchyExtended.xlsx` has
+been removed. That workbook placed each lettered BPMN code inside one process;
+the export only lists them as activities, often of several processes, so
+~490 of those codes now sit under a different parent than they did.
 
 Parsed: **1,015 processes** — 8 at level 1, 44 at level 2, 217 at level 3, 617
 at level 4, 129 at level 5. Lead-to-Cash is **`4.0`**, with ten level-2

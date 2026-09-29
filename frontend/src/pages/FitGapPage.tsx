@@ -1834,7 +1834,7 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
 
         {blocked && (
           <Alert severity="warning" icon={<TriangleAlert size={18} />} sx={{ mb: 2 }}>
-            {!status?.bpml.available && <div>The BPML sheet could not be read ({status?.bpml.error ?? status?.bpml.sheet}). Scope resolution will not work.</div>}
+            {!status?.bpml.available && <div>The BPML process house could not be read from the corpus ({status?.bpml.error ?? status?.bpml.document}). Scope resolution will not work.</div>}
             {!status?.anthropic_key && <div>No <code>ANTHROPIC_API_KEY</code> is set, so no step can be classified.</div>}
             {status?.error && <div>{status.error}</div>}
           </Alert>

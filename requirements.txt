@@ -12,9 +12,9 @@ cohere
 psycopg[binary]
 pgvector
 anthropic
-# fitgap: reads BPML_ProcessesHierarchyExtended.xlsx directly (its Markdown
-# conversion is a stub) and writes the XLSX export. Pulled in by docling too,
-# listed because fitgap imports it directly.
+# backend/ingestion/bpml_markdown.py reads the BPML process house export, and
+# fitgap writes the XLSX export. Pulled in by docling too, listed because both
+# import it directly.
 openpyxl
 pydantic
 # tracing.py: optional LLM observability. Installed either way; with no

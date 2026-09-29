@@ -803,7 +803,8 @@ def describe_sources(name: str, args: dict, result: dict, session: Session | Non
             ),
         }
     if name == "get_scope":
-        return {"kind": "sheet", "label": f"BPML sheet · {bpml.SHEET.name}"}
+        # The hierarchy is parsed from the process house document in the corpus.
+        return {"kind": "postgres", "label": f"corpus · BPML process house ({bpml.DOCUMENT})"}
     if name == "web_search":
         hosts = sorted({urlparse(r.get("url", "")).hostname or "" for r in result.get("results") or []})
         return {"kind": "web", "categories": ["WEB"],

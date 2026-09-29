@@ -8,7 +8,7 @@ diffing paragraphs, which is the two-document comparison §7 forbids.
 
 So: pass one reads only the attachments and submits a normalised process
 model. Pass two is handed that model as text and gets the corpus, the graph
-and the BPML sheet to compare it against.
+and the BPML hierarchy to compare it against.
 
 Nothing numeric comes out of the model except 0-4 ratings. Every score,
 and each deviation's harmonization potential, is arithmetic over those

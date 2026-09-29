@@ -9,7 +9,7 @@
  *
  *  Each one is grounded in a specific passage of the Solvay SPARK corpus and
  *  built to provoke one named failure. Every BPML scope below was checked
- *  against BPML_ProcessesHierarchyExtended.xlsx, so selecting a question
+ *  against the BPML process hierarchy, so selecting a question
  *  always resolves to a real subtree InsightLens can run a register over.
  */
 

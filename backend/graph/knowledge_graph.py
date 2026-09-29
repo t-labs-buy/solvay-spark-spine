@@ -1,5 +1,5 @@
 """
-knowledge_graph.py — Entity & Relationship Extraction Engine for Docling Studio.
+knowledge_graph.py — Entity & Relationship Extraction Engine for Solvay Spark Spine AI.
 
 Extracts a semantic enterprise knowledge graph from the Markdown of every
 category rag.py knows about -- solvay-spark/pkg/markdown (PKG),
@@ -24,9 +24,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from backend.core.paths import ROOT
+from backend.ingestion import bpml_markdown
 from typing import Any
 
-logger = logging.getLogger("docling_studio.graph")
+logger = logging.getLogger("solvay_spark_spine.graph")
 
 BASE_DIR = ROOT
 SOLVAY_DIR = BASE_DIR / "solvay-spark" / "pkg" / "markdown"
@@ -67,8 +68,9 @@ def _content_signature(path: Path) -> str:
 
     Content rather than size and mtime: `git checkout` and `cp` move mtime
     without changing anything, and a rebuild of this graph is several seconds,
-    so a false positive is not free either. Measured at 0.7 ms for the 2.1 MB
-    workbook, against a cache-hit path that already parses 1.5 MB of JSON."""
+    so a false positive is not free either. Well under a millisecond for the
+    0.8 MB process house document, against a cache-hit path that already
+    parses 1.5 MB of JSON."""
     import hashlib
 
     try:
@@ -81,10 +83,10 @@ def _sources_fingerprint(files: list[tuple[Path, str, str]]) -> str:
     """Identifies everything the graph was built from, so a cache built before
     any of it changed is rebuilt rather than served.
 
-    Every input, not only the Markdown. The BPML workbook is read directly --
-    its own Markdown conversion is a stub saying "9096 rows x 50 columns; too
-    wide to render as a table" -- so it never appears in `files`, and while the
-    fingerprint covered only `files` you could correct the process hierarchy,
+    Every input, and by content. The BPML hierarchy is read from the process
+    house document, which is one of `files` -- but `files` is fingerprinted by
+    size, and correcting a process name can leave the size unchanged. While the
+    hierarchy's source was not covered by content you could correct it,
     rebuild, and be served the graph built from the version you had just
     replaced. Nothing reported an error; the hierarchy was simply the old one.
 
@@ -93,15 +95,15 @@ def _sources_fingerprint(files: list[tuple[Path, str, str]]) -> str:
     import hashlib
 
     parts = sorted(f"{rel}:{cat}:{path.stat().st_size}" for path, rel, cat in files)
-    parts.append(f"bpml:{_content_signature(BPML_XLSX)}")
+    parts.append(f"bpml:{_content_signature(BPML_MD)}")
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()
 
 
 def current_fingerprint(files: list[tuple[Path, str, str]] | None = None) -> str:
     """The fingerprint the corpus graph would be built under right now: every
-    input file, the BPML workbook, and the retrieval index. Chunk ids are the
-    index's row ids, which a re-index renumbers, so a graph whose passage layer
-    points at the old ids counts as out of date too. Compared with the cached
+    input file, the BPML process house document's content, and the retrieval
+    index. Chunk ids are the index's row ids, which a re-index renumbers, so a
+    graph whose passage layer points at the old ids counts as out of date too. Compared with the cached
     graph's stats.sources, it says whether the graph is current."""
     import hashlib
 
@@ -456,88 +458,42 @@ SYSTEM_KIND = {
 }
 STREAM_RE = {sid: re.compile(r"\b" + sid + r"\b", re.I) for sid in STREAMS}
 
-# Authoritative BPML process hierarchy. Its Markdown conversion is a stub
-# ("9096 rows x 50 columns; too wide to render as a table"), so the workbook is
-# read directly rather than through the corpus.
-BPML_XLSX = BASE_DIR / "solvay-spark" / "pkg" / "BPML_ProcessesHierarchyExtended.xlsx"
-_BPML_NUM_RE = re.compile(r"^\s*(\d+(?:\.\d+)*)\s+(.*)$")
-_BPML_CODE_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9]{0,3}-\d{2,3}(?:-\d{2,3})*)\s+(.*)$")
-# Keyed on the workbook's contents, not merely set once. A module-level cache
+# Authoritative BPML process hierarchy: the process house document in the
+# corpus (backend/ingestion/bpml_markdown.py writes it from Signavio's export),
+# which names every numbered process and the lettered BPMN codes inside them.
+BPML_MD = bpml_markdown.TARGET
+# Keyed on the document's contents, not merely set once. A module-level cache
 # that never checks its source is stale for the life of the process: the server
 # runs for days, and `extract_graph(force=True)` rebuilt every node from a
-# hierarchy loaded before the workbook was corrected. force=True could not fix
+# hierarchy loaded before the source was corrected. force=True could not fix
 # it, which is what made it worth finding.
 _bpml_cache: dict[str, Any] | None = None
 _bpml_cache_key: str | None = None
 
 
 def load_bpml_hierarchy() -> dict[str, Any]:
-    """Reads the real parent and name of every BPML code from the source workbook.
+    """The real parent and name of every BPML code, from the process house document.
 
-    The export is flattened: a numbered process row in "Process Name" is followed by
-    the BPMN object rows that live inside it, listed under "Object Name". So an object
-    belongs to the nearest numbered process above it, while a lettered row that is
-    itself a process takes its parent from the last numbered segment of its Root Path.
-    Returns {"parent": {code: parent_code}, "name": {code: label}}.
+    A numbered process sits under the last numbered segment of its path; a
+    lettered code under the process that performs it (see
+    bpml_markdown.hierarchy for how a code listed in several processes is
+    placed). Returns {"parent": {code: parent_code}, "name": {code: label}}.
     """
     global _bpml_cache, _bpml_cache_key
-    key = _content_signature(BPML_XLSX)
+    key = _content_signature(BPML_MD)
     if _bpml_cache is not None and _bpml_cache_key == key:
         return _bpml_cache
 
-    parent: dict[str, str] = {}
-    name: dict[str, str] = {}
+    hierarchy: dict[str, Any] = {"parent": {}, "name": {}}
     try:
-        import openpyxl
-
-        wb = openpyxl.load_workbook(BPML_XLSX, read_only=True, data_only=True)
-        for sheet in wb.worksheets:
-            current: str | None = None
-            for row in sheet.iter_rows(values_only=True):
-                proc = row[2] if len(row) > 2 and isinstance(row[2], str) else None
-                obj = row[25] if len(row) > 25 and isinstance(row[25], str) else None
-                path = row[48] if len(row) > 48 and isinstance(row[48], str) else ""
-
-                # Ancestors named in the Root Path, e.g. "... > 4.5 Manage Sales Orders".
-                numeric_ancestors = []
-                for segment in path.split(">"):
-                    m = _BPML_NUM_RE.match(segment.strip())
-                    if m:
-                        numeric_ancestors.append(m.group(1))
-                        name.setdefault(m.group(1), m.group(2).strip())
-
-                if proc:
-                    m_num = _BPML_NUM_RE.match(proc)
-                    if m_num:
-                        current = m_num.group(1)
-                        name.setdefault(current, m_num.group(2).strip())
-                        if numeric_ancestors:
-                            parent.setdefault(current, numeric_ancestors[-1])
-                        continue
-                    m_code = _BPML_CODE_RE.match(proc)
-                    if m_code:
-                        code = m_code.group(1)
-                        name.setdefault(code, m_code.group(2).strip())
-                        if numeric_ancestors:
-                            parent.setdefault(code, numeric_ancestors[-1])
-                        continue
-
-                if obj:
-                    m_code = _BPML_CODE_RE.match(obj)
-                    if m_code:
-                        code = m_code.group(1)
-                        name.setdefault(code, m_code.group(2).strip())
-                        if current:
-                            parent.setdefault(code, current)
-                        elif numeric_ancestors:
-                            parent.setdefault(code, numeric_ancestors[-1])
-        wb.close()
+        hierarchy = bpml_markdown.hierarchy(BPML_MD.read_text(encoding="utf-8"))
     except Exception as e:  # pragma: no cover - the graph still builds without it
-        logger.warning("Could not read BPML hierarchy from %s: %s", BPML_XLSX, e)
+        logger.warning("Could not read the BPML hierarchy from %s: %s", BPML_MD, e)
 
-    _bpml_cache = {"parent": parent, "name": name}
+    _bpml_cache = hierarchy
     _bpml_cache_key = key
-    logger.info("BPML hierarchy: %d codes, %d with a parent", len(name), len(parent))
+    logger.info("BPML hierarchy: %d codes, %d with a parent",
+                len(hierarchy["name"]), len(hierarchy["parent"]))
     return _bpml_cache
 
 
@@ -680,7 +636,7 @@ def extract_graph(
 
     # 3. Markdown files, gathered per category by collect_files above.
 
-    # Real process hierarchy, read from the BPML workbook rather than guessed.
+    # Real process hierarchy, read from the process house document rather than guessed.
     bpml = load_bpml_hierarchy()
     bpml_parent: dict[str, str] = bpml["parent"]
     bpml_name: dict[str, str] = bpml["name"]
@@ -688,7 +644,7 @@ def extract_graph(
     def link_ancestors(code: str) -> None:
         """Chain a process up to its value chain through the BPML hierarchy.
 
-        Codes absent from the workbook are left without a parent rather than
+        Codes absent from the hierarchy are left without a parent rather than
         given a made-up one; the `walked` set stops a cycle in the source data
         from looping forever.
         """
@@ -709,13 +665,13 @@ def extract_graph(
                 in_bpml=True,
             )
             add_edge(f"proc:{child_code}", parent_id, "subprocess_of", "Subprocess of",
-                     method="bpml_workbook")
+                     method="bpml_hierarchy")
             child_code = parent_code
 
     # 3b. Lead-to-Cash L4 steps, from the process register.
     #
     # The register is authoritative for the lowest level of the taxonomy the way
-    # the BPML workbook is for the levels above it, so the steps are read from
+    # the BPML hierarchy is for the levels above it, so the steps are read from
     # it directly rather than waiting for a document to happen to cite one. Each
     # carries its Jira id as the `jira_key` property -- the register's own
     # "Lowest Level Key" -- instead of becoming a spec node of its own.
@@ -857,11 +813,11 @@ def extract_graph(
             add_edge(doc_id, proc_id, "specifies_process", "Specifies Process",
                      **evidence(proc_id, code_counts[full_code], "code_match"))
 
-            # Hierarchy: walk the real parent chain from the BPML workbook. Splitting
+            # Hierarchy: walk the real parent chain from the BPML hierarchy. Splitting
             # the code string used to invent parents ("O-030-010" -> "O-030") that do
             # not exist in the hierarchy at all; the true parent of O-030-010 is the
             # numbered process 4.5.2.4 Validate/Perform Order Readiness. Codes absent
-            # from the workbook are left without a parent rather than given a made-up one.
+            # from the hierarchy are left without a parent rather than given a made-up one.
             link_ancestors(full_code)
 
         # Extract Tickets / Functional Specifications. The filename is included

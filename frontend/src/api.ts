@@ -852,7 +852,7 @@ export interface FitGapSynthesis {
 }
 
 export interface FitGapStatus {
-  bpml: { sheet: string; available: boolean; error: string | null; processes: number; by_level: Record<string, number>; roots: BpmlProcess[] };
+  bpml: { document: string; source: string | null; available: boolean; error: string | null; processes: number; by_level: Record<string, number>; roots: BpmlProcess[] };
   model: string;
   prompt_hash: string;
   max_tool_calls: number;
@@ -1205,7 +1205,8 @@ export interface EvidenceAnswer {
 
 /** Which store a tool call read. Retrieval hits the corpus table in Postgres,
  *  the knowledge graph is held in memory and built from every category's
- *  Markdown, and the BPML hierarchy comes from a spreadsheet. An attachment is
+ *  Markdown, and the BPML hierarchy is parsed from the process house document
+ *  in the corpus ("sheet" is what runs logged while it came from a workbook). An attachment is
  *  somewhere else again: a database of its own. */
 export interface EvidenceToolSources {
   kind: "postgres" | "graph" | "sheet" | "other";

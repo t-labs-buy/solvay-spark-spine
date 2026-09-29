@@ -15,7 +15,7 @@ fact; what it can do is match wrongly, miss things, or drift out of date.
                 read from the text retrieval serves rather than the graph's
                 own bookkeeping
   Completeness  indexed documents that are in the graph; process codes that
-                resolve against the BPML workbook; workbook parent links that
+                resolve against the BPML hierarchy; hierarchy parent links that
                 are present as edges
   Consistency   edges between the right kinds of node; none dangling or
                 duplicated; no loop in the process hierarchy; no process with
@@ -76,12 +76,12 @@ SCORES: dict[str, Spec] = {
         good="min", target=1.0, watch=0.95),
     "graph_codes_resolved": Spec(
         COMPLETENESS, "Process codes found in BPML",
-        "Share of the process codes documents cite that exist in the BPML workbook. The rest "
+        "Share of the process codes documents cite that exist in the BPML hierarchy. The rest "
         "are kept, marked as not in BPML, and have no place in the hierarchy.",
         good="min", target=0.95, watch=0.85),
     "graph_hierarchy_complete": Spec(
         COMPLETENESS, "Hierarchy links present",
-        "Of the processes whose parent the BPML workbook names, the share that have that "
+        "Of the processes whose parent the BPML hierarchy names, the share that have that "
         "parent link in the graph.", good="min", target=1.0),
     # --- consistency
     "graph_schema_conformance": Spec(
@@ -122,7 +122,7 @@ SCORES: dict[str, Spec] = {
     # --- freshness
     "graph_current": Spec(
         FRESHNESS, "Graph built from the current corpus",
-        "The graph's recorded inputs match the documents, BPML workbook and retrieval index as "
+        "The graph's recorded inputs match the documents, BPML hierarchy and retrieval index as "
         "they are now.", boolean=True, good="min", target=1),
     "graph_neo4j_current": Spec(
         FRESHNESS, "Cypher copy is current",
@@ -254,7 +254,7 @@ def _completeness(nodes: dict[str, dict], edges: list[dict]) -> list[Score]:
     procs = [n for n in nodes.values() if n["type"] == "process"]
     resolved = sum(1 for n in procs if n.get("in_bpml"))
     out += _rate("graph_codes_resolved", resolved, len(procs),
-                 f"{resolved} of {len(procs)} process codes are in the BPML workbook; "
+                 f"{resolved} of {len(procs)} process codes are in the BPML hierarchy; "
                  f"{len(procs) - resolved} are not")
 
     parents = kg.load_bpml_hierarchy().get("parent") or {}
@@ -263,7 +263,7 @@ def _completeness(nodes: dict[str, dict], edges: list[dict]) -> list[Score]:
                 if parents.get(c)]
     present = sum(1 for pair in expected if pair in have)
     out += _rate("graph_hierarchy_complete", present, len(expected),
-                 f"{present} of {len(expected)} parent links the workbook names are in the graph")
+                 f"{present} of {len(expected)} parent links the BPML hierarchy names are in the graph")
     return out
 
 

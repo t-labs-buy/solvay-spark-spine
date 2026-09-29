@@ -75,7 +75,7 @@ QUESTIONS: list[dict[str, Any]] = [
         "Show the process hierarchy from 4.10.2.2 up to its value chain.",
         "What are the child steps of 4.10.2 Process Returns?",
         "Which process steps under Lead to Cash are specified by the most documents?",
-        "Which process codes do documents cite that are not in the BPML workbook?",
+        "Which process codes do documents cite that are not in the BPML hierarchy?",
         "Which documents specify process O-020-090?",
     ]},
     {"group": "Streams and categories", "questions": [

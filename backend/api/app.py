@@ -1798,7 +1798,7 @@ def fitgap_page() -> HTMLResponse:
 
 @app.get("/api/fitgap/status")
 def fitgap_status() -> dict:
-    """What InsightLens can see right now: the BPML sheet, the index, the
+    """What InsightLens can see right now: the BPML hierarchy, the index, the
     graph and the model. The page shows this before the first run so a missing
     prerequisite is visible rather than a failed run."""
     from backend.agents.fitgap import agent as fg_agent, bpml as fg_bpml, store as fg_store
@@ -2162,7 +2162,7 @@ def fitgap_get_run(run_id: str) -> dict:
 @app.get("/api/fitgap/runs/{run_id}/export")
 def fitgap_export(run_id: str, format: str = "md"):
     """The register as a document. Markdown and JSON always; XLSX when
-    openpyxl is installed, which it is because bpml.py needs it."""
+    openpyxl is installed, which it is because the converter needs it."""
     from backend.agents.fitgap import store as fg_store, synthesis as fg_synth
 
     if format not in ("md", "json", "xlsx"):
@@ -2331,8 +2331,8 @@ def rollout_page() -> HTMLResponse:
 
 @app.get("/api/rollout/status")
 def rollout_status() -> dict:
-    """What the Fit-Gap Copilot can see before the first run: the BPML sheet it
-    reads the Global Template from, the corpus categories, the model, and what
+    """What the Fit-Gap Copilot can see before the first run: the BPML hierarchy
+    it reads the Global Template from (the process house document in the corpus), the corpus categories, the model, and what
     an analyst may attach."""
     from backend.agents.rollout import agent as ro_agent, pdf as ro_pdf, store as ro_store
     from backend.agents.rollout.schemas import (DEVIATION_TYPES, DISPOSITIONS, DIMENSIONS, SUBJECTS,

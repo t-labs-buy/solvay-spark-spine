@@ -1,53 +1,40 @@
-"""The BPML process hierarchy: InsightLens's scope backbone (handover §2).
+"""The BPML process hierarchy: the scope backbone of InsightLens and the
+Fit-Gap Copilot (handover §2).
 
-`BPML_ProcessesHierarchyExtended.xlsx` is read directly rather than through
-the corpus, because its Markdown conversion is a stub -- 9,096 rows x 50
-columns is "too wide to render as a table", so the hierarchy exists in the
-index as a heading and nothing else. See backend/agents/fitgap/NOTES.md.
+It is read from the corpus, not from a workbook: the BPML process house
+document (`knowledge_base/BPML_Process_xlsx.md`, written by
+backend/ingestion/bpml_markdown.py from Signavio's `BPML_Process.xlsx`) is
+indexed like any other document, one section per process, and its chunks are
+joined back together and parsed here. So the agents scope with exactly what
+retrieval and the graph can see, and a process added to the house reaches them
+by re-indexing that one document.
+
+This used to parse `BPML_ProcessesHierarchyExtended.xlsx` directly, because
+that workbook's own Markdown conversion was a stub (9,096 rows x 50 columns is
+"too wide to render as a table"). The workbook has since been removed. See
+backend/agents/fitgap/NOTES.md.
 """
 
 from __future__ import annotations
 
 import re
 import threading
+import time
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from backend.core.paths import ROOT
+from backend.ingestion.bpml_markdown import level_of, parent_of, parse, sort_key
 
-BASE_DIR = ROOT
-SHEET = BASE_DIR / "solvay-spark" / "pkg" / "BPML_ProcessesHierarchyExtended.xlsx"
-
-# Rows start under a four-line banner; the header row names the columns.
-HEADER_ROW = 5
-NAME_COL = "Process Name (1033)"
-DESC_COL = "Description (1033)"
-
-# "4.5.1.4  Create Sales Order" -> code, name. A level-1 process is written
-# "4.0"; every deeper level drops the trailing zero and adds a segment.
-_LINE = re.compile(r"^(\d+(?:\.\d+)+)\s+(.*)$")
+# The indexed document the hierarchy is read from, by file name.
+DOCUMENT = "BPML_Process_xlsx.md"
+# How long a loaded hierarchy is trusted before the document's fingerprint is
+# checked again. get() is called per step and per tool call; a query each time
+# would be wasted, and a re-index is picked up within a minute.
+RECHECK_SECONDS = 60
 
 STREAM_OF_ROOT = {
     "1": "H2R", "2": "A2D", "4": "L2C", "5": "F2S",
     "6": "P2P", "7": "P2P", "8": "I2D", "9": "R2R",
 }
-
-
-def level_of(code: str) -> int:
-    """4.0 -> 1, 4.5 -> 2, 4.5.1 -> 3, 4.5.1.4 -> 4."""
-    parts = code.split(".")
-    if len(parts) == 2 and parts[1] == "0":
-        return 1
-    return len(parts)
-
-
-def parent_of(code: str) -> str | None:
-    parts = code.split(".")
-    if level_of(code) == 1:
-        return None
-    if len(parts) == 2:           # 4.5 -> 4.0
-        return f"{parts[0]}.0"
-    return ".".join(parts[:-1])   # 4.5.1.4 -> 4.5.1
 
 
 @dataclass
@@ -75,53 +62,71 @@ class Process:
 
 _lock = threading.Lock()
 _cache: dict[str, Process] | None = None
+_cache_key: str | None = None
+_checked_at = 0.0
 _load_error: str | None = None
+_source: str | None = None
+
+
+def _document() -> tuple[int, str, str]:
+    """(id, source, fingerprint) of the indexed process house document. If a
+    copy of the file is indexed from another folder too, the knowledge_base/
+    one is the one this module is about."""
+    from backend.rag import rag
+
+    docs = rag.documents_named(DOCUMENT)
+    if not docs:
+        raise LookupError(f"{DOCUMENT} is not indexed; run "
+                          "`python -m backend.ingestion.bpml_markdown --index`")
+    doc = next((d for d in docs if "/knowledge_base/" in d["source"]), docs[0])
+    row = rag.connection().execute(
+        "SELECT fingerprint FROM rag_documents WHERE id = %s", (doc["id"],)).fetchone()
+    return doc["id"], doc["source"], row[0] if row else ""
+
+
+def _read(doc_id: int) -> dict[str, Process]:
+    """The document's chunks, in order, joined back into its text and parsed.
+    Later duplicate codes are dropped, as the document itself already does."""
+    from backend.rag import rag
+
+    rows = rag.connection().execute(
+        "SELECT content FROM rag_chunks WHERE document_id = %s ORDER BY chunk_index",
+        (doc_id,)).fetchall()
+    procs: dict[str, Process] = {}
+    for rec in parse("\n\n".join(r[0] for r in rows)):
+        code = rec["code"]
+        if code in procs:
+            continue
+        procs[code] = Process(
+            code=code, name=rec["name"], level=level_of(code), parent=parent_of(code),
+            description=rec.get("description", "")[:1500],
+            process_type=rec.get("process_type", ""), status=rec.get("status", ""),
+        )
+    return procs
 
 
 def load(force: bool = False) -> dict[str, Process]:
-    """Parse the sheet once per process. Later duplicate codes are dropped:
-    the sheet carries a second "2.0 A2D" row that would otherwise overwrite
-    "2.0 Acquire to Dispose"."""
-    global _cache, _load_error
+    """The hierarchy, parsed once per version of the indexed document."""
+    global _cache, _cache_key, _checked_at, _load_error, _source
     with _lock:
-        if _cache is not None and not force:
+        if _cache is not None and not force and time.monotonic() - _checked_at < RECHECK_SECONDS:
             return _cache
         procs: dict[str, Process] = {}
         try:
-            import openpyxl
-
-            wb = openpyxl.load_workbook(SHEET, read_only=True, data_only=True)
-            ws = wb[wb.sheetnames[0]]
-            rows = ws.iter_rows(values_only=True)
-            header: list[str] = []
-            for n, row in enumerate(rows, 1):
-                if n == HEADER_ROW:
-                    header = [str(c).strip() if c else "" for c in row]
-                    break
-            name_i = header.index(NAME_COL) if NAME_COL in header else 2
-            desc_i = header.index(DESC_COL) if DESC_COL in header else 4
-            type_i = header.index("Process Type") if "Process Type" in header else 15
-            stat_i = header.index("Status") if "Status" in header else 17
-
-            def cell(row, i):
-                return str(row[i]).strip() if i < len(row) and row[i] is not None else ""
-
-            for row in rows:
-                m = _LINE.match(cell(row, name_i))
-                if not m:
-                    continue
-                code, name = m.group(1), m.group(2).strip()
-                if code in procs:
-                    continue
-                procs[code] = Process(
-                    code=code, name=name, level=level_of(code), parent=parent_of(code),
-                    description=cell(row, desc_i)[:1500],
-                    process_type=cell(row, type_i), status=cell(row, stat_i),
-                )
-            wb.close()
-            _load_error = None
-        except Exception as exc:  # a missing sheet must not take the API down
+            doc_id, source, key = _document()
+            _checked_at = time.monotonic()
+            if _cache is not None and not force and key == _cache_key:
+                return _cache
+            procs = _read(doc_id)
+            if not procs:
+                raise ValueError(f"{DOCUMENT} is indexed but holds no numbered BPML process")
+            _cache_key, _source, _load_error = key, source, None
+        except Exception as exc:  # a missing document must not take the API down
             _load_error = f"{type(exc).__name__}: {exc}"
+            _checked_at = time.monotonic()
+            if _cache is not None:
+                # Keep serving the last good hierarchy through a database blip.
+                return _cache
 
         for code, p in procs.items():
             if p.parent and p.parent in procs:
@@ -136,11 +141,6 @@ def load(force: bool = False) -> dict[str, Process]:
 def load_error() -> str | None:
     load()
     return _load_error
-
-
-def sort_key(code: str) -> tuple:
-    """Numeric sort, so 4.10 follows 4.9 instead of 4.1."""
-    return tuple(int(x) if x.isdigit() else 0 for x in code.split("."))
 
 
 def get(code: str) -> Process | None:
@@ -245,8 +245,9 @@ def stats() -> dict:
     for p in procs.values():
         by_level[p.level] = by_level.get(p.level, 0) + 1
     return {
-        "sheet": str(SHEET.relative_to(BASE_DIR)),
-        "available": SHEET.is_file() and not _load_error,
+        "document": DOCUMENT,
+        "source": _source,
+        "available": bool(procs) and not _load_error,
         "error": _load_error,
         "processes": len(procs),
         "by_level": dict(sorted(by_level.items())),

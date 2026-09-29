@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "3069a9c3-9ae5-4400-a5e8-7dca42433be4",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/candidate.json",
+  "output": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/spark-component-architecture.html",
+  "specification": {
+    "sha256": "9ebf83803b56c3a92fc01cc7cba7469fc6e3545c27d9faaac28262baf9a488f0",
+    "bytes": 17991
+  },
+  "artifact": {
+    "sha256": "73bd10896a6653033e030870b3a26f96bbecbca7f84ba62e4f2a47fb262f86c2",
+    "bytes": 817189
+  }
+}

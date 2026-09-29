@@ -11,10 +11,11 @@ stack on a Linux server. For running on a Mac, see [running-the-app.md](running-
 | Postgres 18 + pgvector | `pgvector/pgvector:pg18` | data restored from a dump of the local database |
 | Ollama + `bge-m3` | `ollama/ollama` | the `ollama-pull` service fetches the model once |
 | Neo4j | `neo4j:5-community` | the app loads the graph into it at start |
+| Hindsight (Evidence Agent memory) | `reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight`, built from `Dockerfile.hindsight` | its own image: its dependencies conflict with Docling's; stores memories in the `hindsight` database |
 | SPARK corpus `solvay-spark/` | copied to the server, mounted read-only | not in the image: it is client data |
+| `knowledge_base/` | copied to the server, mounted writable | the BPML hierarchy (`BPML_Process_xlsx.md`) and documents added from the UI; without it the graph has a fraction of its processes |
 
 `compose.yml` wires them together. Not included:
-- **Hindsight** (Evidence Agent memory). It needs its own environment, so memory is off (`HINDSIGHT_URL=""`). The agent works without it.
 - **The local MLX vision model.** It runs only on Apple silicon. The Claude and OpenAI vision providers and Tesseract still work.
 
 ## 1. Build and push the image (on your machine)
@@ -22,6 +23,7 @@ stack on a Linux server. For running on a Mac, see [running-the-app.md](running-
 ```bash
 docker login reg.ivolve.cloud          # GitLab token with write_registry
 ./scripts/docker-publish.sh            # builds linux/amd64, pushes :<commit> and :latest
+./scripts/docker-publish.sh hindsight  # the memory server's image; only when Dockerfile.hindsight changes
 ```
 
 The image is about 3–4 GB. On an Apple-silicon Mac the amd64 build runs under
@@ -43,6 +45,7 @@ mkdir -p ~/solvay-spark-spine && cd ~/solvay-spark-spine
 # from your machine:
 #   scp compose.yml .env.example server:~/solvay-spark-spine/
 #   rsync -a solvay-spark/ server:~/solvay-spark-spine/solvay-spark/
+#   rsync -a knowledge_base/ server:~/solvay-spark-spine/knowledge_base/
 #   scp backup/spark-<date>.dump server:~/solvay-spark-spine/
 cp .env.example .env                   # fill it in; change every sign-in value
 docker login reg.ivolve.cloud          # a token with read_registry is enough here
@@ -55,7 +58,7 @@ docker compose up -d postgres ollama ollama-pull neo4j
 The dump holds the Ask RAG index (the `bge-m3` embeddings) and run history. Restore it before the app first starts:
 
 ```bash
-docker compose exec -T postgres pg_restore -U spark -d docling --no-owner --no-acl < spark-<date>.dump
+docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl < spark-<date>.dump
 ```
 
 `pg_restore` may warn that the `vector` extension already exists. That is harmless.
@@ -63,7 +66,7 @@ docker compose exec -T postgres pg_restore -U spark -d docling --no-owner --no-a
 ## 5. Start the app
 
 ```bash
-docker compose up -d app
+docker compose up -d hindsight-db hindsight app
 docker compose logs -f app             # wait for "Application startup complete"
 curl -s localhost:8000/api/health      # soffice and pdftoppm should both be set
 ```
@@ -78,6 +81,18 @@ docker compose pull app && docker compose up -d app    # on the server
 ```
 
 To pin a version, set `TAG=<commit>` in the server's `.env`.
+
+When the corpus or `knowledge_base/` changes on your machine, copy it again
+with the `rsync` lines from step 3 and rebuild the graph:
+
+```bash
+curl -s -X POST localhost:8000/api/graph/rebuild >/dev/null    # on the server (use your APP_PORT)
+```
+
+The graph's counts on the Knowledge Graph page should then match your
+machine's. If they do not, compare the two folders first: the graph is built
+from `solvay-spark/*/markdown`, `knowledge_base/` and the database's index,
+and a file missing from any of them changes the counts.
 
 ## Security
 
@@ -96,5 +111,4 @@ To pin a version, set `TAG=<commit>` in the server's `.env`.
 | `ollama` | the `bge-m3` model |
 | `neo4j-data` | the Neo4j copy of the graph |
 | `workdir` | uploads and renders (`.workdir/`, about 20 MB per large deck, never cleaned automatically) |
-| `knowledge-base` | Markdown added from the UI |
 | `graph-data` | `data/`. It is seeded from the image on first start, and graph rebuilds rewrite `knowledge_graph.json`. After an image update that changes `data/`, remove this volume to take the new files. |

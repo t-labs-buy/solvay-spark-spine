@@ -1,0 +1,3767 @@
+<!doctype html>
+<!--
+  data-nav on <html> picks the navigation behaviour:
+    "tabbed" — one section visible at a time, sidebar + prev/next pager
+    "scroll" — every section visible, sidebar is a table of contents
+  Change the attribute value on this line only. Do not find-and-replace the
+  value across the file; the CSS keys off the .js-tabbed class instead of the
+  attribute precisely so that this line stays the single source of truth.
+-->
+<html lang="en" data-nav="tabbed">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deploying Solvay Spark Spine AI — the ivolve cloud server</title>
+    <!-- One sentence: shown under the link when the page is shared in chat or
+         email, and in search results. -->
+    <meta name="description" content="Step-by-step guide for new team members: build the container image, push it to reg.ivolve.cloud, and run Solvay Spark Spine AI on the AWS EC2 server — every command explained, with troubleshooting." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Noto+Sans+Elbasan&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Runs before first paint so a saved theme and the tabbed layout are
+      // applied without a flash of the wrong one.
+      (function () {
+        var r = document.documentElement;
+        try {
+          var t = localStorage.getItem("doc-theme");
+          if (t === "dark" || t === "light" || t === "paper")
+            r.setAttribute("data-theme", t);
+        } catch (e) {
+          /* private browsing — the toggle still works for this visit */
+        }
+        // The sidebar's links are generated from the sections at load, so the
+        // stylesheet needs to know whether that is going to happen at all.
+        r.classList.add("js");
+        // Sections stay visible by default, so the document still reads fine
+        // with JavaScript disabled; tabbing is opt-in via this class.
+        if (r.getAttribute("data-nav") !== "scroll")
+          r.classList.add("js-tabbed");
+      })();
+    </script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :root {
+        /* Layout. --measure is the prose column — about 68 characters of
+           IBM Plex Mono at the body size, which is the line length long-form
+           reading wants. Widening it is a one-token change; everything else
+           below derives from it. It is deliberately NOT in ch: a custom
+           property in ch resolves against each element's own font size, so
+           the masthead would compute a different page width than the layout
+           and stop lining up with it. */
+        /* Retained as a reference value only — nothing is capped by it. */
+        --measure: 43.5rem;
+        --card-pad: 2.75rem;
+        /* The sidenote gutter is zero until the viewport can spare the room;
+           the min-width block further down turns it on. */
+        --sidenote-w: 0rem;
+        --sidenote-gap: 0rem;
+
+        /* Tells the browser which native widgets to draw — scrollbars, the
+           capture textarea, form controls. Set in every theme block. */
+        color-scheme: light;
+        --bg: #f6f8f8;
+        --card: #ffffff;
+        --ink: #1c2529;
+        --muted: #56676d;
+        --accent: #0e6e68;
+        --accent-soft: #e2efed;
+        /* Disclosure. Indigo, deliberately not the teal accent, so a
+           collapsible block is never mistaken for a callout. */
+        --disclose-bg: #eceafb;
+        --disclose-ink: #4f46b8;
+        --win-bg: #e8f3ea;
+        --win-border: #2e7d4f;
+        --warn-bg: #faf3e0;
+        --warn-border: #9a6a00;
+        --why-bg: #edf2f4;
+        --border: #d8e0e0;
+        --code-bg: #eef2f2;
+        --code-ink: #17332f;
+        /* Syntax tokens: Catppuccin Latte, darkened where the official hue
+           is too light to hold contrast on --code-bg. */
+        --tok-plain: #17332f;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+      /* Dark mode: Catppuccin Frappé — https://catppuccin.com/palette/ */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #303446; /* Base */
+          --card: #414559; /* Surface 0 */
+          --ink: #c6d0f5; /* Text */
+          --muted: #a5adce; /* Subtext 0 */
+          --accent: #81c8be; /* Teal */
+          --accent-soft: #51576d; /* Surface 1 */
+          --disclose-bg: #454063;
+          --disclose-ink: #babbf1; /* Lavender */
+          --win-bg: #292c3c; /* Mantle */
+          --win-border: #a6d189; /* Green */
+          --warn-bg: #292c3c; /* Mantle */
+          --warn-border: #e5c890; /* Yellow */
+          --why-bg: #292c3c; /* Mantle */
+          --border: #51576d; /* Surface 1 */
+          --code-bg: #292c3c; /* Mantle */
+          --code-ink: #99d1db; /* Sky */
+          /* Syntax tokens: Catppuccin Frappé */
+          --tok-plain: #c6d0f5; /* Text */
+          --tok-com: #838ba7; /* Overlay 1 */
+          --tok-str: #a6d189; /* Green */
+          --tok-kw: #ca9ee6; /* Mauve */
+          --tok-num: #ef9f76; /* Peach */
+          --tok-fn: #8caaee; /* Blue */
+          --tok-typ: #e5c890; /* Yellow */
+          --tok-op: #81c8be; /* Teal */
+          --tok-var: #e78284; /* Red */
+        }
+      }
+      /* Manual toggle overrides — must win over the OS preference in both directions */
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #303446; /* Base */
+        --card: #414559; /* Surface 0 */
+        --ink: #c6d0f5; /* Text */
+        --muted: #a5adce; /* Subtext 0 */
+        --accent: #81c8be; /* Teal */
+        --accent-soft: #51576d; /* Surface 1 */
+        --disclose-bg: #454063;
+        --disclose-ink: #babbf1; /* Lavender */
+        --win-bg: #292c3c; /* Mantle */
+        --win-border: #a6d189; /* Green */
+        --warn-bg: #292c3c; /* Mantle */
+        --warn-border: #e5c890; /* Yellow */
+        --why-bg: #292c3c; /* Mantle */
+        --border: #51576d; /* Surface 1 */
+        --code-bg: #292c3c; /* Mantle */
+        --code-ink: #99d1db; /* Sky */
+        /* Syntax tokens: Catppuccin Frappé */
+        --tok-plain: #c6d0f5; /* Text */
+        --tok-com: #838ba7; /* Overlay 1 */
+        --tok-str: #a6d189; /* Green */
+        --tok-kw: #ca9ee6; /* Mauve */
+        --tok-num: #ef9f76; /* Peach */
+        --tok-fn: #8caaee; /* Blue */
+        --tok-typ: #e5c890; /* Yellow */
+        --tok-op: #81c8be; /* Teal */
+        --tok-var: #e78284; /* Red */
+      }
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f8f8;
+        --card: #ffffff;
+        --ink: #1c2529;
+        --muted: #56676d;
+        --accent: #0e6e68;
+        --accent-soft: #e2efed;
+        --disclose-bg: #eceafb;
+        --disclose-ink: #4f46b8;
+        --win-bg: #e8f3ea;
+        --win-border: #2e7d4f;
+        --warn-bg: #faf3e0;
+        --warn-border: #9a6a00;
+        --why-bg: #edf2f4;
+        --border: #d8e0e0;
+        --code-bg: #eef2f2;
+        --code-ink: #17332f;
+        /* Syntax tokens: Catppuccin Latte */
+        --tok-plain: #17332f;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+      /* Paper: a warm, low-glare third theme for long reading sessions. The OS
+         never selects it — only the toggle, which cycles light → paper → dark.
+         The greys are warmed rather than replaced, so every component that is
+         tuned for contrast in the other two stays tuned here. */
+      :root[data-theme="paper"] {
+        color-scheme: light;
+        --bg: #f4f0e8;
+        --card: #fdfbf7;
+        --ink: #34312b;
+        --muted: #6a6358;
+        --accent: #0c635d;
+        --accent-soft: #e3ece8;
+        --disclose-bg: #ece7f5;
+        --disclose-ink: #4a41ad;
+        --win-bg: #ebf1e5;
+        --win-border: #44712f;
+        --warn-bg: #f8f0de;
+        --warn-border: #8a5c00;
+        --why-bg: #f6f2ea;
+        --border: #e3dccf;
+        --code-bg: #f6f1e7;
+        --code-ink: #34312b;
+        /* Syntax tokens: Catppuccin Latte, which sits on warm paper unchanged. */
+        --tok-plain: #34312b;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+
+      /* Print: paper is white whatever theme is on screen, so the ink has to
+         be the light palette too — otherwise a reader in dark mode prints
+         pale text on white. A sixth copy of the light tokens, and the same
+         "change one, change all" rule applies; check.py compares them. */
+      @media print {
+        :root,
+        :root[data-theme] {
+          color-scheme: light;
+          --bg: #f6f8f8;
+          --card: #ffffff;
+          --ink: #1c2529;
+          --muted: #56676d;
+          --accent: #0e6e68;
+          --accent-soft: #e2efed;
+          --disclose-bg: #eceafb;
+          --disclose-ink: #4f46b8;
+          --win-bg: #e8f3ea;
+          --win-border: #2e7d4f;
+          --warn-bg: #faf3e0;
+          --warn-border: #9a6a00;
+          --why-bg: #edf2f4;
+          --border: #d8e0e0;
+          --code-bg: #eef2f2;
+          --code-ink: #17332f;
+          /* Syntax tokens: Catppuccin Latte */
+          --tok-plain: #17332f;
+          --tok-com: #7c7f93; /* Overlay 2 */
+          --tok-str: #40a02b; /* Green */
+          --tok-kw: #8839ef; /* Mauve */
+          --tok-num: #d9640b; /* Peach */
+          --tok-fn: #1e66f5; /* Blue */
+          --tok-typ: #a8710d; /* Yellow */
+          --tok-op: #179299; /* Teal */
+          --tok-var: #d20f39; /* Red */
+        }
+      }
+
+      /* Sidenotes need a gutter wide enough that it does not come out of the
+         prose. Below this width --sidenote-w stays 0, the section's right
+         padding collapses back to --card-pad, and .sidenote renders inline. */
+      /* :has() keeps the gutter out of documents that never use a sidenote —
+         otherwise every section pays 14rem of right padding for a feature the
+         page does not use. Where :has() is unsupported the gutter simply never
+         opens and sidenotes render inline, which is the same graceful fallback
+         used below 1440px. */
+      @media (min-width: 1440px) {
+        :root:has(.sidenote) {
+          --sidenote-w: 14rem;
+          --sidenote-gap: 1.75rem;
+        }
+      }
+
+      /* Reading progress. In scroll mode the rail tracks scroll depth; in
+         tabbed mode only one section is on screen at a time, so it tracks
+         position through the section sequence instead. */
+      .progress-rail {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        z-index: 20;
+        background: transparent;
+        pointer-events: none;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .progress-fill {
+          transition: width 0.12s linear;
+        }
+      }
+
+      .theme-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: var(--card);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.35rem 0.85rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .theme-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .theme-toggle:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      @media print {
+        .theme-toggle {
+          display: none;
+        }
+      }
+
+      figure.shot {
+        margin: 1.2rem 0;
+      }
+      figure.shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      figure.shot figcaption {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-top: 0.45rem;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 17px;
+        line-height: 1.65;
+        margin: 0;
+      }
+      main {
+        margin: 0;
+        padding: 2.5rem clamp(1rem, 3vw, 3rem) 6rem;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      .label,
+      nav,
+      .phase-tag {
+        font-family: "IBM Plex Mono", monospace;
+      }
+      h1 {
+        font-size: 2.1rem;
+        line-height: 1.15;
+        letter-spacing: -0.015em;
+        text-wrap: balance;
+        margin: 0.5rem 0 0.75rem;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 0 0 1rem;
+        letter-spacing: -0.01em;
+        text-wrap: balance;
+      }
+      h3 {
+        font-size: 1.08rem;
+        margin: 2rem 0 0.5rem;
+      }
+      h4 {
+        font-size: 0.98rem;
+        margin: 1.5rem 0 0.4rem;
+      }
+      p {
+        margin: 0 0 1rem;
+      }
+      a {
+        color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+      }
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+      /* Deep-link anchors, generated by the script on every section h2 and
+         h3. Hidden until the heading is hovered or the link is focused, so
+         they never compete with the title. */
+      .heading-anchor {
+        margin-left: 0.45em;
+        color: var(--muted);
+        font-weight: 400;
+        text-decoration: none;
+        opacity: 0;
+      }
+      h2:hover > .heading-anchor,
+      h3:hover > .heading-anchor,
+      .heading-anchor:focus-visible {
+        opacity: 1;
+      }
+      .heading-anchor:hover {
+        color: var(--accent);
+      }
+      @media (hover: none) {
+        .heading-anchor {
+          opacity: 0.5;
+        }
+      }
+      @media print {
+        .heading-anchor {
+          display: none;
+        }
+      }
+      h3[id] {
+        scroll-margin-top: 1.25rem;
+      }
+
+      .eyebrow {
+        font-family: "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.72rem;
+        color: var(--accent);
+        font-weight: 600;
+        margin: 0;
+      }
+      .lede {
+        font-size: 1.12rem;
+        color: var(--muted);
+        margin-bottom: 0;
+        text-wrap: balance;
+      }
+
+      .meta-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.75rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 0.65rem 0;
+        margin: 1.75rem 0 2.5rem;
+      }
+      .meta-strip strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .layout {
+        display: flex;
+        gap: 1.75rem;
+        align-items: flex-start;
+      }
+      /* Nothing in this system is width-capped. The page fills the window and
+         every element — prose, tables, .cards, .flow, figures, code — runs the
+         full width of its section, so a paragraph and the table under it line
+         up. Do NOT reintroduce a max-width on .content, .layout, main or the
+         prose elements: capping the container crushes wide content (a table
+         cannot outgrow its box) and strands the sidebar collapse button, while
+         capping only the prose leaves paragraphs stranded beside full-width
+         tables. --measure survives below purely as a sizing reference. */
+      /* The sidebar's links are generated at load, so with scripting off there
+         is nothing in it and an empty card would just be furniture. */
+      html:not(.js) nav.sidebar {
+        display: none;
+      }
+      /* The sidebar is the one place that breaks from IBM Plex Mono: a
+         proportional face here separates navigation from document content at a
+         glance. Noto Sans Elbasan ships regular only, so the 600/700 weights
+         below are synthesised by the browser — intentional, do not "fix". */
+      nav.sidebar {
+        position: sticky;
+        top: 1.25rem;
+        flex: none;
+        width: 256px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.9rem;
+        font-family: "Noto Sans Elbasan", sans-serif;
+        font-size: 0.87rem;
+      }
+      /* .label matches the shared mono rule directly, so inheriting from
+         nav.sidebar is not enough — it needs the family restated here. */
+      nav.sidebar .label {
+        font-family: "Noto Sans Elbasan", sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--muted);
+        display: block;
+        margin: 0.2rem 0 0.6rem 0.4rem;
+      }
+      nav.sidebar a.tab {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem 0.65rem;
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--ink);
+        line-height: 1.3;
+        margin-bottom: 2px;
+      }
+      nav.sidebar a.tab .num {
+        flex: none;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--code-bg);
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      nav.sidebar a.tab:hover {
+        background: var(--accent-soft);
+      }
+      nav.sidebar a.tab.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      nav.sidebar a.tab.active .num {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: transparent;
+        color: #fff;
+      }
+      .sidebar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .sidebar-toggle {
+        flex: none;
+        width: 1.7rem;
+        height: 1.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--code-bg);
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1;
+        cursor: pointer;
+        margin: 0 0 0.5rem;
+      }
+      .sidebar-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .sidebar-toggle:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      nav.sidebar.collapsed {
+        width: auto;
+        padding: 0.6rem;
+      }
+      nav.sidebar.collapsed .sidebar-head {
+        justify-content: center;
+      }
+      nav.sidebar.collapsed .label {
+        display: none;
+      }
+      nav.sidebar.collapsed a.tab {
+        font-size: 0;
+        gap: 0;
+        padding: 0.4rem;
+        justify-content: center;
+      }
+      .content {
+        flex: 1;
+        min-width: 0;
+      }
+      .pager {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+      .pager button {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--accent);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 1rem;
+        cursor: pointer;
+        max-width: 48%;
+        text-align: left;
+      }
+      .pager button:hover {
+        border-color: var(--accent);
+      }
+      .pager button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .pager button:disabled {
+        visibility: hidden;
+      }
+      @media (max-width: 900px) {
+        /* align-items: stretch matters — with flex-start the stacked columns
+           size to their widest child (a long line in a <pre>), which pushes the
+           whole page sideways instead of letting the block scroll internally. */
+        .layout {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .content {
+          width: 100%;
+        }
+        nav.sidebar {
+          position: static;
+          width: 100%;
+          display: flex;
+          overflow-x: auto;
+          gap: 4px;
+          padding: 0.6rem;
+        }
+        nav.sidebar .label,
+        .sidebar-head {
+          display: none;
+        }
+        nav.sidebar a.tab {
+          flex: none;
+          white-space: nowrap;
+          margin-bottom: 0;
+        }
+        nav.sidebar.collapsed {
+          width: 100%;
+          padding: 0.6rem;
+        }
+        nav.sidebar.collapsed a.tab {
+          font-size: 0.87rem;
+          gap: 0.6rem;
+          padding: 0.5rem 0.65rem;
+          justify-content: flex-start;
+        }
+      }
+
+      section.phase {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        /* The right padding carries the sidenote gutter. With --sidenote-w at
+           0 it collapses back to --card-pad on its own, so this one rule
+           covers both the wide and the narrow layout. */
+        padding: 2rem
+          calc(var(--card-pad) + var(--sidenote-w) + var(--sidenote-gap))
+          1.75rem var(--card-pad);
+        margin-bottom: 2.25rem;
+        scroll-margin-top: 1.25rem;
+      }
+      @media (max-width: 640px) {
+        section.phase {
+          padding: 1.4rem 1.1rem;
+        }
+      }
+
+      /* Sidenote. Floats into the gutter the section's right padding reserves,
+         so it sits beside the paragraph it follows without pushing anything
+         down the page. Below the gutter breakpoint it becomes an ordinary
+         block in the reading column — same markup, no author decision. */
+      .sidenote {
+        float: right;
+        clear: right;
+        width: var(--sidenote-w);
+        margin: 0.35rem calc(-1 * (var(--sidenote-w) + var(--sidenote-gap)))
+          1.1rem 0;
+        padding-left: 0.8rem;
+        border-left: 2px solid var(--accent);
+        font-size: 0.78rem;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+      .sidenote .label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        color: var(--accent);
+        margin-bottom: 0.2rem;
+      }
+      .sidenote > :last-child {
+        margin-bottom: 0;
+      }
+      @media (max-width: 1439px) {
+        .sidenote {
+          float: none;
+          width: auto;
+          margin: 1.25rem 0;
+          padding: 0.7rem 1rem;
+          background: var(--why-bg);
+          border-left: none;
+          border-radius: 8px;
+        }
+      }
+      /* The .js-tabbed class is set on <html> by the head script when
+         data-nav="tabbed". Sections are visible by default, so the document
+         degrades to a plain scrolling page without JavaScript. */
+      .js-tabbed section.phase {
+        display: none;
+      }
+      .js-tabbed section.phase.active {
+        display: block;
+      }
+      /* Where the browser supports hidden="until-found", inactive sections
+         carry it instead, so Ctrl-F still finds their text: the match fires
+         beforematch, the script switches to that tab, and the browser scrolls
+         to the hit. The box has to stay laid out for that to work, so it is
+         collapsed to nothing rather than display: none. */
+      .js-tabbed section.phase[hidden="until-found"] {
+        display: block;
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+      html:not(.js-tabbed) .pager {
+        display: none;
+      }
+      .phase-tag {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border-radius: 4px;
+        padding: 0.2rem 0.6rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .win,
+      .why,
+      .warn {
+        border-radius: 8px;
+        padding: 0.85rem 1.1rem;
+        margin: 1.25rem 0;
+        font-size: 0.95rem;
+      }
+      /* Tinted boxes carry no coloured leading edge: the tint and the
+         coloured label already say which kind of box it is, and a bar down
+         the left of every box reads as decoration. House rule -- check.py
+         reports one if it comes back. */
+      .win {
+        background: var(--win-bg);
+      }
+      .win .label,
+      .why .label,
+      .warn .label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        margin-bottom: 0.25rem;
+      }
+      .win .label {
+        color: var(--win-border);
+      }
+      .why {
+        background: var(--why-bg);
+      }
+      .why .label {
+        color: var(--accent);
+      }
+      .warn {
+        background: var(--warn-bg);
+      }
+      .warn .label {
+        color: var(--warn-border);
+      }
+      .win p:last-child,
+      .why p:last-child,
+      .warn p:last-child {
+        margin-bottom: 0;
+      }
+      .win ol:last-child,
+      .why ol:last-child,
+      .warn ol:last-child,
+      .win ul:last-child,
+      .why ul:last-child,
+      .warn ul:last-child {
+        margin-bottom: 0;
+      }
+
+      /* --- Disclosure -----------------------------------------------------
+         A collapsible block, and deliberately the one component that does not
+         look like a callout. .win/.why/.warn are tinted bands with a 4px left
+         edge and no interactivity; a disclosure is a bordered card with a solid
+         header bar and a button in it, so "this opens" is legible before a word
+         is read. Its own indigo token pair keeps it distinct from the teal
+         accent, the green .win and the amber .warn.
+
+         Native <details>: opens with no JavaScript, keyboard-operable for free,
+         and degrades to a plain visible block if scripts never run. */
+      details.disclose {
+        margin: 1.25rem 0;
+        border: 1px solid var(--disclose-ink);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--card);
+        font-size: 0.95rem;
+      }
+      details.disclose > summary {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.6rem 0.75rem 0.6rem 0.9rem;
+        background: var(--disclose-bg);
+        color: var(--disclose-ink);
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        list-style: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Safari and older Chrome draw their own triangle. */
+      details.disclose > summary::-webkit-details-marker {
+        display: none;
+      }
+      /* The glyph is swapped rather than rotated: once the summary is a flex
+         container a transform on the marker is unreliable, and two characters
+         say the same thing. */
+      details.disclose > summary::before {
+        content: "\25B8";
+        display: inline-block;
+        font-size: 1.05em;
+        line-height: 1;
+      }
+      details.disclose[open] > summary::before {
+        content: "\25BE";
+      }
+      /* The pill is the attention cue: a solid button that names the action, so
+         a closed block reads as an invitation rather than a heading that
+         happens to be clickable. */
+      details.disclose > summary::after {
+        content: "Show";
+        margin-left: auto;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: var(--disclose-ink);
+        color: var(--card);
+        font-size: 0.68rem;
+        letter-spacing: 0.09em;
+      }
+      details.disclose[open] > summary::after {
+        content: "Hide";
+      }
+      details.disclose > summary:hover::after {
+        opacity: 0.85;
+      }
+      details.disclose > summary:focus-visible {
+        outline: 2px solid var(--disclose-ink);
+        outline-offset: -2px;
+      }
+      details.disclose .disclose-body {
+        padding: 0.9rem 1.1rem 0.1rem;
+        border-top: 1px solid var(--border);
+      }
+      details.disclose .disclose-body > p:last-child {
+        margin-bottom: 0.8rem;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        /* Only the hover cue animates. Transitioning background-color here
+           would also animate the theme toggle, so the header bar would fade
+           while the rest of the page switched instantly. */
+        details.disclose > summary::after {
+          transition: opacity 0.15s ease;
+        }
+      }
+
+      /* --- Output capture --------------------------------------------------
+         A place for a reader to paste what a command printed, and keep it.
+         Built entirely from the existing tokens, so it needs no entry in the
+         theme blocks and introduces no new colour. The save/restore
+         script lives at the bottom of this file and no-ops when the document
+         contains no .capture blocks. */
+      .capture {
+        margin: 1.6rem 0 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--card);
+        overflow: hidden;
+      }
+      .capture-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.55rem 1rem;
+        background: var(--why-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .capture-head .label {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .capture-head .count {
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .capture textarea {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 10rem;
+        resize: vertical;
+        border: 0;
+        outline: 0;
+        padding: 0.9rem 1.1rem;
+        background: var(--code-bg);
+        color: var(--code-ink);
+        font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
+          monospace;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        /* Command output is column-aligned; wrapping destroys the alignment,
+           so scroll instead. */
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+      }
+      .capture textarea:focus {
+        box-shadow: inset 0 0 0 2px var(--accent);
+      }
+      .capture-foot {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        padding: 0.6rem 1rem;
+        border-top: 1px solid var(--border);
+      }
+      .capture-foot button {
+        font: inherit;
+        font-size: 0.82rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .capture-foot button.primary {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .capture-foot button:hover {
+        background: var(--accent-soft);
+      }
+      .capture-status {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      /* Green edge is the only "you are done" signal, and it uses the same
+         pair as the .win callout so the meaning carries across the document. */
+      .capture.is-saved {
+        border-color: var(--win-border);
+      }
+      .capture.is-saved .capture-head {
+        background: var(--win-bg);
+      }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        overflow-x: auto;
+        font-size: 0.83rem;
+        line-height: 1.55;
+        margin: 0.75rem 0 1.25rem;
+      }
+      code,
+      pre {
+        font-family:
+          ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      }
+      p code,
+      li code,
+      td code {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.06em 0.35em;
+        font-size: 0.84em;
+        color: var(--code-ink);
+        overflow-wrap: anywhere;
+      }
+      .skill-invoke {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      /* Copy button. The .codewrap wrapper and the button inside it are
+         injected by the script at the end of the file, so authors write a
+         plain <pre> and get this for free — and with JavaScript disabled
+         neither exists and the block is untouched. The wrapper carries the
+         <pre>'s vertical margin so the absolute positioning has a box that
+         does not move when the block scrolls sideways. */
+      .codewrap {
+        position: relative;
+        margin: 0.75rem 0 1.25rem;
+      }
+      .codewrap > pre {
+        margin: 0;
+        /* Room for the button so it never sits on top of the first line. */
+        padding-right: 4.25rem;
+      }
+      .copy-btn {
+        position: absolute;
+        top: 0.45rem;
+        right: 0.45rem;
+        background: var(--card);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.18rem 0.5rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        opacity: 0;
+      }
+      /* Revealed on hover, on keyboard focus, and while showing "Copied" —
+         and always on touch devices, which never hover. */
+      .codewrap:hover .copy-btn,
+      .copy-btn:focus-visible,
+      .copy-btn.copied {
+        opacity: 1;
+      }
+      @media (hover: none) {
+        .copy-btn {
+          opacity: 1;
+        }
+      }
+      .copy-btn:hover,
+      .copy-btn.copied {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .copy-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .copy-btn {
+          transition:
+            opacity 0.12s ease,
+            color 0.12s ease,
+            border-color 0.12s ease;
+        }
+      }
+
+      /* Syntax highlighting. The spans are painted by the highlighter at the
+         end of the file, which marks what it processed with data-hl. A block
+         with no language- class keeps --code-ink and stays monochrome, which
+         is what terminal output and ASCII diagrams want. */
+      [data-hl] {
+        color: var(--tok-plain);
+      }
+      .tok-com {
+        color: var(--tok-com);
+        font-style: italic;
+      }
+      .tok-str {
+        color: var(--tok-str);
+      }
+      .tok-kw {
+        color: var(--tok-kw);
+        font-weight: 600;
+      }
+      .tok-num {
+        color: var(--tok-num);
+      }
+      .tok-fn {
+        color: var(--tok-fn);
+      }
+      .tok-typ {
+        color: var(--tok-typ);
+      }
+      .tok-op {
+        color: var(--tok-op);
+      }
+      .tok-var {
+        color: var(--tok-var);
+      }
+
+      .tablewrap {
+        overflow-x: auto;
+        margin: 0.75rem 0 1.5rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.55rem 0.8rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+      td:first-child {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      @media (max-width: 640px) {
+        td:first-child {
+          white-space: normal;
+        }
+      }
+
+      ol.steps {
+        padding-left: 1.4rem;
+      }
+      ol.steps > li {
+        margin-bottom: 0.85rem;
+      }
+      ul {
+        padding-left: 1.4rem;
+      }
+      li {
+        margin-bottom: 0.35rem;
+      }
+
+      .flow {
+        display: flex;
+        align-items: stretch;
+        gap: 0.6rem;
+        margin: 1.25rem 0 1.75rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+      .flow-col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-width: 0;
+      }
+      .flow-main {
+        flex: 1.35;
+      }
+      .flow-role {
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-align: center;
+      }
+      .flow-box {
+        background: var(--why-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        flex: 1;
+      }
+      .flow-box strong {
+        display: block;
+        color: var(--accent);
+        margin-bottom: 0.3rem;
+      }
+      .flow-box span {
+        color: var(--muted);
+      }
+      .flow-box ol {
+        margin: 0;
+        padding-left: 1.15rem;
+        color: var(--muted);
+      }
+      .flow-box ol li {
+        margin-bottom: 0.25rem;
+      }
+      .flow-arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        min-width: 6rem;
+        max-width: 7rem;
+        text-align: center;
+      }
+      .flow-arrow .lbl {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+      .flow-arrow::after {
+        color: var(--accent);
+        font-size: 1.5rem;
+        line-height: 1;
+      }
+      .a1::after {
+        content: "→";
+      }
+      .a2::after {
+        content: "⇄";
+      }
+      @media (max-width: 760px) {
+        .flow {
+          flex-direction: column;
+        }
+        .flow-arrow {
+          min-width: 0;
+          max-width: none;
+        }
+        .a1::after {
+          content: "↓";
+        }
+        .a2::after {
+          content: "⇅";
+        }
+      }
+
+      .phase-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: -0.4rem 0 1.3rem;
+      }
+      .chip {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.2rem 0.75rem;
+      }
+      .chip strong {
+        color: var(--accent);
+      }
+
+      .step-h {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 2.1rem 0 0.8rem;
+        padding-top: 1.4rem;
+        border-top: 1px dashed var(--border);
+      }
+      .step-h .n {
+        flex: none;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--card);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 0.8rem;
+        margin: 1rem 0 1.5rem;
+      }
+      .card {
+        background: var(--why-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        font-size: 0.92rem;
+      }
+      .card .card-title {
+        display: block;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        margin-bottom: 0.4rem;
+      }
+
+      .qa {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem 1.4rem 1.1rem;
+        margin: 2rem 0 1.5rem;
+      }
+      .qa .q {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.6rem;
+      }
+      .qa .q::before {
+        content: "Q — ";
+        color: var(--accent);
+      }
+      .qa > :last-child {
+        margin-bottom: 0;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+        margin: 1rem 0 1.5rem;
+      }
+      @media (max-width: 720px) {
+        .choice {
+          grid-template-columns: 1fr;
+        }
+      }
+      .choice-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        font-size: 0.92rem;
+      }
+      .choice-box.a {
+        border-top: 4px solid var(--accent);
+      }
+      .choice-box.b {
+        border-top: 4px solid var(--warn-border);
+      }
+      .choice-box .ct {
+        display: block;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.4rem;
+      }
+      .choice-box.a .ct {
+        color: var(--accent);
+      }
+      .choice-box.b .ct {
+        color: var(--warn-border);
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 0.85rem;
+        border-top: 1px solid var(--border);
+        padding-top: 1.5rem;
+        margin-top: 3rem;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        html {
+          scroll-behavior: smooth;
+        }
+      }
+      @media print {
+        /* A block someone happened to collapse on screen must still print. */
+        details.disclose > summary::before,
+        details.disclose > summary::after {
+          display: none;
+        }
+        details.disclose:not([open]) > *:not(summary) {
+          display: block;
+        }
+        /* Whatever was pasted must survive to paper; the buttons must not. */
+        .capture-foot {
+          display: none;
+        }
+        .capture textarea {
+          min-height: 0;
+          height: auto;
+          overflow: visible;
+          white-space: pre-wrap;
+        }
+        body {
+          background: #fff;
+        }
+        section.phase {
+          display: block !important;
+          content-visibility: visible !important;
+          border: none;
+          padding: 0;
+          margin-bottom: 1.5rem;
+          break-inside: avoid-page;
+        }
+        .layout {
+          display: block;
+        }
+        nav.sidebar,
+        .pager,
+        .copy-btn,
+        .progress-rail {
+          display: none;
+        }
+        .sidenote {
+          float: none;
+          width: auto;
+          margin: 1rem 0;
+          break-inside: avoid-page;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progress-rail" aria-hidden="true">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <button
+      class="theme-toggle"
+      id="themeToggle"
+      type="button"
+      aria-live="polite"
+    >
+      <span id="themeIcon" aria-hidden="true">◐</span>
+      <span id="themeLabel">Dark mode</span>
+    </button>
+    <main>
+      <p class="eyebrow">Solvay Spark Spine AI · Operations</p>
+      <h1>Deploying the app to the ivolve cloud server</h1>
+      <p class="lede">
+        A step-by-step guide to packaging Solvay Spark Spine AI as a container
+        image, publishing it to the ivolve registry and running it on the AWS
+        EC2 server — written for someone who has never done any of this before.
+        Every command comes with what it does and why it is there.
+      </p>
+
+      <div class="meta-strip">
+        <span><strong>Audience</strong> — new team members, no container experience assumed</span>
+        <span><strong>Needs first</strong> — a Mac with the repository, the server key, a registry token</span>
+        <span><strong>Server</strong> — AWS EC2, Ubuntu, <code>13.204.129.141</code></span>
+        <span><strong>Registry</strong> — <code>reg.ivolve.cloud/ivolve/solvay-spark-spine</code></span>
+      </div>
+
+      <div class="layout">
+        <nav class="sidebar" aria-label="Sections">
+          <div class="sidebar-head">
+            <span class="label">The deployment</span>
+            <button
+              class="sidebar-toggle"
+              id="sidebarToggle"
+              type="button"
+              aria-expanded="true"
+              aria-label="Minimize sidebar"
+              title="Minimize sidebar"
+            >
+              «
+            </button>
+          </div>
+        </nav>
+        <div class="content">
+
+          <!-- ═══════════════════════════════ 0. Start here -->
+          <section class="phase" id="start" data-nav-num="0" data-nav-label="Start here: the big picture">
+            <span class="phase-tag">Read this first</span>
+            <h2>The big picture: what we built and how the pieces fit</h2>
+            <p>
+              Solvay Spark Spine AI is a web application. It converts Solvay's SPARK
+              programme documents to text, answers questions about them, draws a
+              knowledge graph of processes, systems and specifications, and runs
+              AI agents on top. On a developer's Mac it runs straight from the source
+              code. On the server it runs as a set of <strong>containers</strong>.
+            </p>
+            <p>
+              Deploying it means moving the application from your Mac to the server.
+              That happens in three places:
+            </p>
+
+            <div class="flow">
+              <div class="flow-col">
+                <div class="flow-role">Your Mac</div>
+                <div class="flow-box">
+                  <strong>Build</strong>
+                  <ol>
+                    <li>Package the code into an image.</li>
+                    <li>Export the database.</li>
+                    <li>Hold the corpus files.</li>
+                  </ol>
+                </div>
+              </div>
+              <div class="flow-arrow a1"><span class="lbl">push image</span></div>
+              <div class="flow-col">
+                <div class="flow-role">Registry</div>
+                <div class="flow-box">
+                  <strong>reg.ivolve.cloud</strong>
+                  <span>Stores the image, like a library shelf, so the server can fetch it.</span>
+                </div>
+              </div>
+              <div class="flow-arrow a1"><span class="lbl">pull image</span></div>
+              <div class="flow-col flow-main">
+                <div class="flow-role">AWS EC2 server</div>
+                <div class="flow-box">
+                  <strong>Runs the stack</strong>
+                  <ol>
+                    <li>The app (port 8030).</li>
+                    <li>Postgres + pgvector (the database).</li>
+                    <li>Ollama (turns text into vectors).</li>
+                    <li>Neo4j (the graph database).</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            <p>
+              The corpus files and the database export don't go through the registry.
+              They are client data, so you copy them from your Mac straight to the
+              server over SSH.
+            </p>
+
+            <h3>Words you will meet</h3>
+            <div class="cards">
+              <div class="card">
+                <span class="card-title">Image</span>
+                A packaged, read-only snapshot of the app: the code, the Python
+                libraries and the tools it needs (LibreOffice, Tesseract). Built once,
+                run anywhere.
+              </div>
+              <div class="card">
+                <span class="card-title">Container</span>
+                A running copy of an image. Stopping or deleting a container
+                doesn't delete the image.
+              </div>
+              <div class="card">
+                <span class="card-title">Registry</span>
+                A server that stores images. Ours is <code>reg.ivolve.cloud</code>
+                (GitLab). You <em>push</em> images to it and <em>pull</em> them from it.
+              </div>
+              <div class="card">
+                <span class="card-title">Docker / Podman</span>
+                The programs that build and run containers. On the Mac,
+                <code>docker</code> is actually Podman; the server runs real Docker.
+                The commands are the same.
+              </div>
+              <div class="card">
+                <span class="card-title">Docker Compose</span>
+                Starts several containers together from one file,
+                <code>compose.yml</code>, so you don't start each one by hand.
+              </div>
+              <div class="card">
+                <span class="card-title">Volume</span>
+                A storage area that outlives the container. The database lives in a
+                volume, so updating the app doesn't wipe the data.
+              </div>
+              <div class="card">
+                <span class="card-title">SSH and the .pem key</span>
+                SSH is how you get a terminal on the server. The <code>.pem</code>
+                file is your key; without it the server won't let you in.
+              </div>
+              <div class="card">
+                <span class="card-title">SSH tunnel</span>
+                Forwards a port on your Mac to a port on the server, so
+                <code>http://localhost:8030</code> in your browser reaches the app
+                on the server.
+              </div>
+            </div>
+
+            <div class="why">
+              <span class="label">How to read this guide</span>
+              <p>
+                Sections 1–9 are the first-time deployment, in the order you do it.
+                Sections 10–11 are what you do afterwards, day to day. Section 12 is
+                troubleshooting, and section 13 covers security and what isn't
+                included. Every code block has a copy button. Each block says
+                whether it runs <strong>on your Mac</strong> or <strong>on the
+                server</strong>; running a command on the wrong machine is the most
+                common beginner mistake.
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 1. Prerequisites -->
+          <section class="phase" id="prereqs" data-nav-label="What you need before you start">
+            <span class="phase-tag">Step 1 · Preparation</span>
+            <h2>What you need before you start</h2>
+            <div class="phase-meta">
+              <span class="chip">Who — <strong>you, once</strong></span>
+              <span class="chip">Ask the team for — <strong>the server key and a registry token</strong></span>
+            </div>
+
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr><th>What</th><th>Why you need it</th><th>How to get it</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>The repository</td>
+                    <td>It holds the code and every deployment file.</td>
+                    <td>Clone it. This guide assumes it is at <code>~/Programme/solvay-spark-spine</code>.</td>
+                  </tr>
+                  <tr>
+                    <td>Podman (or Docker)</td>
+                    <td>Builds the image on your Mac.</td>
+                    <td><code>brew install podman</code>, then <code>podman machine init</code> and <code>podman machine start</code>.</td>
+                  </tr>
+                  <tr>
+                    <td>Postgres client tools</td>
+                    <td><code>pg_dump</code> exports the database.</td>
+                    <td>Installed with Postgres (<code>brew install postgresql@18</code>).</td>
+                  </tr>
+                  <tr>
+                    <td>A registry token</td>
+                    <td>Lets you push and pull images at <code>reg.ivolve.cloud</code>.</td>
+                    <td>GitLab → your avatar → <em>Preferences</em> → <em>Access tokens</em>. Tick <code>read_registry</code> and <code>write_registry</code>.</td>
+                  </tr>
+                  <tr>
+                    <td>The server key</td>
+                    <td>Lets you log in to the EC2 server over SSH.</td>
+                    <td>Ask the team. It may arrive as a <code>.ppk</code> file (PuTTY format), which you convert below.</td>
+                  </tr>
+                  <tr>
+                    <td>An Anthropic API key</td>
+                    <td>The app uses Claude to answer questions.</td>
+                    <td>Ask the team. It goes in the server's <code>.env</code> file.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="step-h"><span class="n">1</span>Give the Podman VM enough memory (Mac only, once)</div>
+            <p>
+              Podman runs containers inside a small Linux virtual machine on your Mac.
+              The default of 2 GB is too small to build this image, and the build hangs
+              or crashes.
+            </p>
+            <pre class="language-bash">
+podman machine stop
+podman machine set --memory 8192
+podman machine start</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>podman machine stop</code></td><td>Stops the Podman VM. Any local containers, such as your local Neo4j, stop with it.</td></tr>
+                  <tr><td><code>podman machine set --memory 8192</code></td><td>Gives the VM 8 GB of memory.</td></tr>
+                  <tr><td><code>podman machine start</code></td><td>Starts the VM again with the new setting.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="step-h"><span class="n">2</span>Convert a .ppk key to .pem (only if you were given a .ppk)</div>
+            <p>
+              <code>.ppk</code> is the key format of PuTTY, a Windows SSH program. The
+              Mac's <code>ssh</code> needs the OpenSSH format, usually saved as
+              <code>.pem</code>. On your Mac, from the folder holding the key:
+            </p>
+            <pre class="language-bash">
+brew install putty
+puttygen ivolve-cloud-server.ppk -O private-openssh-new -o ivolve-cloud-server.pem
+mv ivolve-cloud-server.pem ~/Downloads/
+chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>brew install putty</code></td><td>Installs the PuTTY tools, including <code>puttygen</code>, the key converter.</td></tr>
+                  <tr><td><code>puttygen … -O private-openssh-new -o ….pem</code></td><td>Reads the <code>.ppk</code> and writes the same key in OpenSSH format to a new <code>.pem</code> file.</td></tr>
+                  <tr><td><code>mv … ~/Downloads/</code></td><td>Puts the key where every command in this guide expects it. Anywhere is fine, as long as you use the same path everywhere.</td></tr>
+                  <tr><td><code>chmod 400 …</code></td><td>Makes the key readable by you only. <code>ssh</code> refuses a key others can read, with the error <code>UNPROTECTED PRIVATE KEY FILE</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="warn">
+              <span class="label">Keep the key secret</span>
+              <p>
+                Anyone with the <code>.pem</code> file can log in to the server. Never
+                commit it to git, paste it into chat or email it. Keep it out of the
+                project folder.
+              </p>
+            </div>
+
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>
+                The repository, a working Podman with enough memory, a registry token
+                and a <code>.pem</code> key with the right permissions.
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 2. The files -->
+          <section class="phase" id="files" data-nav-label="The deployment files explained">
+            <span class="phase-tag">Step 2 · Understand the files</span>
+            <h2>The deployment files explained</h2>
+            <p>
+              Seven files in the repository make deployment work. You don't need to
+              edit them to deploy, but knowing what each one does makes every later
+              step, and every error message, make sense.
+            </p>
+
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>File</th><th>Its job in one line</th><th>Where it is used</th></tr></thead>
+                <tbody>
+                  <tr><td><code>Dockerfile</code></td><td>The recipe for building the app image.</td><td>Your Mac, when building</td></tr>
+                  <tr><td><code>.dockerignore</code></td><td>What must <em>not</em> go into the image.</td><td>Your Mac, when building</td></tr>
+                  <tr><td><code>constraints.txt</code></td><td>Exact versions of every Python library.</td><td>Your Mac, when building</td></tr>
+                  <tr><td><code>scripts/docker-publish.sh</code></td><td>Builds the image and pushes it to the registry.</td><td>Your Mac</td></tr>
+                  <tr><td><code>scripts/db-export.sh</code></td><td>Saves your local database to a file.</td><td>Your Mac</td></tr>
+                  <tr><td><code>compose.yml</code></td><td>Describes the whole running stack.</td><td>The server</td></tr>
+                  <tr><td><code>.env.example</code></td><td>Template for the server's settings and passwords.</td><td>The server, copied to <code>.env</code></td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="dockerfile">Dockerfile: the recipe for the image</h3>
+            <p>
+              <strong>Purpose.</strong> A <code>Dockerfile</code> is a list of
+              instructions that turns the source code into an image. Ours builds in
+              four <em>stages</em>. Each stage does one job, and only the last one
+              becomes the final image, so build tools and caches don't bloat it.
+            </p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Stage</th><th>What it does</th><th>Why it is done this way</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code>ui</code></td>
+                    <td>Starts from a Node.js image, runs <code>npm ci</code> and <code>npm run build</code> on <code>frontend/</code>, and produces the web pages in <code>static/dist</code>.</td>
+                    <td>It runs on your Mac's own chip, not in emulation: the output is plain HTML/JS/CSS, the same on every computer, and emulation made this step hang.</td>
+                  </tr>
+                  <tr>
+                    <td><code>models</code></td>
+                    <td>Installs Docling and downloads its AI models (page layout, tables, OCR) into <code>/opt/docling-models</code>.</td>
+                    <td>Also native: running the model code in emulation crashed. The model files work on any computer, and pre-downloading them means the server never fetches them at runtime.</td>
+                  </tr>
+                  <tr>
+                    <td><code>deps</code></td>
+                    <td>Installs compilers, then the CPU-only version of PyTorch, then every library in <code>requirements.txt</code>, pinned by <code>constraints.txt</code>.</td>
+                    <td>CPU-only PyTorch avoids several GB of GPU code the server can't use. Compilers are needed for <code>tesserocr</code> but stay out of the final image.</td>
+                  </tr>
+                  <tr>
+                    <td>runtime (final)</td>
+                    <td>A clean Python image plus LibreOffice, Poppler, Tesseract, WeasyPrint's libraries and OpenCV's libraries. It copies in the Python libraries, the models, the app code (<code>backend/</code>, <code>docs/</code>, <code>data/</code>) and the built UI.</td>
+                    <td>These are the programs the app runs: LibreOffice renders documents, Poppler splits PDFs into pages, Tesseract reads text from images.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>The final stage also sets how the container behaves when it runs:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Instruction</th><th>What it means</th></tr></thead>
+                <tbody>
+                  <tr><td><code>USER app</code></td><td>The app runs as an ordinary user (id 1000), not as the administrator. That's safer if the app is ever compromised.</td></tr>
+                  <tr><td><code>ENV DOCLING_ARTIFACTS_PATH=/opt/docling-models</code></td><td>Tells Docling to use the models built into the image.</td></tr>
+                  <tr><td><code>EXPOSE 8000</code></td><td>Inside the container the app listens on port 8000. <code>compose.yml</code> maps it to 8030 on the server.</td></tr>
+                  <tr><td><code>HEALTHCHECK … /api/health</code></td><td>Every 30 seconds Docker asks the app "are you OK?" and marks the container <em>healthy</em> or <em>unhealthy</em>.</td></tr>
+                  <tr><td><code>CMD ["uvicorn", "backend.api.app:app", "--host", "0.0.0.0", …]</code></td><td>The command that starts the web server when the container starts.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="dockerignore">.dockerignore and constraints.txt: the supporting files</h3>
+            <p>
+              <strong><code>.dockerignore</code></strong> lists what the build must never
+              see: <code>.env</code> (passwords), <code>backup/</code> (database dumps),
+              <code>solvay-spark/</code> and <code>knowledge_base/</code> (client data),
+              the virtual environments and <code>node_modules</code>. It shrinks what the
+              build reads from about 5 GB to about 15 MB. It also means anyone who can
+              pull the image can't read secrets or Solvay's documents from it.
+            </p>
+            <p>
+              <strong><code>constraints.txt</code></strong> pins the exact version of
+              about 200 Python libraries. <code>requirements.txt</code> names the
+              libraries but not their versions, so without this file two builds an hour
+              apart could get different versions. That happened: the build broke when
+              PyPI was slow and pip fell back to a 2018 version of a library.
+            </p>
+            <div class="warn">
+              <span class="label">If you change requirements.txt</span>
+              <p>
+                <code>constraints.txt</code> must be refreshed too, or the new library
+                may fail to install. How to do it is written at the top of
+                <code>constraints.txt</code>.
+              </p>
+            </div>
+
+            <h3 id="compose">compose.yml: the whole stack in one file</h3>
+            <p>
+              <strong>Purpose.</strong> <code>compose.yml</code> describes every container
+              the server runs, how they connect, what storage each gets and what
+              settings they receive. <code>docker compose up -d</code> reads it and starts
+              everything, in the right order.
+            </p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Service</th><th>Image</th><th>What it does and key settings</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code>app</code></td>
+                    <td><code>reg.ivolve.cloud/ivolve/solvay-spark-spine:latest</code></td>
+                    <td>
+                      The application. Reads <code>.env</code> and is told where the others are
+                      (<code>DATABASE_URL</code>, <code>OLLAMA_HOST</code>, <code>NEO4J_URI</code>).
+                      Published on <code>${APP_PORT}</code>; on our server that's
+                      <code>127.0.0.1:8030</code>, reachable only from the server itself.
+                      Starts only after Postgres and Neo4j report healthy.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>postgres</code></td>
+                    <td><code>pgvector/pgvector:pg18</code></td>
+                    <td>The database: user <code>spark</code>, database <code>solvay</code>, password from <code>POSTGRES_PASSWORD</code>. Holds the search index and run history. No port is published, so only the other containers can reach it.</td>
+                  </tr>
+                  <tr>
+                    <td><code>ollama</code></td>
+                    <td><code>ollama/ollama</code></td>
+                    <td>Runs the <code>bge-m3</code> embedding model, which turns questions into vectors for search.</td>
+                  </tr>
+                  <tr>
+                    <td><code>ollama-pull</code></td>
+                    <td><code>ollama/ollama</code></td>
+                    <td>A one-off helper that downloads <code>bge-m3</code> into Ollama, then exits. Seeing it as <em>Exited</em> is normal.</td>
+                  </tr>
+                  <tr>
+                    <td><code>neo4j</code></td>
+                    <td><code>neo4j:5-community</code></td>
+                    <td>The graph database behind the Cypher view. User <code>neo4j</code>, password from <code>NEO4J_PASSWORD</code>. The app loads the knowledge graph into it at startup.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>Where the data lives:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Storage</th><th>Kind</th><th>Holds</th></tr></thead>
+                <tbody>
+                  <tr><td><code>./solvay-spark</code></td><td>folder on the server, read-only</td><td>The SPARK corpus you copy from your Mac.</td></tr>
+                  <tr><td><code>./knowledge_base</code></td><td>folder on the server, writable</td><td>The BPML hierarchy (<code>BPML_Process_xlsx.md</code>) and documents added from the UI. Without it the graph loses most of its processes.</td></tr>
+                  <tr><td><code>pgdata</code></td><td>volume</td><td>The database.</td></tr>
+                  <tr><td><code>neo4j-data</code></td><td>volume</td><td>Neo4j's copy of the graph.</td></tr>
+                  <tr><td><code>ollama</code></td><td>volume</td><td>The downloaded <code>bge-m3</code> model.</td></tr>
+                  <tr><td><code>workdir</code></td><td>volume</td><td>Uploads and document previews.</td></tr>
+                  <tr><td><code>graph-data</code></td><td>volume</td><td>The app's <code>data/</code> folder, including <code>knowledge_graph.json</code>, which graph rebuilds rewrite.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 id="publish-script">scripts/docker-publish.sh: build and push in one command</h3>
+            <p>
+              <strong>Purpose.</strong> Builds the image for the server's type of
+              processor and uploads it to the registry, so you don't have to remember a
+              long build command. Its instructions, in order:
+            </p>
+            <ol class="steps">
+              <li><strong>Moves to the repository root</strong>, so it works from any folder.</li>
+              <li><strong>Sets the image name</strong> to <code>reg.ivolve.cloud/ivolve/solvay-spark-spine</code> and the <strong>tag</strong> to the current git commit (e.g. <code>7dbac01</code>).</li>
+              <li><strong>Warns about uncommitted changes.</strong> They're still built in, but the tag then doesn't describe exactly what's inside.</li>
+              <li><strong>Builds for <code>linux/amd64</code></strong>, the server's processor type. Your Mac is ARM, so this part runs under emulation and is slower.</li>
+              <li><strong>Uses Podman</strong> (<code>podman build --format docker</code>) when Docker's <code>buildx</code> isn't available, which is the case on our Macs. <code>--format docker</code> keeps the healthcheck, which Podman's default format drops.</li>
+              <li><strong>Pushes two tags</strong>: <code>:&lt;commit&gt;</code>, a fixed version you can go back to, and <code>:latest</code>, what the server pulls by default.</li>
+            </ol>
+
+            <h3 id="export-script">scripts/db-export.sh: save the database to a file</h3>
+            <p>
+              <strong>Purpose.</strong> The server's Postgres starts empty. This script
+              saves your local database (the search index with all its embeddings, and
+              the run history) into one file you can copy to the server and restore.
+              Its instructions, in order:
+            </p>
+            <ol class="steps">
+              <li><strong>Reads <code>DATABASE_URL</code></strong> from your environment or from <code>.env</code>. If it isn't set, it stops with an error.</li>
+              <li><strong>Creates <code>backup/</code></strong> if it doesn't exist. git ignores that folder, so dumps are never committed.</li>
+              <li><strong>Runs <code>pg_dump --format=custom --no-owner --no-acl</code></strong>: a compressed dump, without your local user names and permissions, so it restores cleanly under the server's <code>spark</code> user.</li>
+              <li><strong>Names the file</strong> <code>backup/spark-&lt;date&gt;.dump</code> and prints its size.</li>
+            </ol>
+            <div class="why">
+              <span class="label">Why the database name doesn't matter</span>
+              <p>
+                Your local database is called <code>docling</code>; the server's is called
+                <code>solvay</code>. That's fine: a dump holds the contents, not the name,
+                and the restore command decides where they go (<code>-d solvay</code>).
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 3. Build and push -->
+          <section class="phase" id="build" data-nav-label="Build and push the image">
+            <span class="phase-tag">Step 3 · On your Mac</span>
+            <h2>Build the image and push it to the registry</h2>
+            <div class="phase-meta">
+              <span class="chip">Where — <strong>your Mac, in the repository folder</strong></span>
+              <span class="chip">Needs first — <strong>a registry token with write_registry</strong></span>
+            </div>
+
+            <div class="step-h"><span class="n">1</span>Commit your changes</div>
+            <pre class="language-bash">
+cd ~/Programme/solvay-spark-spine
+git status
+git add -A
+git commit -m "Describe your change"</pre>
+            <p>
+              <code>git status</code> shows what changed; <code>git add -A</code> stages
+              everything; <code>git commit</code> records it. Committing first means
+              the image's tag (the commit id) describes exactly what's inside.
+            </p>
+
+            <div class="step-h"><span class="n">2</span>Log in to the registry</div>
+            <pre class="language-bash">
+podman login reg.ivolve.cloud</pre>
+            <p>
+              Asks for a username (your GitLab username) and a password (paste the
+              <strong>token</strong>, not your GitLab password). Podman remembers it,
+              so you only log in again when it expires.
+            </p>
+
+            <div class="step-h"><span class="n">3</span>Build and push</div>
+            <pre class="language-bash">
+./scripts/docker-publish.sh</pre>
+            <p>
+              Runs the publish script described in step 2. The first build takes
+              20–40 minutes; later builds reuse unchanged layers and take a few
+              minutes. It ends with:
+            </p>
+            <pre>
+Pushed reg.ivolve.cloud/ivolve/solvay-spark-spine:7dbac01 and reg.ivolve.cloud/ivolve/solvay-spark-spine:latest</pre>
+
+            <div class="why">
+              <span class="label">Why the push can be slow</span>
+              <p>
+                The image is about 4.5 GB. Layers the registry already has are
+                skipped (<code>Blob … skipped: already exists</code>), but Podman still
+                checks and compresses each one first. Only the layers that changed,
+                usually the app code, are actually uploaded.
+              </p>
+            </div>
+
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>
+                The image is in the registry. Check it at
+                <a href="https://reg.ivolve.cloud/ivolve/-/packages">reg.ivolve.cloud/ivolve/-/packages</a>:
+                <code>solvay-spark-spine</code> should list <code>latest</code> and the
+                commit tag.
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 4. Export DB -->
+          <section class="phase" id="export" data-nav-label="Export the database">
+            <span class="phase-tag">Step 4 · On your Mac</span>
+            <h2>Export the database</h2>
+            <div class="phase-meta">
+              <span class="chip">Where — <strong>your Mac</strong></span>
+              <span class="chip">Needs first — <strong>local Postgres running</strong></span>
+            </div>
+            <pre class="language-bash">
+brew services start postgresql@18
+./scripts/db-export.sh</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>brew services start postgresql@18</code></td><td>Starts your local Postgres if it isn't running. Harmless if it already is.</td></tr>
+                  <tr><td><code>./scripts/db-export.sh</code></td><td>Writes <code>backup/spark-&lt;date&gt;.dump</code> (about 55 MB).</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>A file such as <code>backup/spark-2026-09-29.dump</code>. Note its exact name: you'll type it in steps 6 and 8.</p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 5. SSH -->
+          <section class="phase" id="ssh" data-nav-label="Log in to the server">
+            <span class="phase-tag">Step 5 · Your Mac → server</span>
+            <h2>Log in to the server with SSH</h2>
+            <div class="phase-meta">
+              <span class="chip">Needs first — <strong>the .pem key from step 1</strong></span>
+            </div>
+            <pre class="language-bash">
+ssh -i ~/Downloads/ivolve-cloud-server.pem ubuntu@13.204.129.141</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ssh</code></td><td>Opens a secure terminal on another computer.</td></tr>
+                  <tr><td><code>-i ~/Downloads/ivolve-cloud-server.pem</code></td><td>The key to prove who you are.</td></tr>
+                  <tr><td><code>ubuntu</code></td><td>The user to log in as. Ubuntu servers on AWS use <code>ubuntu</code>.</td></tr>
+                  <tr><td><code>13.204.129.141</code></td><td>The server's public IP address.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The first time, it asks <em>"Are you sure you want to continue
+              connecting?"</em>: type <code>yes</code>. The prompt then changes to
+              something like <code>ubuntu@ip-172-31-14-238:~$</code>. You're on the
+              server, and every command you type runs there. Type <code>exit</code> to
+              come back to your Mac.
+            </p>
+            <p>While you're logged in the first time, check that Docker is ready:</p>
+            <pre class="language-bash">
+docker --version
+docker compose version
+sudo systemctl enable docker</pre>
+            <p>
+              The first two print version numbers if Docker and Compose are installed.
+              The third makes Docker start by itself whenever the server reboots, and
+              with it the app.
+            </p>
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>You can log in to the server, and Docker is ready there.</p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 6. Copy files -->
+          <section class="phase" id="copy" data-nav-label="Copy files to the server">
+            <span class="phase-tag">Step 6 · On your Mac</span>
+            <h2>Copy the files to the server</h2>
+            <div class="phase-meta">
+              <span class="chip">Where — <strong>your Mac</strong>, in a new terminal (not the SSH one)</span>
+            </div>
+            <p>
+              Four things go to the server: <code>compose.yml</code>,
+              <code>.env.example</code>, the database dump, and the two data folders
+              (<code>solvay-spark/</code> and <code>knowledge_base/</code>). They all go into
+              <code>~/solvay-spark-spine</code> on the server.
+            </p>
+            <pre class="language-bash">
+cd ~/Programme/solvay-spark-spine
+
+ssh -i ~/Downloads/ivolve-cloud-server.pem ubuntu@13.204.129.141 'mkdir -p ~/solvay-spark-spine'
+
+scp -i ~/Downloads/ivolve-cloud-server.pem compose.yml .env.example backup/spark-2026-09-29.dump ubuntu@13.204.129.141:~/solvay-spark-spine/
+
+rsync -avz -e "ssh -i ~/Downloads/ivolve-cloud-server.pem" solvay-spark/ ubuntu@13.204.129.141:~/solvay-spark-spine/solvay-spark/
+
+rsync -avz -e "ssh -i ~/Downloads/ivolve-cloud-server.pem" knowledge_base/ ubuntu@13.204.129.141:~/solvay-spark-spine/knowledge_base/</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>cd ~/Programme/solvay-spark-spine</code></td><td>Moves into the project on your Mac, so the file names below are found.</td></tr>
+                  <tr><td><code>ssh … 'mkdir -p ~/solvay-spark-spine'</code></td><td>Runs one command on the server without staying logged in: creates the project folder. <code>-p</code> means no error if it exists.</td></tr>
+                  <tr><td><code>scp … compose.yml .env.example backup/…dump ubuntu@…:~/solvay-spark-spine/</code></td><td>"Secure copy": copies the three files to the server's project folder.</td></tr>
+                  <tr><td><code>rsync -avz -e "ssh -i …" solvay-spark/ …</code></td><td>Copies the 609 MB corpus folder. <code>-a</code> keeps subfolders and dates, <code>-v</code> lists files, <code>-z</code> compresses in transit. Run again, it copies only what changed.</td></tr>
+                  <tr><td><code>rsync … knowledge_base/ …</code></td><td>Copies the knowledge base the same way. <strong>Don't skip it</strong>: without it the knowledge graph shows 370 BPML processes instead of 1976.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="warn">
+              <span class="label">The trailing slash matters</span>
+              <p>
+                <code>solvay-spark/</code> with a slash means "the contents of this
+                folder". Without it, rsync creates <code>solvay-spark/solvay-spark/</code>
+                on the server and the app finds nothing.
+              </p>
+            </div>
+
+            <h3 id="copy-more">Copying additional files later</h3>
+            <p>Same pattern: <code>scp</code> for single files, <code>rsync</code> for folders.</p>
+            <pre class="language-bash">
+# One file, e.g. a new document into the knowledge base
+scp -i ~/Downloads/ivolve-cloud-server.pem "knowledge_base/New document.md" ubuntu@13.204.129.141:~/solvay-spark-spine/knowledge_base/
+
+# A whole folder, sending only what changed
+rsync -avz -e "ssh -i ~/Downloads/ivolve-cloud-server.pem" solvay-spark/ ubuntu@13.204.129.141:~/solvay-spark-spine/solvay-spark/
+
+# Preview what rsync would copy, without copying
+rsync -avzn -e "ssh -i ~/Downloads/ivolve-cloud-server.pem" solvay-spark/ ubuntu@13.204.129.141:~/solvay-spark-spine/solvay-spark/</pre>
+            <p>
+              Put quotes around file names with spaces. <code>-n</code> is a "dry run":
+              it lists what would change and copies nothing. After copying new corpus
+              or knowledge-base files, rebuild the knowledge graph (section 11).
+            </p>
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>
+                On the server, <code>~/solvay-spark-spine</code> holds <code>compose.yml</code>,
+                <code>.env.example</code>, the dump, <code>solvay-spark/</code> and
+                <code>knowledge_base/</code>. Check with <code>ls ~/solvay-spark-spine</code>
+                on the server.
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 7. .env -->
+          <section class="phase" id="env" data-nav-label="Configure the settings (.env)">
+            <span class="phase-tag">Step 7 · On the server</span>
+            <h2>Configure the settings file (.env)</h2>
+            <div class="phase-meta">
+              <span class="chip">Where — <strong>the server</strong>, logged in with SSH</span>
+              <span class="chip">Needs first — <strong>the Anthropic API key</strong></span>
+            </div>
+            <p>
+              <code>.env</code> holds the server's settings and passwords. It is created
+              from the template and never leaves the server.
+            </p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+cp .env.example .env
+echo 'APP_PORT=127.0.0.1:8030' &gt;&gt; .env
+openssl rand -hex 24
+nano .env</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>cp .env.example .env</code></td><td>Copies the template to the real settings file.</td></tr>
+                  <tr><td><code>echo 'APP_PORT=127.0.0.1:8030' &gt;&gt; .env</code></td><td>Appends a line (<code>&gt;&gt;</code> adds; <code>&gt;</code> would overwrite the file). The app then listens on port 8030, reachable from the server only. Port 8000 is taken by another team's app on this shared server.</td></tr>
+                  <tr><td><code>openssl rand -hex 24</code></td><td>Prints a strong random password. Run it once for each secret you need.</td></tr>
+                  <tr><td><code>nano .env</code></td><td>Opens the file in a simple editor. Save with <kbd>Ctrl</kbd>+<kbd>O</kbd>, <kbd>Enter</kbd>; exit with <kbd>Ctrl</kbd>+<kbd>X</kbd>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>Fill in at least these:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>The team's Anthropic key.</td></tr>
+                  <tr><td><code>POSTGRES_PASSWORD</code></td><td>A generated password. It becomes the password of the database user <code>spark</code>.</td></tr>
+                  <tr><td><code>NEO4J_PASSWORD</code></td><td>A generated password, <strong>at least 8 characters</strong>; Neo4j refuses shorter ones.</td></tr>
+                  <tr><td><code>APP_USERNAME</code> / <code>APP_PASSWORD</code></td><td>The login people type on the app's sign-in page. Choose them; don't leave the default <code>test/test</code>.</td></tr>
+                  <tr><td><code>APP_SECRET</code> / <code>DEMO_SECRET</code></td><td>Generated values. Without them, every restart signs everyone out.</td></tr>
+                  <tr><td><code>DEMO_USERNAME</code> / <code>DEMO_PASSWORD</code></td><td>The Demo Mode login. Change the default <code>solvay/solvay</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="why">
+              <span class="label">Database and graph usernames are already set</span>
+              <p>
+                <code>compose.yml</code> fixes the Postgres user (<code>spark</code>), the
+                database (<code>solvay</code>) and the Neo4j user (<code>neo4j</code>). You
+                only choose the passwords.
+              </p>
+            </div>
+            <div class="warn">
+              <span class="label">Set the passwords before the first start</span>
+              <p>
+                Postgres and Neo4j read their passwords only when they first create their
+                data. Change a password later and they keep the old one. The fix is to
+                delete their volume and start again (see troubleshooting).
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 8. Start -->
+          <section class="phase" id="start-app" data-nav-label="Start the app on the server">
+            <span class="phase-tag">Step 8 · On the server</span>
+            <h2>Start the app on the server</h2>
+            <div class="phase-meta">
+              <span class="chip">Where — <strong>the server</strong>, in <code>~/solvay-spark-spine</code></span>
+              <span class="chip">Order — <strong>services, then restore, then app</strong></span>
+            </div>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker login reg.ivolve.cloud
+docker compose pull
+docker compose up -d postgres ollama ollama-pull neo4j
+docker compose ps
+docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
+docker compose up -d app
+curl localhost:8030/api/health</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker login reg.ivolve.cloud</code></td><td>Logs the server in to the registry, so it may download the image. A token with <code>read_registry</code> is enough.</td></tr>
+                  <tr><td><code>docker compose pull</code></td><td>Downloads every image named in <code>compose.yml</code>.</td></tr>
+                  <tr><td><code>docker compose up -d postgres ollama ollama-pull neo4j</code></td><td>Starts the supporting services in the background (<code>-d</code>, "detached"). The app waits until the database is restored.</td></tr>
+                  <tr><td><code>docker compose ps</code></td><td>Lists the services. Wait until <code>postgres</code> and <code>neo4j</code> show <code>(healthy)</code>; Neo4j can take 1–3 minutes the first time.</td></tr>
+                  <tr><td><code>docker compose exec -T postgres pg_restore … &lt; spark-….dump</code></td><td>Runs <code>pg_restore</code> inside the Postgres container and feeds it the dump file (<code>&lt;</code> means "read from this file"). It loads the search index and run history into the <code>solvay</code> database.</td></tr>
+                  <tr><td><code>docker compose up -d app</code></td><td>Starts the application.</td></tr>
+                  <tr><td><code>curl localhost:8030/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>A healthy answer looks like this:</p>
+            <pre>
+{"ok":true,"preview_available":true,"soffice":"/usr/bin/soffice","pdftoppm":"/usr/bin/pdftoppm"}</pre>
+            <div class="why">
+              <span class="label">Harmless messages</span>
+              <p>
+                <code>WARN No services to build</code> from compose is normal. So is a
+                <code>pg_restore</code> warning that <code>extension "vector" already
+                exists</code>. <code>ollama-pull</code> showing <em>Exited</em> is normal:
+                it finished its one job.
+              </p>
+            </div>
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>
+                The whole stack runs on the server. It keeps running after you log out,
+                restarts by itself if a container crashes, and comes back after a
+                reboot (<code>restart: unless-stopped</code> plus <code>systemctl enable
+                docker</code>).
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 9. Open -->
+          <section class="phase" id="open" data-nav-label="Open the app in your browser">
+            <span class="phase-tag">Step 9 · On your Mac</span>
+            <h2>Open the app in your browser</h2>
+            <p>
+              The app accepts connections from the server itself only, so it isn't on
+              the public internet. You reach it through an <strong>SSH tunnel</strong>.
+              On your Mac:
+            </p>
+            <pre class="language-bash">
+ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8030:localhost:8030 ubuntu@13.204.129.141</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>-L 8030:localhost:8030</code></td><td>Port 8030 on your Mac forwards to port 8030 on the server. The first number is your Mac's side; change it if 8030 is busy on your Mac (e.g. <code>-L 8031:localhost:8030</code>).</td></tr>
+                  <tr><td><code>-N</code></td><td>Opens only the tunnel, no terminal. The window looks frozen; that's correct.</td></tr>
+                  <tr><td><code>-o ServerAliveInterval=60</code></td><td>Sends a small signal every minute, so an idle tunnel isn't dropped.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Leave that window open and browse to <strong>http://localhost:8030</strong>.
+              Sign in with <code>APP_USERNAME</code> / <code>APP_PASSWORD</code> from the
+              server's <code>.env</code>. Close the window (or <kbd>Ctrl</kbd>+<kbd>C</kbd>)
+              to close the tunnel; the app keeps running on the server.
+            </p>
+            <div class="why">
+              <span class="label">A tunnel that reconnects by itself</span>
+              <p>
+                Install <code>autossh</code> (<code>brew install autossh</code>) and run
+                <code>autossh -M 0 -f -N -o ServerAliveInterval=60 -o ServerAliveCountMax=3
+                -i ~/Downloads/ivolve-cloud-server.pem -L 8030:localhost:8030
+                ubuntu@13.204.129.141</code>. It runs in the background and reopens the
+                tunnel whenever it drops.
+              </p>
+            </div>
+            <h3>Check every part works</h3>
+            <ol class="steps">
+              <li><strong>Ask tab</strong> — ask a question. An answer with cited excerpts proves Postgres, Ollama and the Anthropic key all work.</li>
+              <li><strong>Knowledge Graph</strong> — counts should match your Mac: 217 documents, 1976 BPML processes, 165 specifications.</li>
+              <li><strong>Cypher view</strong> — a query runs, so Neo4j works.</li>
+              <li><strong>Convert a document</strong> — a small PPTX or PDF converts, so LibreOffice, Tesseract and Docling work.</li>
+            </ol>
+            <div class="win">
+              <span class="label">What you have now</span>
+              <p>The app, deployed and verified. The rest of this guide is running it day to day.</p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 10. Check -->
+          <section class="phase" id="check" data-nav-label="Check the app is running">
+            <span class="phase-tag">Day to day · On the server</span>
+            <h2>Check the app is running</h2>
+            <h3>From the project folder</h3>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose ps
+curl localhost:8030/api/health
+docker compose logs --tail 50 app</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>postgres</code> and <code>neo4j</code> also <code>(healthy)</code>.</td></tr>
+                  <tr><td><code>curl localhost:8030/api/health</code></td><td>Whether the app answers. Expect <code>{"ok":true,…}</code>.</td></tr>
+                  <tr><td><code>docker compose logs --tail 50 app</code></td><td>The app's last 50 log lines: errors show up here. Use <code>-f</code> instead of <code>--tail 50</code> to follow live; <kbd>Ctrl</kbd>+<kbd>C</kbd> stops following.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <h3>From any folder</h3>
+            <pre class="language-bash">
+docker ps --filter name=solvay-spark-spine
+docker compose -p solvay-spark-spine ps
+docker logs --tail 50 solvay-spark-spine-app-1
+docker stats --no-stream</pre>
+            <p>
+              <code>docker ps --filter</code> lists the stack's containers from anywhere.
+              <code>-p solvay-spark-spine</code> names the compose project, so compose
+              commands work outside the folder. <code>docker stats</code> shows each
+              container's CPU and memory use.
+            </p>
+            <h3>Restart or stop</h3>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose restart app
+docker compose down
+docker compose up -d</pre>
+            <p>
+              <code>restart app</code> restarts just the app. <code>down</code> stops and
+              removes every container; the volumes, and so the data, are kept.
+              <code>up -d</code> starts everything again.
+            </p>
+            <div class="warn">
+              <span class="label">Never add -v to down unless you mean it</span>
+              <p>
+                <code>docker compose down -v</code> also deletes the volumes: the
+                database, the graph and the models. You'd have to restore the dump
+                again.
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 11. Update -->
+          <section class="phase" id="update" data-nav-label="Update the app and data">
+            <span class="phase-tag">Day to day · Mac and server</span>
+            <h2>Update the app, the data and the knowledge graph</h2>
+
+            <h3>After changing the code</h3>
+            <p>On your Mac:</p>
+            <pre class="language-bash">
+cd ~/Programme/solvay-spark-spine
+git add -A &amp;&amp; git commit -m "Describe your change"
+./scripts/docker-publish.sh</pre>
+            <p>Then on the server:</p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose pull app
+docker compose up -d app
+curl localhost:8030/api/health</pre>
+            <p>
+              <code>pull app</code> downloads the new <code>latest</code> image;
+              <code>up -d app</code> replaces the running app container with one from
+              the new image. The database and files are untouched.
+            </p>
+            <div class="why">
+              <span class="label">Rolling back</span>
+              <p>
+                Every push also has a commit tag. To go back to an earlier version, add
+                <code>TAG=7dbac01</code> (the commit you want) to the server's
+                <code>.env</code>, then run <code>docker compose up -d app</code>. Remove
+                the line to follow <code>latest</code> again.
+              </p>
+            </div>
+
+            <h3>After changing compose.yml</h3>
+            <pre class="language-bash">
+scp -i ~/Downloads/ivolve-cloud-server.pem compose.yml ubuntu@13.204.129.141:~/solvay-spark-spine/</pre>
+            <p>On your Mac. Then on the server, <code>docker compose up -d</code> applies it.</p>
+
+            <h3 id="rebuild-graph">Rebuild the knowledge graph</h3>
+            <p>
+              After copying new corpus or knowledge-base files (section 6), rebuild the
+              graph on the server:
+            </p>
+            <pre class="language-bash">
+curl -s -X POST localhost:8030/api/graph/rebuild &gt;/dev/null</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>curl</code></td><td>Sends a web request from the command line.</td></tr>
+                  <tr><td><code>-s</code></td><td>Silent: no progress bar.</td></tr>
+                  <tr><td><code>-X POST</code></td><td>A POST request, which tells the app to <em>do</em> something rather than just return data.</td></tr>
+                  <tr><td><code>localhost:8030/api/graph/rebuild</code></td><td>The app's endpoint that rebuilds the graph from <code>solvay-spark/*/markdown</code>, <code>knowledge_base/</code> and the database, then refreshes Neo4j.</td></tr>
+                  <tr><td><code>&gt;/dev/null</code></td><td>Throws away the reply, which is the whole graph and very long. Leave it off, or use <code>| head -c 300</code>, to see the start.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              It takes a few seconds. Then reload the Knowledge Graph page and compare
+              the counts with your Mac. The app also rebuilds by itself when it notices
+              its inputs changed, but running this makes it happen now.
+            </p>
+            <div class="warn">
+              <span class="label">New documents need indexing too</span>
+              <p>
+                The graph rebuild doesn't add documents to the Ask search index. For
+                many new documents, the simplest route is to index them on your Mac,
+                then export and restore the database again (sections 4 and 8).
+              </p>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 12. Troubleshooting -->
+          <section class="phase" id="troubleshooting" data-nav-label="Troubleshooting">
+            <span class="phase-tag">When things go wrong</span>
+            <h2>Troubleshooting</h2>
+            <p>The problems below all happened during the first deployment, with the fix that worked.</p>
+
+            <h3>Logging in and copying</h3>
+            <div class="qa">
+              <p class="q">ssh says "Connection timed out".</p>
+              <p>
+                The server's firewall isn't letting you in. In the AWS console: EC2 →
+                the instance → <em>Security</em> tab → its security group → <em>Edit
+                inbound rules</em> → add <strong>SSH, port 22, source My IP</strong>. Your
+                IP changes when you change networks, so you may need to update it.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">ssh says "Permission denied (publickey)".</p>
+              <p>
+                Wrong key or wrong user. Check the path after <code>-i</code> is the right
+                <code>.pem</code>, and that the user is <code>ubuntu</code>. A converted
+                <code>.ppk</code> must use <code>-O private-openssh-new</code>.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">ssh says "UNPROTECTED PRIVATE KEY FILE".</p>
+              <p>Run <code>chmod 400 ~/Downloads/ivolve-cloud-server.pem</code>. Check the file name in <code>chmod</code> matches the one in <code>ssh</code>.</p>
+            </div>
+            <div class="qa">
+              <p class="q">scp or rsync says "No such file or directory".</p>
+              <p>
+                You're not in the project folder on your Mac, or the dump's name is
+                different. Run <code>cd ~/Programme/solvay-spark-spine</code> and
+                <code>ls backup/</code> to see the real dump name.
+              </p>
+            </div>
+
+            <h3>Building and pushing</h3>
+            <div class="qa">
+              <p class="q">The build hangs for a long time on one step, or dies with "Killed".</p>
+              <p>The Podman VM is out of memory. Give it 8 GB (section 1, step 1) and stop other local containers.</p>
+            </div>
+            <div class="qa">
+              <p class="q">The build fails with "Read timed out" from pypi.org.</p>
+              <p>A slow network. Run <code>./scripts/docker-publish.sh</code> again: finished layers are cached, and pip already retries 10 times with a 2-minute timeout.</p>
+            </div>
+            <div class="qa">
+              <p class="q">The push fails with "unauthorized" or "denied".</p>
+              <p>Log in again with <code>podman login reg.ivolve.cloud</code>, using a token that has <code>write_registry</code>.</p>
+            </div>
+
+            <h3>Starting on the server</h3>
+            <div class="qa">
+              <p class="q">"Bind for 127.0.0.1:8000 failed: port is already allocated".</p>
+              <p>Another app uses that port. Find out which:</p>
+              <pre class="language-bash">
+docker ps --format '{{.Names}}\t{{.Ports}}' | grep 8000
+sudo ss -ltnp | grep ':8000'</pre>
+              <p>
+                On our shared server it was another team's container, which must not be
+                stopped. Set a free port in <code>.env</code> (<code>APP_PORT=127.0.0.1:8030</code>)
+                and run <code>docker compose up -d app</code>.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">"dependency failed to start: container …-neo4j-1 is unhealthy".</p>
+              <p>Look at Neo4j's log first:</p>
+              <pre class="language-bash">
+docker compose logs --tail 50 neo4j</pre>
+              <p>
+                Usually the password is under 8 characters, or it changed after the first
+                start. Fix <code>NEO4J_PASSWORD</code> in <code>.env</code>, then reset
+                Neo4j. Its data is only a copy of the graph, which the app reloads:
+              </p>
+              <pre class="language-bash">
+docker compose rm -sf neo4j
+docker volume rm solvay-spark-spine_neo4j-data
+docker compose up -d neo4j
+docker compose up -d app</pre>
+              <p>
+                If it was just slow (the first start downloads a plugin), wait for
+                <code>docker compose ps</code> to show <code>healthy</code> and run
+                <code>docker compose up -d app</code> again.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">"pull access denied" or "unauthorized" when pulling the image.</p>
+              <p>The server isn't logged in to the registry. Run <code>docker login reg.ivolve.cloud</code> on the server.</p>
+            </div>
+            <div class="qa">
+              <p class="q">The app keeps restarting.</p>
+              <p>
+                Read <code>docker compose logs --tail 100 app</code>. A message about
+                <code>DATABASE_URL</code> or a password means <code>.env</code> is incomplete;
+                "connection refused" to <code>postgres</code> means the database isn't
+                healthy yet.
+              </p>
+            </div>
+
+            <h3>Data looks wrong</h3>
+            <div class="qa">
+              <p class="q">The knowledge graph counts differ from my Mac.</p>
+              <p>
+                A file is missing on the server. The graph is built from
+                <code>solvay-spark/*/markdown</code>, <code>knowledge_base/</code> and the
+                database. The first deployment showed 370 BPML processes instead of 1976
+                because <code>knowledge_base/</code> hadn't been copied. Re-run the two
+                <code>rsync</code> commands (section 6), then rebuild the graph (section 11).
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">Ask returns nothing, or an error about embeddings.</p>
+              <p>Check the model downloaded and the index was restored:</p>
+              <pre class="language-bash">
+docker compose logs ollama-pull | tail -3
+docker compose exec postgres psql -U spark -d solvay -c "select count(*) from rag_chunks;"</pre>
+              <p>
+                The first should end in <code>success</code>; the second should print
+                a number well above 0. If it's 0, restore the dump again (section 8).
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">Documents added in the UI don't save.</p>
+              <p>
+                The container runs as user id 1000 and must be able to write
+                <code>knowledge_base/</code>. On the server:
+                <code>sudo chown -R 1000:1000 ~/solvay-spark-spine/knowledge_base</code>.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">I changed POSTGRES_PASSWORD and now nothing connects.</p>
+              <p>
+                Postgres kept the old password. Put the old one back, or reset the
+                database, which deletes it, and restore the dump again:
+              </p>
+              <pre class="language-bash">
+docker compose down
+docker volume rm solvay-spark-spine_pgdata
+docker compose up -d postgres</pre>
+            </div>
+          </section>
+
+          <!-- ═══════════════════════════════ 13. Security -->
+          <section class="phase" id="security" data-nav-label="Security and what's not included">
+            <span class="phase-tag">Before sharing it widely</span>
+            <h2>Security, and what isn't included</h2>
+            <div class="warn">
+              <span class="label">The API has no login</span>
+              <p>
+                The app's sign-in page protects the pages only. Every <code>/api/*</code>
+                endpoint answers anyone who can reach the port. That's why the app
+                listens on <code>127.0.0.1:8030</code> and is reached through a tunnel.
+                Don't change <code>APP_PORT</code> to plain <code>8030</code> and open the
+                port to the internet: the SPARK corpus would be readable by anyone.
+              </p>
+            </div>
+            <h3>Giving the team a web address</h3>
+            <p>
+              For a proper URL such as <code>https://spark.ivolve.cloud</code>, keep the app
+              on localhost and put a reverse proxy in front of it:
+            </p>
+            <ol class="steps">
+              <li><strong>A DNS record</strong> pointing the name at <code>13.204.129.141</code>, from whoever manages the domain.</li>
+              <li><strong>Ports 80 and 443</strong> open in the EC2 security group, ideally to the team's IP addresses only.</li>
+              <li><strong>A reverse proxy</strong> (e.g. Caddy) that serves HTTPS and forwards to <code>127.0.0.1:8030</code>. Check first whether the server already has one, since other apps run there: <code>sudo ss -ltnp | grep -E ':(80|443) '</code>.</li>
+              <li><strong>A password at the proxy</strong> (Caddy's <code>basic_auth</code>), so the API is covered too.</li>
+            </ol>
+            <h3>Other rules</h3>
+            <ol class="steps">
+              <li><strong>Keep secrets out of git</strong>: the <code>.pem</code> key, <code>.env</code> and database dumps. <code>.gitignore</code> and <code>.dockerignore</code> already exclude <code>.env</code> and <code>backup/</code>.</li>
+              <li><strong>Share credentials one to one</strong>, not in team channels.</li>
+              <li><strong>Data leaves the server</strong> when someone asks a question: the question and the retrieved excerpts go to Anthropic.</li>
+            </ol>
+            <h3>Not included on the server</h3>
+            <div class="cards">
+              <div class="card">
+                <span class="card-title">Agent memory (Hindsight)</span>
+                Off (<code>HINDSIGHT_URL=""</code>). It needs its own environment. The
+                Evidence Agent works without it; it just doesn't remember past
+                investigations.
+              </div>
+              <div class="card">
+                <span class="card-title">Local MLX vision model</span>
+                Runs on Apple chips only. The Claude and OpenAI vision options and
+                Tesseract still work.
+              </div>
+            </div>
+          </section>
+
+          <div class="pager">
+            <button id="pagerPrev" type="button"></button>
+            <button id="pagerNext" type="button"></button>
+          </div>
+
+          <footer>
+            <p>
+              <strong>Keeping this accurate:</strong> written after the first deployment
+              on 29 September 2026. Server address, ports and counts are from that
+              deployment. The files it describes are <code>Dockerfile</code>,
+              <code>compose.yml</code>, <code>constraints.txt</code>,
+              <code>scripts/docker-publish.sh</code> and <code>scripts/db-export.sh</code>;
+              when one changes, update the matching section here.
+            </p>
+            <p>
+              Related: <a href="deployment.md">deployment.md</a> (the short version) ·
+              <a href="running-the-app.md">running-the-app.md</a> (running on a Mac).
+            </p>
+          </footer>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        var STORE_THEME = "doc-theme";
+        var STORE_SIDEBAR = "doc-sidebar";
+
+        var root = document.documentElement;
+        var button = document.getElementById("themeToggle");
+        var icon = document.getElementById("themeIcon");
+        var label = document.getElementById("themeLabel");
+        var media = window.matchMedia("(prefers-color-scheme: dark)");
+
+        // light → paper → dark → light. Paper is toggle-only: no OS setting
+        // asks for it, so it can never be the resolved default.
+        var NEXT = { light: "paper", paper: "dark", dark: "light" };
+        var FACE = {
+          paper: { icon: "◑", label: "Paper mode" },
+          dark: { icon: "◐", label: "Dark mode" },
+          light: { icon: "☀", label: "Light mode" },
+        };
+
+        function currentTheme() {
+          var forced = root.getAttribute("data-theme");
+          if (forced === "dark" || forced === "light" || forced === "paper")
+            return forced;
+          return media.matches ? "dark" : "light";
+        }
+
+        // The button describes the mode you'll switch TO.
+        function render() {
+          var face = FACE[NEXT[currentTheme()]] || FACE.dark;
+          icon.textContent = face.icon;
+          label.textContent = face.label;
+        }
+
+        function apply(theme) {
+          root.setAttribute("data-theme", theme);
+          try {
+            localStorage.setItem(STORE_THEME, theme);
+          } catch (e) {
+            /* private browsing — toggle still works for this visit */
+          }
+          render();
+        }
+
+        button.addEventListener("click", function () {
+          apply(NEXT[currentTheme()] || "dark");
+        });
+
+        // A saved choice was already applied by the head script; with none, the
+        // OS preference rules and we track it live.
+        media.addEventListener("change", render);
+        render();
+
+        // --- Reading progress ---
+        // progressAt is reassigned in tabbed mode below; everything else here
+        // is mode-independent, so a document with no sidebar at all still
+        // gets a working rail.
+        var fill = document.getElementById("progressFill");
+        var progressAt = function () {
+          var h = document.documentElement.scrollHeight - window.innerHeight;
+          return h > 0 ? window.scrollY / h : 1;
+        };
+        function setProgress() {
+          if (!fill) return;
+          var f = Math.max(0, Math.min(1, progressAt()));
+          fill.style.width = f * 100 + "%";
+        }
+        var pTicking = false;
+        function reportProgress() {
+          if (pTicking) return;
+          pTicking = true;
+          window.requestAnimationFrame(function () {
+            pTicking = false;
+            setProgress();
+          });
+        }
+        window.addEventListener("scroll", reportProgress);
+        window.addEventListener("resize", reportProgress);
+        setProgress();
+
+        // --- Sidebar navigation ---
+        var sidebar = document.querySelector("nav.sidebar");
+        if (!sidebar) return;
+        var mode = root.classList.contains("js-tabbed") ? "tabbed" : "scroll";
+
+        // --- Sidebar contents, generated from the sections ---
+        // The section ids are the single source: a tab whose href points at
+        // nothing cannot be written, because no one writes the tabs. A section
+        // without an id is skipped rather than becoming a dead link.
+        var phases = Array.prototype.slice.call(
+          document.querySelectorAll(".content section.phase[id]"),
+        );
+        if (phases.length) {
+          Array.prototype.forEach.call(
+            sidebar.querySelectorAll("a.tab"),
+            function (a) {
+              a.parentNode.removeChild(a);
+            },
+          );
+          // data-nav-num renumbers everything after it as well, so putting
+          // 0 on a "read this first" preface leaves the first real step at 1
+          // rather than pushing it to 2.
+          var counter = 1;
+          phases.forEach(function (sec) {
+            var forced = sec.getAttribute("data-nav-num");
+            if (forced !== null && forced !== "" && !isNaN(Number(forced)))
+              counter = Number(forced);
+            var h2 = sec.querySelector("h2");
+            var a = document.createElement("a");
+            a.className = "tab";
+            a.href = "#" + sec.id;
+            var num = document.createElement("span");
+            num.className = "num";
+            num.textContent = forced !== null && forced !== "" ? forced
+              : String(counter);
+            counter += 1;
+            a.appendChild(num);
+            a.appendChild(
+              document.createTextNode(
+                sec.getAttribute("data-nav-label") ||
+                  (h2 ? h2.textContent.trim() : sec.id),
+              ),
+            );
+            sidebar.appendChild(a);
+          });
+        }
+
+        // --- Reading time (opt in) ---
+        // Off unless <html> carries data-readtime="on". The estimate was more
+        // noise than help on documents whose sections are commands to run
+        // rather than prose to read, so it is no longer written by default.
+        // When it is switched on: counted from the prose only, because code
+        // blocks are scanned rather than read and counting them would inflate
+        // every technical section past the point where the number means
+        // anything. A hand-written "Read — …" chip still wins.
+        if (root.getAttribute("data-readtime") === "on") {
+          phases.forEach(function (sec) {
+            var meta = sec.querySelector(".phase-meta");
+            if (meta && /Read\s*—/.test(meta.textContent)) return;
+            var copy = sec.cloneNode(true);
+            Array.prototype.forEach.call(
+              copy.querySelectorAll("pre, .phase-meta, .phase-tag"),
+              function (el) {
+                el.parentNode.removeChild(el);
+              },
+            );
+            var words = copy.textContent.trim().split(/\s+/).filter(Boolean);
+            if (!words.length) return;
+            if (!meta) {
+              meta = document.createElement("div");
+              meta.className = "phase-meta";
+              var h2 = sec.querySelector("h2");
+              if (h2) h2.parentNode.insertBefore(meta, h2.nextSibling);
+              else sec.insertBefore(meta, sec.firstChild);
+            }
+            var chip = document.createElement("span");
+            chip.className = "chip";
+            chip.appendChild(document.createTextNode("Read — "));
+            var strong = document.createElement("strong");
+            strong.textContent = Math.max(1, Math.round(words.length / 200))
+              + " min";
+            chip.appendChild(strong);
+            meta.appendChild(chip);
+          });
+        }
+
+        var tabs = Array.prototype.slice.call(
+          sidebar.querySelectorAll("a.tab"),
+        );
+        var sections = tabs.map(function (t) {
+          return document.querySelector(t.getAttribute("href"));
+        });
+
+        function titleOf(i) {
+          return tabs[i].textContent.replace(/^\s*\d+\s*/, "").trim();
+        }
+        tabs.forEach(function (t, i) {
+          t.title = titleOf(i);
+        });
+
+        function markActive(idx) {
+          tabs.forEach(function (t, i) {
+            t.classList.toggle("active", i === idx);
+            if (i === idx) t.setAttribute("aria-current", "page");
+            else t.removeAttribute("aria-current");
+          });
+        }
+
+        if (mode === "tabbed") {
+          // Only one section is on screen, so scroll depth says nothing about
+          // progress through the document. Count position in the sequence,
+          // with scroll depth filling in the fraction of the current section.
+          progressAt = function () {
+            var h = document.documentElement.scrollHeight - window.innerHeight;
+            var within = h > 0 ? window.scrollY / h : 0;
+            return tabs.length ? (currentIndex() + within) / tabs.length : 1;
+          };
+
+          var prevBtn = document.getElementById("pagerPrev");
+          var nextBtn = document.getElementById("pagerNext");
+
+          // Resolve the hash to a tab index; a hash may also point at an
+          // anchor INSIDE a section, in which case we activate that
+          // section's tab and remember the element to scroll to.
+          function resolveHash() {
+            var h = location.hash;
+            for (var i = 0; i < tabs.length; i++) {
+              if (tabs[i].getAttribute("href") === h)
+                return { idx: i, el: null };
+            }
+            if (h.length > 1) {
+              var el = null;
+              try {
+                el = document.getElementById(h.slice(1));
+              } catch (e) {}
+              if (el) {
+                for (var j = 0; j < sections.length; j++) {
+                  if (sections[j] && sections[j].contains(el))
+                    return { idx: j, el: el };
+                }
+              }
+            }
+            return { idx: 0, el: null };
+          }
+
+          function currentIndex() {
+            return resolveHash().idx;
+          }
+
+          // Ctrl-F cannot see into display: none, so where the browser
+          // supports it, hidden sections use hidden="until-found" instead.
+          // A find hit fires beforematch on the section and the browser drops
+          // the attribute itself; we switch tabs without scrolling to the top,
+          // because the browser is about to scroll to the match.
+          var findable = "onbeforematch" in document.documentElement;
+
+          function showSection(idx, scrollTop) {
+            sections.forEach(function (s, i) {
+              if (!s) return;
+              s.classList.toggle("active", i === idx);
+              if (!findable) return;
+              if (i === idx) s.removeAttribute("hidden");
+              else s.setAttribute("hidden", "until-found");
+            });
+            markActive(idx);
+            if (prevBtn && nextBtn) {
+              prevBtn.disabled = idx === 0;
+              nextBtn.disabled = idx === tabs.length - 1;
+              prevBtn.textContent =
+                idx > 0 ? "← Back: " + titleOf(idx - 1) : "";
+              nextBtn.textContent =
+                idx < tabs.length - 1 ? "Next: " + titleOf(idx + 1) + " →" : "";
+            }
+            if (scrollTop) window.scrollTo(0, 0);
+            setProgress();
+          }
+
+          if (prevBtn)
+            prevBtn.addEventListener("click", function () {
+              var i = currentIndex();
+              if (i > 0) location.hash = tabs[i - 1].getAttribute("href");
+            });
+          if (nextBtn)
+            nextBtn.addEventListener("click", function () {
+              var i = currentIndex();
+              if (i < tabs.length - 1)
+                location.hash = tabs[i + 1].getAttribute("href");
+            });
+
+          function syncToHash(initial) {
+            var r = resolveHash();
+            showSection(r.idx, !initial && !r.el);
+            if (r.el) r.el.scrollIntoView();
+          }
+          window.addEventListener("hashchange", function () {
+            syncToHash(false);
+          });
+          if (findable)
+            sections.forEach(function (s, i) {
+              if (!s) return;
+              s.addEventListener("beforematch", function () {
+                // pushState, not location.hash: no hashchange, so no jump
+                // to the top of the page underneath the find.
+                history.pushState(null, "", tabs[i].getAttribute("href"));
+                showSection(i, false);
+              });
+            });
+          syncToHash(true);
+        } else {
+          // Scroll mode: highlight the section currently under the reader.
+          var ticking = false;
+          function spy() {
+            ticking = false;
+            var line = window.scrollY + 140;
+            var idx = 0;
+            for (var i = 0; i < sections.length; i++) {
+              if (sections[i] && sections[i].offsetTop <= line) idx = i;
+            }
+            markActive(idx);
+            setProgress();
+          }
+          window.addEventListener("scroll", function () {
+            if (!ticking) {
+              ticking = true;
+              window.requestAnimationFrame(spy);
+            }
+          });
+          window.addEventListener("resize", spy);
+          spy();
+        }
+
+        // --- Sidebar minimize toggle ---
+        var sidebarToggle = document.getElementById("sidebarToggle");
+        if (sidebarToggle) {
+          function renderSidebar(collapsed) {
+            sidebar.classList.toggle("collapsed", collapsed);
+            sidebarToggle.textContent = collapsed ? "»" : "«";
+            sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+            var verb = collapsed ? "Expand sidebar" : "Minimize sidebar";
+            sidebarToggle.setAttribute("aria-label", verb);
+            sidebarToggle.title = verb;
+          }
+
+          var sidebarSaved = null;
+          try {
+            sidebarSaved = localStorage.getItem(STORE_SIDEBAR);
+          } catch (e) {}
+          renderSidebar(sidebarSaved === "collapsed");
+
+          sidebarToggle.addEventListener("click", function () {
+            var collapsed = !sidebar.classList.contains("collapsed");
+            renderSidebar(collapsed);
+            try {
+              localStorage.setItem(
+                STORE_SIDEBAR,
+                collapsed ? "collapsed" : "expanded",
+              );
+            } catch (e) {}
+          });
+        }
+
+        // --- Links off-site open in a new tab ---
+        // Only links to another origin. In-page #hash links, and relative
+        // links to sibling pages in the same documentation set, stay in this
+        // tab — otherwise walking through a set of pages piles up tabs.
+        // Under file:// every relative link resolves to file: and stays too.
+        Array.prototype.forEach.call(
+          document.querySelectorAll("a[href]"),
+          function (a) {
+            if (/^https?:$/.test(a.protocol) && a.host !== location.host) {
+              a.setAttribute("target", "_blank");
+              a.setAttribute("rel", "noopener");
+            }
+          },
+        );
+      })();
+
+      // --- Heading anchors -------------------------------------------------
+      // Every section h2 and h3 gets a "#" link, so a reader can copy a link
+      // to exactly the part they mean. A section's h2 points at the section
+      // id; an h3 keeps its own id or is given one from its text. Runs after
+      // the sidebar is built, so the "#" never leaks into a tab label.
+      (function () {
+        var used = {};
+        Array.prototype.forEach.call(
+          document.querySelectorAll("[id]"),
+          function (el) {
+            used[el.id] = true;
+          },
+        );
+        function slug(text) {
+          var base =
+            text
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "") || "section";
+          var id = base;
+          for (var n = 2; used[id]; n++) id = base + "-" + n;
+          used[id] = true;
+          return id;
+        }
+        function addAnchor(h, id) {
+          var a = document.createElement("a");
+          a.className = "heading-anchor";
+          a.href = "#" + id;
+          a.textContent = "#";
+          a.setAttribute("aria-label", "Link to this heading");
+          h.appendChild(a);
+        }
+        Array.prototype.forEach.call(
+          document.querySelectorAll("section.phase[id] > h2"),
+          function (h) {
+            addAnchor(h, h.parentNode.id);
+          },
+        );
+        Array.prototype.forEach.call(
+          document.querySelectorAll("section.phase h3"),
+          function (h) {
+            if (!h.id) h.id = slug(h.textContent);
+            addAnchor(h, h.id);
+          },
+        );
+        // A link to a generated id arrived before that id existed, so the
+        // navigation script could not resolve it. Replay it now.
+        var target = location.hash.length > 1 &&
+          document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        if (target && target.tagName === "H3") {
+          if (document.documentElement.classList.contains("js-tabbed"))
+            window.dispatchEvent(new HashChangeEvent("hashchange"));
+          else target.scrollIntoView();
+        }
+      })();
+
+      // --- Syntax highlighting -------------------------------------------
+      // A self-contained tokenizer: no library, no network request, nothing
+      // to keep up to date. It highlights any <pre> or <code> that carries a
+      // language-* class and leaves everything else alone, so unmarked blocks
+      // stay monochrome — the right result for terminal output and diagrams.
+      //
+      // To add a language, add one def() entry. To highlight nothing, delete
+      // this whole IIFE; the document degrades to plain <pre> blocks.
+      (function () {
+        // Sticky (/y) regexes only ever match at the current offset, which is
+        // what lets the scanner below try rules in priority order.
+        var WS = /\s+/y;
+        var PUNC = /[(){}\[\].,;:@#$\\]+/y;
+        var OP = /[-+*/%=!<>&|^~?]+/y;
+        var NUM =
+          /(?:0[xXbBoO][0-9a-fA-F_]+|\d[\d_]*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?)(?:[A-Za-z_][A-Za-z0-9_]*)?/y;
+        var IDENT = /[A-Za-z_$][A-Za-z0-9_$]*/y;
+        var CALL = /\s*\(/y;
+
+        var C_LINE = { c: "com", re: /\/\/[^\n]*/y };
+        var C_HASH = { c: "com", re: /#[^\n]*/y };
+        var C_DASH = { c: "com", re: /--[^\n]*/y };
+        var C_BLOCK = { c: "com", re: /\/\*[\s\S]*?(?:\*\/|$)/y };
+        // Built by concatenation so the HTML parser never sees a bare comment
+        // opener inside this script element.
+        var C_HTML = {
+          c: "com",
+          re: new RegExp("<!" + "--[\\s\\S]*?(?:--" + ">|$)", "y"),
+        };
+
+        var S_DQ = { c: "str", re: /"(?:\\[\s\S]|[^"\\\n])*"?/y };
+        var S_SQ = { c: "str", re: /'(?:\\[\s\S]|[^'\\\n])*'?/y };
+        var S_BT = { c: "str", re: /`(?:\\[\s\S]|[^`\\])*`?/y };
+        var S_PY = {
+          c: "str",
+          re: /(?:[rRbBuUfF]{1,3})?(?:"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\[\s\S]|[^"\\\n])*"?|'(?:\\[\s\S]|[^'\\\n])*'?)/y,
+        };
+        var V_DOLLAR = {
+          c: "var",
+          re: /\$(?:\{[^}\n]*\}|[A-Za-z_][A-Za-z0-9_]*|[0-9?*@#!$-])/y,
+        };
+        var V_AT = { c: "var", re: /@[A-Za-z_][A-Za-z0-9_.]*/y };
+
+        function words(s) {
+          var o = {},
+            a = String(s || "").split(/\s+/);
+          for (var i = 0; i < a.length; i++) if (a[i]) o[a[i]] = 1;
+          return o;
+        }
+
+        var LANGS = {};
+        // rules order: whitespace, comments, strings, language extras, then
+        // the numeric/identifier/punctuation fallbacks every language shares.
+        function def(names, o) {
+          var spec = {
+            ci: !!o.ci,
+            caps: o.caps !== false,
+            noCall: !!o.noCall,
+            kw: words(o.kw),
+            lit: words(o.lit),
+            typ: words(o.typ),
+            vars: words(o.vars),
+            rules: [{ c: null, re: WS }].concat(o.rules || []).concat(
+              o.bare
+                ? []
+                : [
+                    { c: "num", re: NUM },
+                    { c: "ident", re: IDENT },
+                    { c: null, re: PUNC },
+                    { c: "op", re: OP },
+                  ],
+            ),
+          };
+          var list = names.split(" ");
+          for (var i = 0; i < list.length; i++) LANGS[list[i]] = spec;
+        }
+
+        // --- Language definitions ---
+        // Keyword lists for case-insensitive languages (ci: true) must be
+        // written in lower case; lookups are lowercased before matching.
+
+        def("python", {
+          rules: [C_HASH, S_PY, V_AT],
+          kw: "and as assert async await break class continue def del elif else except finally for from global if import in is lambda match case nonlocal not or pass raise return try while with yield",
+          lit: "True False None NotImplemented Ellipsis",
+          vars: "self cls",
+          typ: "int str float bool bytes list dict set tuple frozenset object type len range print open enumerate zip map filter sum min max abs round sorted reversed isinstance issubclass getattr setattr hasattr super property staticmethod classmethod Exception ValueError TypeError KeyError IndexError AttributeError RuntimeError StopIteration NotImplementedError",
+        });
+
+        def("javascript", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, S_BT],
+          kw: "async await break case catch class const continue debugger default delete do else export extends finally for from function get if import in instanceof let new of return set static super switch this throw try typeof var void while with yield",
+          lit: "true false null undefined NaN Infinity",
+          typ: "Array Object String Number Boolean Promise Map Set WeakMap WeakSet Symbol Proxy Reflect JSON Math Date RegExp Error TypeError console window document process globalThis require module exports",
+        });
+
+        def("typescript", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, S_BT, V_AT],
+          kw: "abstract any as asserts async await bigint boolean break case catch class const constructor continue declare default delete do else enum export extends finally for from function get if implements import in infer instanceof interface is keyof let namespace never new number object of override private protected public readonly return satisfies set static string super switch symbol this throw try type typeof unique unknown var void while yield",
+          lit: "true false null undefined NaN Infinity",
+          typ: "Array Object String Number Boolean Promise Map Set Record Partial Pick Omit Readonly Awaited ReturnType Symbol JSON Math Date RegExp Error console window document process",
+        });
+
+        def("java", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract assert break case catch class const continue default do else enum extends final finally for goto if implements import instanceof interface native new package permits private protected public record return sealed static strictfp super switch synchronized this throw throws transient try var void volatile while yield",
+          lit: "true false null",
+          typ: "boolean byte char double float int long short String Integer Long Double Float Boolean Character Object List Map Set ArrayList HashMap HashSet Optional Stream Collectors System Exception RuntimeException Thread",
+        });
+
+        def("kotlin", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract actual annotation as break by catch class companion const constructor continue crossinline data do else enum expect external final finally for fun get if import in infix init inline inner interface internal is lateinit noinline object open operator out override package private protected public reified return sealed set suspend tailrec this throw try typealias val var vararg when where while",
+          lit: "true false null",
+          typ: "String Int Long Short Byte Double Float Boolean Char List Map Set MutableList MutableMap MutableSet Array Unit Any Nothing Pair Triple Sequence Flow",
+        });
+
+        def("go", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_BT, S_SQ],
+          kw: "break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var",
+          lit: "true false nil iota",
+          typ: "string bool byte rune error any int int8 int16 int32 int64 uint uint8 uint16 uint32 uint64 uintptr float32 float64 complex64 complex128 make new len cap append copy delete panic recover close print println",
+        });
+
+        def("rust", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "as async await break const continue crate dyn else enum extern fn for if impl in let loop match mod move mut pub ref return static struct super trait type unsafe use where while",
+          lit: "true false None Some Ok Err self Self",
+          typ: "i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool char str String Vec VecDeque Option Result Box Rc Arc RefCell Mutex HashMap HashSet BTreeMap Iterator",
+        });
+
+        def("cpp", {
+          rules: [
+            C_LINE,
+            C_BLOCK,
+            { c: "var", re: /^[ \t]*#[A-Za-z]+/y, bol: true },
+            S_DQ,
+            S_SQ,
+          ],
+          kw: "alignas alignof asm auto break case catch class concept const consteval constexpr const_cast continue co_await co_return co_yield decltype default delete do dynamic_cast else enum explicit export extern for friend goto if inline mutable namespace new noexcept operator private protected public register reinterpret_cast requires return sizeof static static_assert static_cast struct switch template this thread_local throw try typedef typeid typename union using virtual volatile while",
+          lit: "true false nullptr NULL",
+          typ: "bool char short int long float double void signed unsigned wchar_t char8_t char16_t char32_t size_t ssize_t ptrdiff_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t std string wstring vector array map unordered_map set unordered_set pair tuple optional variant shared_ptr unique_ptr weak_ptr",
+        });
+
+        def("csharp", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract as async await base break case catch checked class const continue default delegate do else enum event explicit extern finally fixed for foreach get goto if implicit in init interface internal is lock namespace new operator out override params partial private protected public readonly record ref return sealed set sizeof stackalloc static struct switch this throw try typeof unchecked unsafe using var virtual void volatile where while with yield",
+          lit: "true false null",
+          typ: "bool byte sbyte char decimal double float int uint long ulong short ushort object string dynamic Console List Dictionary HashSet Task Func Action Nullable Exception IEnumerable IQueryable LINQ DateTime Guid",
+        });
+
+        def("php", {
+          rules: [C_LINE, C_HASH, C_BLOCK, S_DQ, S_SQ, V_DOLLAR],
+          kw: "abstract and array as break callable case catch class clone const continue declare default do echo else elseif empty enum extends final finally fn for foreach function global goto if implements include include_once instanceof insteadof interface isset list match namespace new or print private protected public readonly require require_once return static switch throw trait try unset use var while xor yield",
+          lit: "true false null TRUE FALSE NULL",
+          typ: "int float string bool array object mixed void never self parent Exception ArrayObject Closure Generator",
+        });
+
+        def("ruby", {
+          rules: [
+            C_HASH,
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /[@$]{1,2}[A-Za-z_]\w*/y },
+          ],
+          kw: "alias and begin break case class def defined? do else elsif end ensure for if in module next not or redo rescue retry return self super then undef unless until when while yield require require_relative attr_accessor attr_reader attr_writer include extend private protected public",
+          lit: "true false nil",
+          typ: "String Symbol Integer Float Array Hash Range Struct Proc Time File Dir Kernel Comparable Enumerable StandardError puts print p raise lambda",
+        });
+
+        def("swift", {
+          rules: [C_LINE, C_BLOCK, S_DQ, V_AT],
+          kw: "actor as associatedtype async await break case catch class continue default defer deinit do else enum extension fallthrough fileprivate final for func guard if import in indirect init inout internal is lazy let mutating open operator private protocol public repeat rethrows return self static struct subscript super switch throw throws try typealias var weak where while",
+          lit: "true false nil",
+          typ: "Int Int8 Int16 Int32 Int64 UInt Double Float String Character Bool Array Dictionary Set Optional Any AnyObject Result Data URL Date UUID Error Codable Equatable Hashable",
+        });
+
+        def("sql", {
+          ci: true,
+          caps: false,
+          rules: [C_DASH, C_BLOCK, S_SQ, S_DQ, { c: "str", re: /`[^`\n]*`?/y }],
+          kw: "add all alter analyze and as asc begin between by cascade case cast check column commit constraint create cross database default delete desc distinct do drop else end escape except exists explain foreign from full grant group having if ilike in index inner insert intersect into is join key left like limit not null nulls offset on only or order outer over partition primary procedure references rename replace restrict returning revoke right rollback row rows schema select set similar table temporary then to transaction trigger truncate union unique unlogged update using vacuum values view when where window with",
+          lit: "true false null",
+          typ: "bigint bigserial boolean bytea char character date decimal double float int integer interval json jsonb money numeric real serial smallint text time timestamp timestamptz uuid varchar array precision",
+        });
+
+        def("bash", {
+          noCall: true,
+          caps: false,
+          rules: [
+            C_HASH,
+            S_DQ,
+            S_SQ,
+            V_DOLLAR,
+            { c: "typ", re: /--?[A-Za-z][A-Za-z0-9-]*/y, aws: true },
+            // Paths, so the slashes in ~/.claude/skills don't read as operators.
+            { c: null, re: /[~.]?(?:\/[\w.@%+-]*)+/y },
+          ],
+          kw: "if then elif else fi for while until do done case esac function in select return break continue local export readonly declare typeset source alias unalias unset trap eval exec shift set shopt",
+          lit: "true false",
+          typ: "echo printf read cd pwd ls cp mv rm mkdir rmdir touch cat less head tail grep egrep sed awk sort uniq wc cut tr find xargs tee chmod chown ln df du ps kill sudo ssh scp rsync curl wget tar zip unzip git gh npm npx pnpm yarn node deno python python3 pip pip3 uv poetry go cargo rustc java mvn gradle docker podman kubectl helm terraform make cmake jq yq open which env date sleep exit test",
+        });
+
+        def("json", {
+          caps: false,
+          rules: [
+            { c: "fn", re: /"(?:\\[\s\S]|[^"\\])*"(?=\s*:)/y },
+            S_DQ,
+            C_LINE,
+          ],
+          lit: "true false null",
+        });
+
+        def("yaml", {
+          caps: false,
+          noCall: true,
+          rules: [
+            C_HASH,
+            { c: "fn", re: /[A-Za-z_][A-Za-z0-9_. /-]*(?=\s*:(?:\s|$))/y },
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /[&*][A-Za-z_][\w-]*|!!?[\w/-]+/y },
+            // Bare scalars like ubuntu-latest: one token, not word-dash-word.
+            { c: null, re: /[A-Za-z_][\w.]*(?:-[\w.]+)+/y },
+          ],
+          lit: "true false null yes no on off ~",
+        });
+
+        def("markup", {
+          bare: true,
+          rules: [
+            C_HTML,
+            { c: "kw", re: /<[!?][A-Za-z][\w-]*/y },
+            { c: "fn", re: /<\/?[A-Za-z][\w:.-]*/y },
+            { c: "op", re: /\/?>/y },
+            S_DQ,
+            S_SQ,
+            { c: "typ", re: /[A-Za-z_:@#[][\w:.\]-]*(?=\s*=)/y },
+            { c: "var", re: /&[\w#]+;/y },
+            { c: null, re: /[^<>"'&]+/y },
+          ],
+        });
+
+        def("css", {
+          bare: true,
+          rules: [
+            C_BLOCK,
+            { c: "kw", re: /@[\w-]+/y },
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /--[\w-]+/y },
+            { c: "num", re: /#[0-9a-fA-F]{3,8}\b/y },
+            { c: "typ", re: /[.#][A-Za-z_][\w-]*|::?[A-Za-z-]+/y },
+            { c: "fn", re: /[-A-Za-z][\w-]*(?=\s*:)/y },
+            { c: "num", re: /(?:\d+\.?\d*|\.\d+)(?:%|[A-Za-z]+)?/y },
+            { c: null, re: /[A-Za-z_][\w-]*/y },
+            { c: null, re: PUNC },
+            { c: "op", re: OP },
+          ],
+        });
+
+        def("abap", {
+          ci: true,
+          caps: false,
+          noCall: true,
+          rules: [
+            { c: "com", re: /[*][^\n]*/y, bol: true },
+            { c: "com", re: /"[^\n]*/y },
+            S_SQ,
+            { c: "str", re: /\|(?:\\[\s\S]|[^|\\\n])*\|?/y },
+            { c: "var", re: /@?[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+/y },
+          ],
+          kw: "append assign at begin binary by call case catch change changing check class clear close collect commit concatenate condense constants continue create data define delete describe do else elseif end endcase endclass enddo endform endfunction endif endloop endmethod endmodule endselect endtry endwhile events exceptions exit export exporting field for form format free from function get if implementation import importing in include index inheriting initial insert interface into is key leave like line load local locale loop message method methods modify module move new not of on open or others parameters perform private protected public raise raising read receiving redefinition ref refresh replace report return returning rollback screen search select set shift skip sort split start structure submit subtract sum table tables text then to transfer translate try type types uline up update using value when where while with work write",
+          lit: "abap_true abap_false abap_undefined space",
+          typ: "char string int i f p n d t x xstring c decfloat16 decfloat34 utclong abap_bool sy syst standard sorted hashed",
+        });
+
+        def("plaintext text txt none log console output diff", { bare: true });
+
+        var ALIAS = {
+          js: "javascript",
+          jsx: "javascript",
+          mjs: "javascript",
+          cjs: "javascript",
+          node: "javascript",
+          ts: "typescript",
+          tsx: "typescript",
+          py: "python",
+          py3: "python",
+          rb: "ruby",
+          rs: "rust",
+          kt: "kotlin",
+          kts: "kotlin",
+          golang: "go",
+          c: "cpp",
+          "c++": "cpp",
+          h: "cpp",
+          hpp: "cpp",
+          objc: "cpp",
+          cs: "csharp",
+          "c#": "csharp",
+          sh: "bash",
+          shell: "bash",
+          zsh: "bash",
+          ksh: "bash",
+          sql92: "sql",
+          psql: "sql",
+          mysql: "sql",
+          plsql: "sql",
+          yml: "yaml",
+          jsonc: "json",
+          json5: "json",
+          html: "markup",
+          htm: "markup",
+          xml: "markup",
+          svg: "markup",
+          vue: "markup",
+          xhtml: "markup",
+          scss: "css",
+          sass: "css",
+          less: "css",
+        };
+
+        function esc(s) {
+          return s
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        function classify(word, spec, src, end) {
+          var key = spec.ci ? word.toLowerCase() : word;
+          if (spec.kw[key]) return "kw";
+          if (spec.lit[key]) return "num";
+          if (spec.vars[key]) return "var";
+          // Checked before the type list so a builtin being *called*
+          // (range(n), make(m)) reads as a call, not as a type name.
+          if (!spec.noCall) {
+            CALL.lastIndex = end;
+            if (CALL.exec(src)) return "fn";
+          }
+          if (spec.typ[key]) return "typ";
+          // Conventional CamelCase for types in the C-family languages.
+          if (spec.caps && /^[A-Z]/.test(word) && /[a-z]/.test(word))
+            return "typ";
+          return null;
+        }
+
+        function paint(src, spec) {
+          var out = "",
+            i = 0,
+            n = src.length,
+            rules = spec.rules;
+          while (i < n) {
+            var hit = false;
+            for (var r = 0; r < rules.length; r++) {
+              var rule = rules[r];
+              if (rule.bol && i !== 0 && src.charAt(i - 1) !== "\n") continue;
+              if (rule.aws && i !== 0 && !/\s/.test(src.charAt(i - 1)))
+                continue;
+              rule.re.lastIndex = i;
+              var m = rule.re.exec(src);
+              if (!m || !m[0]) continue;
+              var cls = rule.c;
+              if (cls === "ident")
+                cls = classify(m[0], spec, src, i + m[0].length);
+              out += cls
+                ? '<span class="tok-' + cls + '">' + esc(m[0]) + "</span>"
+                : esc(m[0]);
+              i += m[0].length;
+              hit = true;
+              break;
+            }
+            // No rule matched this character — emit it verbatim and move on,
+            // so an unexpected byte can never stall the scanner.
+            if (!hit) {
+              out += esc(src.charAt(i));
+              i++;
+            }
+          }
+          return out;
+        }
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll('pre[class*="lang"], code[class*="lang"]'),
+          function (el) {
+            // A <pre class="language-x"><code>…</code></pre> is handled once,
+            // by whichever of the two carries the class.
+            if (el.tagName === "PRE" && el.querySelector("code")) return;
+            var m = /(?:^|\s)(?:language|lang)-([\w+#.-]+)/.exec(
+              el.className || "",
+            );
+            if (!m) return;
+            var name = m[1].toLowerCase();
+            name = ALIAS[name] || name;
+            var spec = LANGS[name];
+            if (!spec) return;
+            el.innerHTML = paint(el.textContent, spec);
+            el.setAttribute("data-hl", name);
+            if (el.tagName === "CODE" && el.parentNode.tagName === "PRE")
+              el.parentNode.setAttribute("data-hl", name);
+          },
+        );
+      })();
+
+      // --- Copy buttons ----------------------------------------------------
+      // Every <pre> gets wrapped in .codewrap with a copy button. Doing it
+      // here rather than in the markup means authors never write the wrapper,
+      // and a document with JavaScript off keeps plain, unwrapped blocks.
+      //
+      // Runs after the highlighter on purpose: highlighting rewrites innerHTML
+      // but leaves textContent identical, so what gets copied is the original
+      // source either way — but wrapping first would put the button inside the
+      // node the highlighter overwrites.
+      (function () {
+        var COPY = "Copy";
+
+        function write(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText)
+            return navigator.clipboard.writeText(text);
+          // Fallback for browsers that withhold the async clipboard API on
+          // file:// pages — these documents are usually opened from disk.
+          return new Promise(function (resolve, reject) {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.top = "-1000px";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try {
+              ok = document.execCommand("copy");
+            } catch (e) {
+              ok = false;
+            }
+            document.body.removeChild(ta);
+            if (ok) resolve();
+            else reject();
+          });
+        }
+
+        // A <pre> renders without the newline that follows its opening tag,
+        // but textContent keeps it — drop it so the copy matches what is on
+        // screen. Leading indentation on the first real line is preserved.
+        function source(pre) {
+          return pre.textContent.replace(/^\n/, "").replace(/\s+$/, "");
+        }
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll("pre"),
+          function (pre) {
+            // Already wrapped by hand? Leave it alone rather than nesting a
+            // second wrapper and a second button around it.
+            var parent = pre.parentNode;
+            if (parent && parent.classList.contains("codewrap")) return;
+
+            var wrap = document.createElement("div");
+            wrap.className = "codewrap";
+            parent.insertBefore(wrap, pre);
+            wrap.appendChild(pre);
+
+            var btn = document.createElement("button");
+            btn.className = "copy-btn";
+            btn.type = "button";
+            btn.textContent = COPY;
+            btn.setAttribute("aria-label", "Copy code to clipboard");
+            wrap.appendChild(btn);
+
+            var timer = null;
+            function flash(msg) {
+              btn.textContent = msg;
+              btn.classList.add("copied");
+              clearTimeout(timer);
+              timer = setTimeout(function () {
+                btn.textContent = COPY;
+                btn.classList.remove("copied");
+                // Leave focus alone; blurring here would trap keyboard users.
+              }, 1600);
+            }
+
+            btn.addEventListener("click", function () {
+              write(source(pre)).then(
+                function () {
+                  flash("Copied");
+                },
+                function () {
+                  flash("Failed");
+                },
+              );
+            });
+          },
+        );
+      })();
+
+      // --- Output capture -------------------------------------------------
+      // Gives every .capture[data-capture] block a textarea that remembers
+      // what was typed into it. Does nothing at all when the document has no
+      // .capture blocks, so it costs an unused page one querySelectorAll.
+      //
+      // Storage is localStorage, which means: this browser, this machine,
+      // never uploaded. It can also throw outright (private window, site data
+      // blocked, thumbnail capture), so every read and write is guarded and
+      // the page still renders correctly with nothing stored.
+      (function () {
+        var boxes = [].slice.call(
+          document.querySelectorAll(".capture[data-capture]"),
+        );
+        if (!boxes.length) return;
+
+        // Set data-capture-store on <html> to give a document its own bucket.
+        // Two documents opened from the same origin share localStorage, so
+        // leaving the default makes the second one overwrite the first.
+        var STORE =
+          document.documentElement.getAttribute("data-capture-store") ||
+          "doc-captures";
+
+        function readAll() {
+          try {
+            return JSON.parse(localStorage.getItem(STORE) || "{}") || {};
+          } catch (e) {
+            return {};
+          }
+        }
+        function writeAll(data) {
+          try {
+            localStorage.setItem(STORE, JSON.stringify(data));
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+        function stamp() {
+          var d = new Date();
+          return (
+            ("0" + d.getHours()).slice(-2) +
+            ":" +
+            ("0" + d.getMinutes()).slice(-2)
+          );
+        }
+        function label(box) {
+          var el = box.querySelector(".capture-head .label");
+          return el
+            ? el.textContent.replace(/^Output\s*[\u2014-]\s*/, "").trim()
+            : box.getAttribute("data-capture");
+        }
+        function describe(box, saved) {
+          var ta = box.querySelector("textarea");
+          var count = box.querySelector(".count");
+          var n = ta.value.length;
+          if (count) count.textContent = n ? n.toLocaleString() + " characters" : "";
+          box.classList.toggle("is-saved", !!saved && n > 0);
+        }
+
+        var data = readAll();
+
+        boxes.forEach(function (box) {
+          var key = box.getAttribute("data-capture");
+          var ta = box.querySelector("textarea");
+          var status = box.querySelector(".capture-status");
+          var entry = data[key];
+
+          if (entry && typeof entry.text === "string") {
+            ta.value = entry.text;
+            if (status) status.textContent = entry.at ? "Saved " + entry.at : "Saved";
+            describe(box, true);
+          } else {
+            describe(box, false);
+          }
+
+          ta.addEventListener("input", function () {
+            if (status) status.textContent = "Unsaved changes";
+            box.classList.remove("is-saved");
+            describe(box, false);
+          });
+
+          var saveBtn = box.querySelector('[data-act="save"]');
+          if (saveBtn)
+            saveBtn.addEventListener("click", function () {
+              var all = readAll();
+              var at = stamp();
+              all[key] = { text: ta.value, at: at, label: label(box) };
+              if (writeAll(all)) {
+                if (status)
+                  status.textContent = ta.value.trim()
+                    ? "Saved " + at
+                    : "Saved (empty)";
+                describe(box, true);
+              } else if (status) {
+                status.textContent = "Could not save - browser storage is blocked";
+              }
+            });
+
+          var clearBtn = box.querySelector('[data-act="clear"]');
+          if (clearBtn)
+            clearBtn.addEventListener("click", function () {
+              ta.value = "";
+              var all = readAll();
+              delete all[key];
+              writeAll(all);
+              if (status) status.textContent = "Cleared";
+              describe(box, false);
+            });
+        });
+
+        // --- Optional collector -----------------------------------------
+        // Present only if the document includes the .capture[data-collect]
+        // block. Assembles every box into one pasteable lump, marking the
+        // ones left empty so "skipped" stays distinguishable from "blank".
+        var collectBtn = document.getElementById("collectBtn");
+        var collectBox = document.getElementById("collectBox");
+        var collectStatus = document.getElementById("collectStatus");
+        var collectCount = document.getElementById("collectCount");
+        if (!collectBox) return;
+
+        function rule() {
+          return new Array(61).join("=");
+        }
+        function gather() {
+          var lines = ["Captured " + new Date().toString(), ""];
+          var filled = 0;
+          boxes.forEach(function (box) {
+            var ta = box.querySelector("textarea");
+            lines.push(rule(), label(box), rule());
+            if (ta.value.trim()) {
+              lines.push(ta.value.replace(/\s+$/, ""));
+              filled++;
+            } else {
+              lines.push("(not filled in)");
+            }
+            lines.push("");
+          });
+          collectBox.value = lines.join("\n");
+          if (collectCount)
+            collectCount.textContent =
+              filled + " of " + boxes.length + " filled in";
+          if (collectStatus)
+            collectStatus.textContent =
+              filled === boxes.length
+                ? "All boxes have content."
+                : boxes.length - filled + " still empty.";
+        }
+        if (collectBtn) collectBtn.addEventListener("click", gather);
+
+        var copyBtn = document.getElementById("copyAllBtn");
+        if (copyBtn)
+          copyBtn.addEventListener("click", function () {
+            if (!collectBox.value) gather();
+            function done(ok) {
+              if (!collectStatus) return;
+              collectStatus.textContent = ok
+                ? "Copied to clipboard."
+                : "Could not copy - select the text above and copy manually.";
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(collectBox.value).then(
+                function () {
+                  done(true);
+                },
+                function () {
+                  done(false);
+                },
+              );
+            } else {
+              collectBox.removeAttribute("readonly");
+              collectBox.select();
+              var ok = false;
+              try {
+                ok = document.execCommand("copy");
+              } catch (e) {
+                ok = false;
+              }
+              collectBox.setAttribute("readonly", "readonly");
+              done(ok);
+            }
+          });
+
+        // Two presses, because this throws away work and there is no undo.
+        var wipeBtn = document.getElementById("wipeBtn");
+        if (wipeBtn) {
+          var wipeLabel = wipeBtn.textContent;
+          wipeBtn.addEventListener("click", function () {
+            if (wipeBtn.getAttribute("data-armed") !== "1") {
+              wipeBtn.setAttribute("data-armed", "1");
+              wipeBtn.textContent = "Press again to erase";
+              if (collectStatus) collectStatus.textContent = "This cannot be undone.";
+              setTimeout(function () {
+                wipeBtn.removeAttribute("data-armed");
+                wipeBtn.textContent = wipeLabel;
+              }, 5000);
+              return;
+            }
+            try {
+              localStorage.removeItem(STORE);
+            } catch (e) {}
+            boxes.forEach(function (box) {
+              box.querySelector("textarea").value = "";
+              var st = box.querySelector(".capture-status");
+              if (st) st.textContent = "";
+              describe(box, false);
+            });
+            collectBox.value = "";
+            if (collectCount) collectCount.textContent = "";
+            if (collectStatus) collectStatus.textContent = "All saved output erased.";
+            wipeBtn.removeAttribute("data-armed");
+            wipeBtn.textContent = wipeLabel;
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

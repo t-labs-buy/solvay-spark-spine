@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-114953/candidate.json",
+    "sha256": "50ff6a3fdd07a657deea620060d44444a692817ec91b8a18d77908ff76249a13",
+    "bytes": 17641
+  },
+  "artifact": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-114953/spark-component-architecture.html",
+    "sha256": "e57767f0b274e6e19ed914305b7fddf69c9d26821f1023ce7b401016882b477e",
+    "bytes": 815442
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-114953/spark-component-architecture.finalize.json",
+    "summaryReceipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-114953/spark-component-architecture.finalize-summary.json",
+    "browserCheckReceipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-114953/spark-component-architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-29T06:19:58.761Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4590,
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 6,
+      "routesOverSuggestedBends": 5,
+      "routesOverSuggestedStretch": 2
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "api-evid",
+            "from": "api",
+            "to": "evid",
+            "label": "run",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "right": {
+            "id": "api-ingest",
+            "from": "api",
+            "to": "ingest",
+            "label": "upload",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "point": [
+            545,
+            258
+          ],
+          "sharedNode": "api"
+        },
+        {
+          "left": {
+            "id": "api-evid",
+            "from": "api",
+            "to": "evid",
+            "label": "run",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "right": {
+            "id": "api-kg",
+            "from": "api",
+            "to": "kg",
+            "label": "graph",
+            "collectionIndex": 11,
+            "artifactIndex": 12
+          },
+          "point": [
+            545,
+            297
+          ],
+          "sharedNode": "api"
+        },
+        {
+          "left": {
+            "id": "api-copilot",
+            "from": "api",
+            "to": "copilot",
+            "label": "run",
+            "collectionIndex": 6,
+            "artifactIndex": 7
+          },
+          "right": {
+            "id": "api-rag",
+            "from": "api",
+            "to": "rag",
+            "label": "ask",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "point": [
+            755,
+            258
+          ],
+          "sharedNode": "api"
+        },
+        {
+          "left": {
+            "id": "api-rag",
+            "from": "api",
+            "to": "rag",
+            "label": "ask",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "right": {
+            "id": "rt-claude",
+            "from": "rt",
+            "to": "claude",
+            "label": "tool loop",
+            "collectionIndex": 16,
+            "artifactIndex": 17
+          },
+          "point": [
+            978,
+            445
+          ]
+        },
+        {
+          "left": {
+            "id": "api-rag",
+            "from": "api",
+            "to": "rag",
+            "label": "ask",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "right": {
+            "id": "rt-web",
+            "from": "rt",
+            "to": "web",
+            "label": "gated search",
+            "collectionIndex": 17,
+            "artifactIndex": 18
+          },
+          "point": [
+            978,
+            396
+          ]
+        },
+        {
+          "left": {
+            "id": "rt-kg",
+            "from": "rt",
+            "to": "kg",
+            "label": "traverse",
+            "collectionIndex": 13,
+            "artifactIndex": 14
+          },
+          "right": {
+            "id": "kg-kgeval",
+            "from": "kg",
+            "to": "kgeval",
+            "label": "check",
+            "collectionIndex": 26,
+            "artifactIndex": 27
+          },
+          "point": [
+            535,
+            568
+          ],
+          "sharedNode": "kg"
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "api-kg",
+            "from": "api",
+            "to": "kg",
+            "label": "graph",
+            "collectionIndex": 11,
+            "artifactIndex": 12
+          },
+          "bends": 4,
+          "stretch": 1.501
+        },
+        {
+          "relationship": {
+            "id": "api-rag",
+            "from": "api",
+            "to": "rag",
+            "label": "ask",
+            "collectionIndex": 12,
+            "artifactIndex": 13
+          },
+          "bends": 4,
+          "stretch": 1.467
+        },
+        {
+          "relationship": {
+            "id": "rt-ageval",
+            "from": "rt",
+            "to": "ageval",
+            "label": "run results",
+            "collectionIndex": 18,
+            "artifactIndex": 19
+          },
+          "bends": 3,
+          "stretch": 1.111,
+          "directCorridorBlockers": [
+            {
+              "id": "mem",
+              "label": "Hindsight",
+              "box": [
+                570,
+                680,
+                160,
+                64
+              ]
+            }
+          ]
+        },
+        {
+          "relationship": {
+            "id": "rageval-claude",
+            "from": "rageval",
+            "to": "claude",
+            "label": "judges",
+            "collectionIndex": 28,
+            "artifactIndex": 29
+          },
+          "bends": 4,
+          "stretch": 1.302
+        },
+        {
+          "relationship": {
+            "id": "ageval-lf",
+            "from": "ageval",
+            "to": "lf",
+            "label": "scores",
+            "collectionIndex": 30,
+            "artifactIndex": 31
+          },
+          "bends": 3,
+          "stretch": 1.122,
+          "directCorridorBlockers": [
+            {
+              "id": "rageval",
+              "label": "RAG Evaluation",
+              "box": [
+                780,
+                810,
+                160,
+                64
+              ]
+            }
+          ]
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "rt has 4 relationships facing its right side, which fits 3 ports: make that side at least 74px, or move some of those neighbours so they face another side of rt.",
+      "api → evid and api → ingest cross next to api: move node evid or ingest so the two reach api from different sides (for example one level with it, one directly above or below it).",
+      "api → evid and api → kg cross next to api: move node evid or kg so the two reach api from different sides (for example one level with it, one directly above or below it).",
+      "api → copilot and api → rag cross next to api: move node copilot or rag so the two reach api from different sides (for example one level with it, one directly above or below it).",
+      "api → rag crosses rt → claude: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "api → rag crosses rt → web: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "rt → kg and kg → kgeval cross next to kg: move node rt or kgeval so the two reach kg from different sides (for example one level with it, one directly above or below it).",
+      "api → kg needs 4 bends: move node api or kg so they share a row or column with matching centers, or sit diagonally with a clear corner."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

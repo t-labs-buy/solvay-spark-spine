@@ -1,0 +1,45 @@
+# Hindsight, the Evidence Agent's long-term memory server (docs/agent-memory.md),
+# as its own image. It cannot share the app image: hindsight-api pulls ~115
+# packages and downgrades Docling's transformers and tokenizers.
+#
+#   ./scripts/docker-publish.sh hindsight     build for linux/amd64 and push
+#
+# Storage is the stack's Postgres (HINDSIGHT_API_DATABASE_URL in compose.yml),
+# not the embedded pg0 the Mac setup uses, so memories live on a volume that is
+# already backed up with everything else.
+
+# ── Local models, fetched on the build machine's own platform ──────────────
+# Hindsight embeds and reranks in-process with two small models. Fetching them
+# needs no torch, and the files are the same on every platform.
+FROM --platform=$BUILDPLATFORM python:3.13-slim-bookworm AS models
+ENV PIP_NO_CACHE_DIR=1 PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10 HF_HOME=/opt/hf
+RUN pip install huggingface_hub \
+    && python -c "from huggingface_hub import snapshot_download as d; \
+d('BAAI/bge-small-en-v1.5'); d('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+
+# ── Runtime ────────────────────────────────────────────────────────────────
+FROM python:3.13-slim-bookworm
+ARG GIT_SHA=unknown
+ARG HINDSIGHT_VERSION=0.10.1
+ARG TORCH_VERSION=2.14.0
+LABEL org.opencontainers.image.title="solvay-spark-spine-hindsight" \
+      org.opencontainers.image.description="Hindsight memory server for Solvay Spark Spine AI" \
+      org.opencontainers.image.revision="${GIT_SHA}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+ENV PIP_NO_CACHE_DIR=1 PIP_DEFAULT_TIMEOUT=120 PIP_RETRIES=10
+# CPU torch first: the default Linux wheel is the multi-GB CUDA build.
+RUN pip install --index-url https://download.pytorch.org/whl/cpu torch==${TORCH_VERSION} \
+    && pip install hindsight-api==${HINDSIGHT_VERSION}
+
+COPY --from=models /opt/hf /opt/hf
+RUN chmod -R a+rX /opt/hf && useradd --create-home --uid 1000 app
+# The models are baked in above; offline stops start-up checks against the Hub.
+ENV HF_HOME=/opt/hf HF_HUB_OFFLINE=1 PYTHONUNBUFFERED=1
+USER app
+
+EXPOSE 8888
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=5 \
+    CMD curl -fsS http://127.0.0.1:8888/health || exit 1
+CMD ["hindsight-api", "--host", "0.0.0.0", "--port", "8888", "--log-level", "info"]

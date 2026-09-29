@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "startedAt": "2026-09-29T08:13:48.558Z",
+  "specification": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+    "sha256": "6a780ff277208a808982a5f60d07cea755b4741d0b528bf32d1edf7a9837b63a",
+    "bytes": 20501
+  },
+  "artifact": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+    "sha256": "579c3d5ff10f6de833396f21e208de3ee17a3c45ebcb492be2e17d34e9a99f74",
+    "bytes": 819315
+  },
+  "stages": {
+    "validate": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": null,
+      "command": [
+        "/Users/senthilpalanivelu/.nvm/versions/node/v24.15.0/bin/node",
+        "/Users/senthilpalanivelu/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "architecture",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "deliver",
+        "receiptId": "dfbe706b-3c98-467d-b15f-d4f7414f3b05",
+        "stage": "render",
+        "type": "architecture",
+        "input": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+        "output": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+        "error": "Architecture layout validation failed:\n- [composition/ambiguous-corridor] showcase architecture connections[6] id \"upsearch-g\" \"upsearch\" -> \"ground\" shares a 150px corridor with connections[7] id \"web-g\" \"web\" -> \"ground\" at [283, 335] -> [433, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.\n- [composition/ambiguous-corridor] showcase architecture connections[9] id \"trav-g\" \"trav\" -> \"ground\" shares a 150px corridor with connections[10] id \"recall-g\" \"recall\" -> \"ground\" at [489, 335] -> [639, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+        "diagnostics": [
+          {
+            "code": "composition/ambiguous-corridor",
+            "severity": "error",
+            "message": "[composition/ambiguous-corridor] showcase architecture connections[6] id \"upsearch-g\" \"upsearch\" -> \"ground\" shares a 150px corridor with connections[7] id \"web-g\" \"web\" -> \"ground\" at [283, 335] -> [433, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 6,
+              "id": "upsearch-g",
+              "from": "upsearch",
+              "to": "ground"
+            },
+            "evidence": {
+              "otherRelationship": {
+                "diagramType": "architecture",
+                "collection": "connections",
+                "index": 7,
+                "id": "web-g",
+                "from": "web",
+                "to": "ground"
+              },
+              "overlapLengthPx": 150,
+              "minimumPx": 8,
+              "from": [
+                283,
+                335
+              ],
+              "to": [
+                433,
+                335
+              ],
+              "segmentIndex": 1,
+              "otherSegmentIndex": 1
+            },
+            "supportedFixes": [
+              "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+            ]
+          },
+          {
+            "code": "composition/ambiguous-corridor",
+            "severity": "error",
+            "message": "[composition/ambiguous-corridor] showcase architecture connections[9] id \"trav-g\" \"trav\" -> \"ground\" shares a 150px corridor with connections[10] id \"recall-g\" \"recall\" -> \"ground\" at [489, 335] -> [639, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 9,
+              "id": "trav-g",
+              "from": "trav",
+              "to": "ground"
+            },
+            "evidence": {
+              "otherRelationship": {
+                "diagramType": "architecture",
+                "collection": "connections",
+                "index": 10,
+                "id": "recall-g",
+                "from": "recall",
+                "to": "ground"
+              },
+              "overlapLengthPx": 150,
+              "minimumPx": 8,
+              "from": [
+                489,
+                335
+              ],
+              "to": [
+                639,
+                335
+              ],
+              "segmentIndex": 1,
+              "otherSegmentIndex": 1
+            },
+            "supportedFixes": [
+              "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+            ]
+          }
+        ],
+        "provenance": "failed",
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      },
+      "execution": "embedded-in-deliver"
+    },
+    "deliver": {
+      "status": "not-run",
+      "execution": "blocked-by-validate"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "composition/ambiguous-corridor",
+      "severity": "error",
+      "message": "[composition/ambiguous-corridor] showcase architecture connections[6] id \"upsearch-g\" \"upsearch\" -> \"ground\" shares a 150px corridor with connections[7] id \"web-g\" \"web\" -> \"ground\" at [283, 335] -> [433, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 6,
+        "id": "upsearch-g",
+        "from": "upsearch",
+        "to": "ground"
+      },
+      "evidence": {
+        "otherRelationship": {
+          "diagramType": "architecture",
+          "collection": "connections",
+          "index": 7,
+          "id": "web-g",
+          "from": "web",
+          "to": "ground"
+        },
+        "overlapLengthPx": 150,
+        "minimumPx": 8,
+        "from": [
+          283,
+          335
+        ],
+        "to": [
+          433,
+          335
+        ],
+        "segmentIndex": 1,
+        "otherSegmentIndex": 1
+      },
+      "supportedFixes": [
+        "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+      ]
+    },
+    {
+      "code": "composition/ambiguous-corridor",
+      "severity": "error",
+      "message": "[composition/ambiguous-corridor] showcase architecture connections[9] id \"trav-g\" \"trav\" -> \"ground\" shares a 150px corridor with connections[10] id \"recall-g\" \"recall\" -> \"ground\" at [489, 335] -> [639, 335] (segments 1 and 1; minimum 8px) — if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 9,
+        "id": "trav-g",
+        "from": "trav",
+        "to": "ground"
+      },
+      "evidence": {
+        "otherRelationship": {
+          "diagramType": "architecture",
+          "collection": "connections",
+          "index": 10,
+          "id": "recall-g",
+          "from": "recall",
+          "to": "ground"
+        },
+        "overlapLengthPx": 150,
+        "minimumPx": 8,
+        "from": [
+          489,
+          335
+        ],
+        "to": [
+          639,
+          335
+        ],
+        "segmentIndex": 1,
+        "otherSegmentIndex": 1
+      },
+      "supportedFixes": [
+        "if the authored fromSide/toSide are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust route/via or fromSide/toSide so distinct connections do not visually merge"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/v4/tech-stack.finalize.json",
+    "summaryReceipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/v4/tech-stack.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "validate",
+  "finishedAt": "2026-09-29T08:13:48.795Z",
+  "durationMs": 236,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-29T06:19:58.761Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

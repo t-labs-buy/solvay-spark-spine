@@ -1,0 +1,1375 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "startedAt": "2026-09-29T08:13:36.957Z",
+  "specification": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+    "sha256": "46095efcb40ab5cec717b1eed02136c5c1ab405bbc01287c3110c5534ede94fc",
+    "bytes": 20051
+  },
+  "artifact": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+    "sha256": "579c3d5ff10f6de833396f21e208de3ee17a3c45ebcb492be2e17d34e9a99f74",
+    "bytes": 819315
+  },
+  "stages": {
+    "validate": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": null,
+      "command": [
+        "/Users/senthilpalanivelu/.nvm/versions/node/v24.15.0/bin/node",
+        "/Users/senthilpalanivelu/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "architecture",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "/Users/senthilpalanivelu/Programme/solvay-spark-spine",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "deliver",
+        "receiptId": "e0b3e5fd-b391-4445-960d-53b446ef58e9",
+        "stage": "render",
+        "type": "architecture",
+        "input": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+        "output": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+        "error": "Architecture layout validation failed:\n- Boundary label \"Consumption\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.\n- Boundary label \"Retrieval & grounding\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.\n- Boundary label \"Memory layer\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.\n- Boundary label \"Ingestion & curation\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.\n- Boundary label \"Sources\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.\n- Boundary \"Consumption\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.\n- Boundary \"Retrieval & grounding\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.\n- Boundary \"Memory layer\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.\n- Boundary \"Ingestion & curation\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.\n- Boundary \"Sources\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.\n- Connection \"g-askrag\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.\n- Connection \"upsearch-g\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+        "diagnostics": [
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Boundary label \"Consumption\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          },
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Boundary label \"Retrieval & grounding\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          },
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Boundary label \"Memory layer\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          },
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Boundary label \"Ingestion & curation\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          },
+          {
+            "code": "layout/constraint",
+            "severity": "error",
+            "message": "Boundary label \"Sources\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+            "subject": {
+              "diagramType": "architecture"
+            },
+            "evidence": {},
+            "supportedFixes": []
+          },
+          {
+            "code": "layout/boundary-out-of-bounds",
+            "severity": "error",
+            "message": "Boundary \"Consumption\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+            "subject": {
+              "diagramType": "architecture",
+              "boundary": {
+                "kind": "region",
+                "label": "Consumption",
+                "wraps": [
+                  "askrag",
+                  "evid",
+                  "copilot",
+                  "lens",
+                  "explorer"
+                ]
+              }
+            },
+            "evidence": {
+              "bounds": {
+                "x": -10,
+                "y": 100,
+                "width": 922,
+                "height": 108
+              },
+              "viewBox": [
+                1230,
+                960
+              ],
+              "overflow": {
+                "left": 10,
+                "top": 0,
+                "right": 0,
+                "bottom": 0
+              },
+              "members": [
+                {
+                  "id": "askrag",
+                  "type": "frontend",
+                  "label": "Ask RAG",
+                  "x": 20,
+                  "y": 130,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    20,
+                    130
+                  ]
+                },
+                {
+                  "id": "evid",
+                  "type": "frontend",
+                  "label": "Evidence Agent",
+                  "x": 198,
+                  "y": 130,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    198,
+                    130
+                  ]
+                },
+                {
+                  "id": "copilot",
+                  "type": "frontend",
+                  "label": "Fit-Gap Copilot",
+                  "x": 376,
+                  "y": 130,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    376,
+                    130
+                  ]
+                },
+                {
+                  "id": "lens",
+                  "type": "frontend",
+                  "label": "InsightLens",
+                  "x": 554,
+                  "y": 130,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    554,
+                    130
+                  ]
+                },
+                {
+                  "id": "explorer",
+                  "type": "frontend",
+                  "label": "Graph Explorer",
+                  "x": 732,
+                  "y": 130,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    732,
+                    130
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+            ]
+          },
+          {
+            "code": "layout/boundary-out-of-bounds",
+            "severity": "error",
+            "message": "Boundary \"Retrieval & grounding\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+            "subject": {
+              "diagramType": "architecture",
+              "boundary": {
+                "kind": "region",
+                "label": "Retrieval & grounding",
+                "wraps": [
+                  "ground",
+                  "upsearch",
+                  "web",
+                  "hybrid",
+                  "trav",
+                  "recall"
+                ]
+              }
+            },
+            "evidence": {
+              "bounds": {
+                "x": -10,
+                "y": 235,
+                "width": 922,
+                "height": 198
+              },
+              "viewBox": [
+                1230,
+                960
+              ],
+              "overflow": {
+                "left": 10,
+                "top": 0,
+                "right": 0,
+                "bottom": 0
+              },
+              "members": [
+                {
+                  "id": "ground",
+                  "type": "backend",
+                  "label": "Grounding & verification",
+                  "x": 20,
+                  "y": 265,
+                  "width": 862,
+                  "height": 50,
+                  "pos": [
+                    20,
+                    265
+                  ]
+                },
+                {
+                  "id": "upsearch",
+                  "type": "backend",
+                  "label": "Upload search",
+                  "x": 20,
+                  "y": 355,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    20,
+                    355
+                  ]
+                },
+                {
+                  "id": "web",
+                  "type": "backend",
+                  "label": "Gated web search",
+                  "x": 198,
+                  "y": 355,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    198,
+                    355
+                  ]
+                },
+                {
+                  "id": "hybrid",
+                  "type": "backend",
+                  "label": "Hybrid search",
+                  "x": 376,
+                  "y": 355,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    376,
+                    355
+                  ]
+                },
+                {
+                  "id": "trav",
+                  "type": "backend",
+                  "label": "Graph traversal",
+                  "x": 554,
+                  "y": 355,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    554,
+                    355
+                  ]
+                },
+                {
+                  "id": "recall",
+                  "type": "backend",
+                  "label": "Memory recall",
+                  "x": 732,
+                  "y": 355,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    732,
+                    355
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+            ]
+          },
+          {
+            "code": "layout/boundary-out-of-bounds",
+            "severity": "error",
+            "message": "Boundary \"Memory layer\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+            "subject": {
+              "diagramType": "architecture",
+              "boundary": {
+                "kind": "region",
+                "label": "Memory layer",
+                "wraps": [
+                  "sessions",
+                  "corpus",
+                  "vindex",
+                  "graph",
+                  "amem"
+                ]
+              }
+            },
+            "evidence": {
+              "bounds": {
+                "x": -10,
+                "y": 465,
+                "width": 922,
+                "height": 108
+              },
+              "viewBox": [
+                1230,
+                960
+              ],
+              "overflow": {
+                "left": 10,
+                "top": 0,
+                "right": 0,
+                "bottom": 0
+              },
+              "members": [
+                {
+                  "id": "sessions",
+                  "type": "database",
+                  "label": "Upload sessions",
+                  "x": 20,
+                  "y": 495,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    20,
+                    495
+                  ]
+                },
+                {
+                  "id": "corpus",
+                  "type": "database",
+                  "label": "Document corpus",
+                  "x": 198,
+                  "y": 495,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    198,
+                    495
+                  ]
+                },
+                {
+                  "id": "vindex",
+                  "type": "database",
+                  "label": "Vector & keyword index",
+                  "x": 376,
+                  "y": 495,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    376,
+                    495
+                  ]
+                },
+                {
+                  "id": "graph",
+                  "type": "database",
+                  "label": "Process knowledge graph",
+                  "x": 554,
+                  "y": 495,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    554,
+                    495
+                  ]
+                },
+                {
+                  "id": "amem",
+                  "type": "database",
+                  "label": "Agent memory",
+                  "x": 732,
+                  "y": 495,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    732,
+                    495
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+            ]
+          },
+          {
+            "code": "layout/boundary-out-of-bounds",
+            "severity": "error",
+            "message": "Boundary \"Ingestion & curation\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+            "subject": {
+              "diagramType": "architecture",
+              "boundary": {
+                "kind": "region",
+                "label": "Ingestion & curation",
+                "wraps": [
+                  "convert",
+                  "curate",
+                  "chunk",
+                  "buildkg"
+                ]
+              }
+            },
+            "evidence": {
+              "bounds": {
+                "x": -10,
+                "y": 595,
+                "width": 744,
+                "height": 108
+              },
+              "viewBox": [
+                1230,
+                960
+              ],
+              "overflow": {
+                "left": 10,
+                "top": 0,
+                "right": 0,
+                "bottom": 0
+              },
+              "members": [
+                {
+                  "id": "convert",
+                  "type": "backend",
+                  "label": "Convert to Markdown",
+                  "x": 20,
+                  "y": 625,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    20,
+                    625
+                  ]
+                },
+                {
+                  "id": "curate",
+                  "type": "backend",
+                  "label": "Curate & publish",
+                  "x": 198,
+                  "y": 625,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    198,
+                    625
+                  ]
+                },
+                {
+                  "id": "chunk",
+                  "type": "backend",
+                  "label": "Chunk & embed",
+                  "x": 376,
+                  "y": 625,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    376,
+                    625
+                  ]
+                },
+                {
+                  "id": "buildkg",
+                  "type": "backend",
+                  "label": "Build knowledge graph",
+                  "x": 554,
+                  "y": 625,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    554,
+                    625
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+            ]
+          },
+          {
+            "code": "layout/boundary-out-of-bounds",
+            "severity": "error",
+            "message": "Boundary \"Sources\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+            "subject": {
+              "diagramType": "architecture",
+              "boundary": {
+                "kind": "region",
+                "label": "Sources",
+                "wraps": [
+                  "docs",
+                  "folders"
+                ]
+              }
+            },
+            "evidence": {
+              "bounds": {
+                "x": -10,
+                "y": 725,
+                "width": 566,
+                "height": 108
+              },
+              "viewBox": [
+                1230,
+                960
+              ],
+              "overflow": {
+                "left": 10,
+                "top": 0,
+                "right": 0,
+                "bottom": 0
+              },
+              "members": [
+                {
+                  "id": "docs",
+                  "type": "external",
+                  "label": "Documents",
+                  "x": 20,
+                  "y": 755,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    20,
+                    755
+                  ]
+                },
+                {
+                  "id": "folders",
+                  "type": "external",
+                  "label": "Existing corpus folders",
+                  "x": 376,
+                  "y": 755,
+                  "width": 150,
+                  "height": 58,
+                  "pos": [
+                    376,
+                    755
+                  ]
+                }
+              ]
+            },
+            "supportedFixes": [
+              "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+            ]
+          },
+          {
+            "code": "layout/route-out-of-bounds",
+            "severity": "error",
+            "message": "Connection \"g-askrag\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 1,
+              "id": "g-askrag",
+              "from": "ground",
+              "to": "askrag"
+            },
+            "evidence": {
+              "viewBox": [
+                1230,
+                960
+              ],
+              "outsidePoints": [
+                [
+                  -4,
+                  281
+                ],
+                [
+                  -4,
+                  159
+                ]
+              ],
+              "points": [
+                [
+                  20,
+                  281
+                ],
+                [
+                  -4,
+                  281
+                ],
+                [
+                  -4,
+                  159
+                ],
+                [
+                  20,
+                  159
+                ]
+              ]
+            },
+            "supportedFixes": [
+              "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+            ]
+          },
+          {
+            "code": "layout/route-out-of-bounds",
+            "severity": "error",
+            "message": "Connection \"upsearch-g\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+            "subject": {
+              "diagramType": "architecture",
+              "collection": "connections",
+              "index": 6,
+              "id": "upsearch-g",
+              "from": "upsearch",
+              "to": "ground"
+            },
+            "evidence": {
+              "viewBox": [
+                1230,
+                960
+              ],
+              "outsidePoints": [
+                [
+                  -4,
+                  384
+                ],
+                [
+                  -4,
+                  295
+                ]
+              ],
+              "points": [
+                [
+                  20,
+                  384
+                ],
+                [
+                  -4,
+                  384
+                ],
+                [
+                  -4,
+                  295
+                ],
+                [
+                  20,
+                  295
+                ]
+              ]
+            },
+            "supportedFixes": [
+              "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+            ]
+          }
+        ],
+        "provenance": "failed",
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      },
+      "execution": "embedded-in-deliver"
+    },
+    "deliver": {
+      "status": "not-run",
+      "execution": "blocked-by-validate"
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"Consumption\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    },
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"Retrieval & grounding\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    },
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"Memory layer\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    },
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"Ingestion & curation\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    },
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"Sources\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      },
+      "evidence": {},
+      "supportedFixes": []
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"Consumption\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "Consumption",
+          "wraps": [
+            "askrag",
+            "evid",
+            "copilot",
+            "lens",
+            "explorer"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -10,
+          "y": 100,
+          "width": 922,
+          "height": 108
+        },
+        "viewBox": [
+          1230,
+          960
+        ],
+        "overflow": {
+          "left": 10,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "askrag",
+            "type": "frontend",
+            "label": "Ask RAG",
+            "x": 20,
+            "y": 130,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              20,
+              130
+            ]
+          },
+          {
+            "id": "evid",
+            "type": "frontend",
+            "label": "Evidence Agent",
+            "x": 198,
+            "y": 130,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              198,
+              130
+            ]
+          },
+          {
+            "id": "copilot",
+            "type": "frontend",
+            "label": "Fit-Gap Copilot",
+            "x": 376,
+            "y": 130,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              376,
+              130
+            ]
+          },
+          {
+            "id": "lens",
+            "type": "frontend",
+            "label": "InsightLens",
+            "x": 554,
+            "y": 130,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              554,
+              130
+            ]
+          },
+          {
+            "id": "explorer",
+            "type": "frontend",
+            "label": "Graph Explorer",
+            "x": 732,
+            "y": 130,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              732,
+              130
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"Retrieval & grounding\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "Retrieval & grounding",
+          "wraps": [
+            "ground",
+            "upsearch",
+            "web",
+            "hybrid",
+            "trav",
+            "recall"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -10,
+          "y": 235,
+          "width": 922,
+          "height": 198
+        },
+        "viewBox": [
+          1230,
+          960
+        ],
+        "overflow": {
+          "left": 10,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "ground",
+            "type": "backend",
+            "label": "Grounding & verification",
+            "x": 20,
+            "y": 265,
+            "width": 862,
+            "height": 50,
+            "pos": [
+              20,
+              265
+            ]
+          },
+          {
+            "id": "upsearch",
+            "type": "backend",
+            "label": "Upload search",
+            "x": 20,
+            "y": 355,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              20,
+              355
+            ]
+          },
+          {
+            "id": "web",
+            "type": "backend",
+            "label": "Gated web search",
+            "x": 198,
+            "y": 355,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              198,
+              355
+            ]
+          },
+          {
+            "id": "hybrid",
+            "type": "backend",
+            "label": "Hybrid search",
+            "x": 376,
+            "y": 355,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              376,
+              355
+            ]
+          },
+          {
+            "id": "trav",
+            "type": "backend",
+            "label": "Graph traversal",
+            "x": 554,
+            "y": 355,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              554,
+              355
+            ]
+          },
+          {
+            "id": "recall",
+            "type": "backend",
+            "label": "Memory recall",
+            "x": 732,
+            "y": 355,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              732,
+              355
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"Memory layer\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "Memory layer",
+          "wraps": [
+            "sessions",
+            "corpus",
+            "vindex",
+            "graph",
+            "amem"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -10,
+          "y": 465,
+          "width": 922,
+          "height": 108
+        },
+        "viewBox": [
+          1230,
+          960
+        ],
+        "overflow": {
+          "left": 10,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "sessions",
+            "type": "database",
+            "label": "Upload sessions",
+            "x": 20,
+            "y": 495,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              20,
+              495
+            ]
+          },
+          {
+            "id": "corpus",
+            "type": "database",
+            "label": "Document corpus",
+            "x": 198,
+            "y": 495,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              198,
+              495
+            ]
+          },
+          {
+            "id": "vindex",
+            "type": "database",
+            "label": "Vector & keyword index",
+            "x": 376,
+            "y": 495,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              376,
+              495
+            ]
+          },
+          {
+            "id": "graph",
+            "type": "database",
+            "label": "Process knowledge graph",
+            "x": 554,
+            "y": 495,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              554,
+              495
+            ]
+          },
+          {
+            "id": "amem",
+            "type": "database",
+            "label": "Agent memory",
+            "x": 732,
+            "y": 495,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              732,
+              495
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"Ingestion & curation\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "Ingestion & curation",
+          "wraps": [
+            "convert",
+            "curate",
+            "chunk",
+            "buildkg"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -10,
+          "y": 595,
+          "width": 744,
+          "height": 108
+        },
+        "viewBox": [
+          1230,
+          960
+        ],
+        "overflow": {
+          "left": 10,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "convert",
+            "type": "backend",
+            "label": "Convert to Markdown",
+            "x": 20,
+            "y": 625,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              20,
+              625
+            ]
+          },
+          {
+            "id": "curate",
+            "type": "backend",
+            "label": "Curate & publish",
+            "x": 198,
+            "y": 625,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              198,
+              625
+            ]
+          },
+          {
+            "id": "chunk",
+            "type": "backend",
+            "label": "Chunk & embed",
+            "x": 376,
+            "y": 625,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              376,
+              625
+            ]
+          },
+          {
+            "id": "buildkg",
+            "type": "backend",
+            "label": "Build knowledge graph",
+            "x": 554,
+            "y": 625,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              554,
+              625
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"Sources\" extends outside the viewBox (left by 10px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "Sources",
+          "wraps": [
+            "docs",
+            "folders"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -10,
+          "y": 725,
+          "width": 566,
+          "height": 108
+        },
+        "viewBox": [
+          1230,
+          960
+        ],
+        "overflow": {
+          "left": 10,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "docs",
+            "type": "external",
+            "label": "Documents",
+            "x": 20,
+            "y": 755,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              20,
+              755
+            ]
+          },
+          {
+            "id": "folders",
+            "type": "external",
+            "label": "Existing corpus folders",
+            "x": 376,
+            "y": 755,
+            "width": 150,
+            "height": 58,
+            "pos": [
+              376,
+              755
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 10px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    },
+    {
+      "code": "layout/route-out-of-bounds",
+      "severity": "error",
+      "message": "Connection \"g-askrag\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 1,
+        "id": "g-askrag",
+        "from": "ground",
+        "to": "askrag"
+      },
+      "evidence": {
+        "viewBox": [
+          1230,
+          960
+        ],
+        "outsidePoints": [
+          [
+            -4,
+            281
+          ],
+          [
+            -4,
+            159
+          ]
+        ],
+        "points": [
+          [
+            20,
+            281
+          ],
+          [
+            -4,
+            281
+          ],
+          [
+            -4,
+            159
+          ],
+          [
+            20,
+            159
+          ]
+        ]
+      },
+      "supportedFixes": [
+        "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+      ]
+    },
+    {
+      "code": "layout/route-out-of-bounds",
+      "severity": "error",
+      "message": "Connection \"upsearch-g\" extends outside the viewBox — move the measured outside route points inward or enlarge an authored viewBox for right/bottom overflow.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 6,
+        "id": "upsearch-g",
+        "from": "upsearch",
+        "to": "ground"
+      },
+      "evidence": {
+        "viewBox": [
+          1230,
+          960
+        ],
+        "outsidePoints": [
+          [
+            -4,
+            384
+          ],
+          [
+            -4,
+            295
+          ]
+        ],
+        "points": [
+          [
+            20,
+            384
+          ],
+          [
+            -4,
+            384
+          ],
+          [
+            -4,
+            295
+          ],
+          [
+            20,
+            295
+          ]
+        ]
+      },
+      "supportedFixes": [
+        "move negative route coordinates inside the canvas; for right/bottom overflow, enlarge meta.viewBox or reroute inward; preserve endpoints, direction and labels, then revalidate"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/v3/tech-stack.finalize.json",
+    "summaryReceipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/v3/tech-stack.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "validate",
+  "finishedAt": "2026-09-29T08:13:37.226Z",
+  "durationMs": 269,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-29T06:19:58.761Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

@@ -1,0 +1,1202 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "Solvay Spark Spine AI — Tech Stack",
+  "output": ".archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+  "quality_profile": "showcase",
+  "repository": {
+   "url": "https://github.com/t-labs-buy/solvay-spark-spine.git",
+   "provider": "github",
+   "link_mode": "web",
+   "revision": "e2eb4d98b94dec62a7337b96748d90fa052acef3"
+  },
+  "views": [
+   {
+    "id": "ingest",
+    "label": "Ingestion",
+    "focus": [
+     "docs",
+     "folders",
+     "convert",
+     "curate",
+     "chunk",
+     "buildkg",
+     "sessions",
+     "corpus",
+     "vindex",
+     "graph",
+     "ollama"
+    ],
+    "note": "Docling + OCR to Markdown, curated, chunked, embedded by bge-m3 and graphed."
+   },
+   {
+    "id": "retrieve",
+    "label": "Retrieval",
+    "focus": [
+     "sessions",
+     "vindex",
+     "graph",
+     "amem",
+     "upsearch",
+     "web",
+     "hybrid",
+     "trav",
+     "recall",
+     "ground",
+     "claude"
+    ],
+    "note": "pgvector + tsvector, graph traversal, memory and gated web feed grounded Claude answers."
+   },
+   {
+    "id": "apps",
+    "label": "Applications",
+    "focus": [
+     "user",
+     "askrag",
+     "evid",
+     "copilot",
+     "lens",
+     "explorer",
+     "ground"
+    ],
+    "note": "React 19 apps over FastAPI; agents run tool loops on Claude Opus 5."
+   },
+   {
+    "id": "quality",
+    "label": "Evaluation & observability",
+    "focus": [
+     "rageval",
+     "ageval",
+     "geval",
+     "lf",
+     "claude"
+    ],
+    "note": "Ragas, code-only agent scores and graph checks, all traced in Langfuse."
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "user",
+   "type": "external",
+   "label": "Analyst",
+   "sublabel": "browser · Web UI",
+   "pos": [
+    386,
+    20
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "frontend/package.json",
+     "line": 22,
+     "end_line": 22,
+     "label": "React 19"
+    }
+   ]
+  },
+  {
+   "id": "askrag",
+   "type": "frontend",
+   "label": "Ask RAG",
+   "sublabel": "React 19 · MUI · SSE",
+   "pos": [
+    30,
+    130
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "frontend/package.json",
+     "line": 14,
+     "end_line": 22,
+     "label": "React + MUI"
+    },
+    {
+     "path": "frontend/src/api.ts",
+     "line": 618,
+     "end_line": 618,
+     "label": "stream reader"
+    },
+    {
+     "path": "backend/api/app.py",
+     "line": 1697,
+     "end_line": 1697,
+     "label": "/api/ask"
+    }
+   ]
+  },
+  {
+   "id": "evid",
+   "type": "frontend",
+   "label": "Evidence Agent",
+   "sublabel": "Claude Opus 5 · tool use",
+   "pos": [
+    208,
+    130
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/evidence/agent.py",
+     "line": 35,
+     "end_line": 35,
+     "label": "model"
+    },
+    {
+     "path": "backend/agents/evidence/agent.py",
+     "line": 584,
+     "end_line": 584,
+     "label": "messages.create"
+    }
+   ]
+  },
+  {
+   "id": "copilot",
+   "type": "frontend",
+   "label": "Fit-Gap Copilot",
+   "sublabel": "Opus 5 · WeasyPrint · docx",
+   "pos": [
+    386,
+    130
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/rollout/agent.py",
+     "line": 38,
+     "end_line": 38,
+     "label": "model"
+    },
+    {
+     "path": "backend/agents/rollout/pdf.py",
+     "line": 455,
+     "end_line": 455,
+     "label": "WeasyPrint"
+    },
+    {
+     "path": "backend/agents/rollout/workshop_export.py",
+     "line": 131,
+     "end_line": 131,
+     "label": "python-docx"
+    }
+   ]
+  },
+  {
+   "id": "lens",
+   "type": "frontend",
+   "label": "InsightLens",
+   "sublabel": "Opus 5 · openpyxl export",
+   "pos": [
+    564,
+    130
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/fitgap/agent.py",
+     "line": 24,
+     "end_line": 24,
+     "label": "model"
+    },
+    {
+     "path": "backend/agents/fitgap/orchestrator.py",
+     "line": 21,
+     "end_line": 21,
+     "label": "verifier · synthesis"
+    }
+   ]
+  },
+  {
+   "id": "explorer",
+   "type": "frontend",
+   "label": "Graph Explorer",
+   "sublabel": "D3 canvas · Cypher (Bolt)",
+   "pos": [
+    742,
+    130
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "frontend/package.json",
+     "line": 16,
+     "end_line": 16,
+     "label": "d3"
+    },
+    {
+     "path": "backend/api/app.py",
+     "line": 523,
+     "end_line": 523,
+     "label": "/api/graph/cypher"
+    }
+   ]
+  },
+  {
+   "id": "ground",
+   "type": "backend",
+   "label": "Grounding & verification",
+   "sublabel": "Claude Opus 5 · cited answers · quote verifier (Python) · computed confidence",
+   "pos": [
+    30,
+    265
+   ],
+   "size": [
+    862,
+    50
+   ],
+   "sources": [
+    {
+     "path": "backend/rag/rag.py",
+     "line": 1274,
+     "end_line": 1282,
+     "label": "answer stream"
+    },
+    {
+     "path": "backend/agents/fitgap/tools.py",
+     "line": 4,
+     "end_line": 6,
+     "label": "verifiable retrieval log"
+    }
+   ]
+  },
+  {
+   "id": "upsearch",
+   "type": "backend",
+   "label": "Upload search",
+   "sublabel": "psycopg · session schema",
+   "pos": [
+    30,
+    355
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/fitgap/tools.py",
+     "line": 217,
+     "end_line": 217,
+     "label": "search_uploads"
+    },
+    {
+     "path": "backend/core/uploads.py",
+     "line": 18,
+     "end_line": 18,
+     "label": "schema per session"
+    }
+   ]
+  },
+  {
+   "id": "web",
+   "type": "backend",
+   "label": "Gated web search",
+   "sublabel": "web_search tool · Sonnet 5",
+   "pos": [
+    208,
+    355
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/guardrails/web.py",
+     "line": 43,
+     "end_line": 43,
+     "label": "model"
+    },
+    {
+     "path": "backend/agents/guardrails/web.py",
+     "line": 168,
+     "end_line": 168,
+     "label": "search"
+    }
+   ]
+  },
+  {
+   "id": "hybrid",
+   "type": "backend",
+   "label": "Hybrid search",
+   "sublabel": "HNSW + tsvector · RRF",
+   "pos": [
+    386,
+    355
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/rag/rag.py",
+     "line": 74,
+     "end_line": 80,
+     "label": "RRF"
+    },
+    {
+     "path": "backend/rag/rag.py",
+     "line": 585,
+     "end_line": 589,
+     "label": "HNSW + tsvector"
+    }
+   ]
+  },
+  {
+   "id": "trav",
+   "type": "backend",
+   "label": "Graph traversal",
+   "sublabel": "Python graph · NL → Cypher",
+   "pos": [
+    564,
+    355
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/fitgap/tools.py",
+     "line": 429,
+     "end_line": 492,
+     "label": "neighbours · paths"
+    },
+    {
+     "path": "backend/graph/kg_nl2cypher.py",
+     "line": 13,
+     "end_line": 13,
+     "label": "checked Cypher"
+    }
+   ]
+  },
+  {
+   "id": "recall",
+   "type": "backend",
+   "label": "Memory recall",
+   "sublabel": "hindsight-client · HTTP",
+   "pos": [
+    742,
+    355
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/fitgap/memory.py",
+     "line": 44,
+     "end_line": 47,
+     "label": "HINDSIGHT_URL"
+    },
+    {
+     "path": "requirements.txt",
+     "line": 33,
+     "end_line": 33,
+     "label": "hindsight-client"
+    }
+   ]
+  },
+  {
+   "id": "sessions",
+   "type": "database",
+   "label": "Upload sessions",
+   "sublabel": "PostgreSQL 18 · pgvector",
+   "pos": [
+    30,
+    495
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/core/uploads.py",
+     "line": 85,
+     "end_line": 85,
+     "label": "docling_session"
+    }
+   ]
+  },
+  {
+   "id": "corpus",
+   "type": "database",
+   "label": "Document corpus",
+   "sublabel": "Markdown files on disk",
+   "pos": [
+    208,
+    495
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/graph/knowledge_graph.py",
+     "line": 5,
+     "end_line": 7,
+     "label": "Markdown folders"
+    }
+   ]
+  },
+  {
+   "id": "vindex",
+   "type": "database",
+   "label": "Vector & keyword index",
+   "sublabel": "pgvector HNSW · tsvector",
+   "pos": [
+    386,
+    495
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/rag/rag.py",
+     "line": 585,
+     "end_line": 589,
+     "label": "index DDL"
+    },
+    {
+     "path": "requirements.txt",
+     "line": 12,
+     "end_line": 13,
+     "label": "psycopg · pgvector"
+    }
+   ]
+  },
+  {
+   "id": "graph",
+   "type": "database",
+   "label": "Process knowledge graph",
+   "sublabel": "JSON · Neo4j 5 + APOC",
+   "pos": [
+    564,
+    495
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/graph/knowledge_graph.py",
+     "line": 34,
+     "end_line": 34,
+     "label": "graph JSON"
+    },
+    {
+     "path": "compose.neo4j.yml",
+     "line": 12,
+     "end_line": 20,
+     "label": "Neo4j 5 + APOC"
+    },
+    {
+     "path": "backend/graph/kg_neo4j_load.py",
+     "line": 46,
+     "end_line": 46,
+     "label": "Bolt :7687"
+    }
+   ]
+  },
+  {
+   "id": "amem",
+   "type": "database",
+   "label": "Agent memory",
+   "sublabel": "Hindsight · LiteLLM",
+   "pos": [
+    742,
+    495
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/fitgap/memory.py",
+     "line": 1,
+     "end_line": 8,
+     "label": "Hindsight"
+    },
+    {
+     "path": "scripts/hindsight.sh",
+     "line": 47,
+     "end_line": 47,
+     "label": "LiteLLM"
+    }
+   ]
+  },
+  {
+   "id": "convert",
+   "type": "backend",
+   "label": "Convert to Markdown",
+   "sublabel": "Docling · Tesseract · CV",
+   "pos": [
+    30,
+    625
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/ingestion/converter.py",
+     "line": 22,
+     "end_line": 22,
+     "label": "Docling"
+    },
+    {
+     "path": "backend/ingestion/table_cv.py",
+     "line": 32,
+     "end_line": 32,
+     "label": "OpenCV"
+    },
+    {
+     "path": "backend/ingestion/vlm_ocr.py",
+     "line": 39,
+     "end_line": 39,
+     "label": "optional VLM"
+    }
+   ]
+  },
+  {
+   "id": "curate",
+   "type": "backend",
+   "label": "Curate & publish",
+   "sublabel": "FastAPI · front matter",
+   "pos": [
+    208,
+    625
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/api/app.py",
+     "line": 270,
+     "end_line": 292,
+     "label": "add to knowledge base"
+    }
+   ]
+  },
+  {
+   "id": "chunk",
+   "type": "backend",
+   "label": "Chunk & embed",
+   "sublabel": "Markdown chunker · bge-m3",
+   "pos": [
+    386,
+    625
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/ingestion/md_chunker.py",
+     "line": 3,
+     "end_line": 9,
+     "label": "heading-aware"
+    },
+    {
+     "path": "backend/rag/rag.py",
+     "line": 66,
+     "end_line": 67,
+     "label": "Ollama bge-m3"
+    }
+   ]
+  },
+  {
+   "id": "buildkg",
+   "type": "backend",
+   "label": "Build knowledge graph",
+   "sublabel": "Python rules · openpyxl",
+   "pos": [
+    564,
+    625
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/graph/knowledge_graph.py",
+     "line": 26,
+     "end_line": 27,
+     "label": "BPML via openpyxl"
+    },
+    {
+     "path": "backend/graph/kg_neo4j_load.py",
+     "line": 180,
+     "end_line": 180,
+     "label": "load Neo4j"
+    }
+   ]
+  },
+  {
+   "id": "docs",
+   "type": "external",
+   "label": "Documents",
+   "sublabel": "PDF · Office · HTML · mail",
+   "pos": [
+    30,
+    755
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/api/app.py",
+     "line": 174,
+     "end_line": 210,
+     "label": "upload · convert"
+    }
+   ]
+  },
+  {
+   "id": "folders",
+   "type": "external",
+   "label": "Existing corpus folders",
+   "sublabel": "Markdown (PKG · DR)",
+   "pos": [
+    386,
+    755
+   ],
+   "size": [
+    150,
+    58
+   ],
+   "sources": [
+    {
+     "path": "backend/graph/knowledge_graph.py",
+     "line": 32,
+     "end_line": 32,
+     "label": "pkg/markdown"
+    }
+   ]
+  },
+  {
+   "id": "claude",
+   "type": "external",
+   "label": "Anthropic Claude",
+   "sublabel": "Opus 5 · Sonnet 5 · Haiku 4.5",
+   "pos": [
+    990,
+    130
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "requirements.txt",
+     "line": 14,
+     "end_line": 14,
+     "label": "anthropic"
+    },
+    {
+     "path": "backend/agents/guardrails/scope.py",
+     "line": 40,
+     "end_line": 40,
+     "label": "Haiku 4.5"
+    }
+   ]
+  },
+  {
+   "id": "ollama",
+   "type": "cloud",
+   "label": "Ollama (local)",
+   "sublabel": "bge-m3 · HTTP :11434",
+   "pos": [
+    990,
+    205
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/rag/rag.py",
+     "line": 66,
+     "end_line": 67,
+     "label": "OLLAMA_HOST"
+    }
+   ]
+  },
+  {
+   "id": "rageval",
+   "type": "backend",
+   "label": "RAG Evaluation",
+   "sublabel": "Ragas · Sonnet 5 judge",
+   "pos": [
+    990,
+    320
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "requirements.txt",
+     "line": 46,
+     "end_line": 47,
+     "label": "ragas"
+    },
+    {
+     "path": "backend/rag/evaluation.py",
+     "line": 57,
+     "end_line": 60,
+     "label": "instructor adapter"
+    }
+   ]
+  },
+  {
+   "id": "ageval",
+   "type": "backend",
+   "label": "Agent Evaluation",
+   "sublabel": "pure Python · Langfuse scores",
+   "pos": [
+    990,
+    395
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/agent_eval.py",
+     "line": 233,
+     "end_line": 233,
+     "label": "evaluate"
+    },
+    {
+     "path": "backend/agents/agent_eval.py",
+     "line": 478,
+     "end_line": 478,
+     "label": "push"
+    }
+   ]
+  },
+  {
+   "id": "geval",
+   "type": "backend",
+   "label": "Graph Evaluation",
+   "sublabel": "Python · Neo4j · Opus 5",
+   "pos": [
+    990,
+    470
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/graph/graph_eval.py",
+     "line": 479,
+     "end_line": 480,
+     "label": "NL→Cypher on Neo4j"
+    }
+   ]
+  },
+  {
+   "id": "lf",
+   "type": "external",
+   "label": "Langfuse Cloud",
+   "sublabel": "OTel · traces · scores",
+   "pos": [
+    990,
+    595
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "requirements.txt",
+     "line": 24,
+     "end_line": 26,
+     "label": "langfuse + OTel"
+    },
+    {
+     "path": "backend/core/tracing.py",
+     "line": 64,
+     "end_line": 69,
+     "label": "optional"
+    }
+   ]
+  },
+  {
+   "id": "webx",
+   "type": "external",
+   "label": "Web (allow-listed)",
+   "sublabel": "web_search · SAP · EU",
+   "pos": [
+    990,
+    670
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/agents/guardrails/web.py",
+     "line": 60,
+     "end_line": 62,
+     "label": "allow-list"
+    }
+   ]
+  },
+  {
+   "id": "signin",
+   "type": "security",
+   "label": "Sign-in",
+   "sublabel": "HMAC cookie · FastAPI router",
+   "pos": [
+    990,
+    790
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/api/app_login.py",
+     "line": 17,
+     "end_line": 24,
+     "label": "signed cookie"
+    }
+   ]
+  },
+  {
+   "id": "guard",
+   "type": "security",
+   "label": "Guardrails",
+   "sublabel": "ASGI middleware · Haiku 4.5",
+   "pos": [
+    990,
+    865
+   ],
+   "size": [
+    170,
+    52
+   ],
+   "sources": [
+    {
+     "path": "backend/api/app.py",
+     "line": 103,
+     "end_line": 105,
+     "label": "redaction middleware"
+    },
+    {
+     "path": "backend/agents/guardrails/scope.py",
+     "line": 40,
+     "end_line": 40,
+     "label": "scope model"
+    }
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "region",
+   "label": "Consumption",
+   "wraps": [
+    "askrag",
+    "evid",
+    "copilot",
+    "lens",
+    "explorer"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Retrieval & grounding",
+   "wraps": [
+    "ground",
+    "upsearch",
+    "web",
+    "hybrid",
+    "trav",
+    "recall"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Memory layer",
+   "wraps": [
+    "sessions",
+    "corpus",
+    "vindex",
+    "graph",
+    "amem"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Ingestion & curation",
+   "wraps": [
+    "convert",
+    "curate",
+    "chunk",
+    "buildkg"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Sources",
+   "wraps": [
+    "docs",
+    "folders"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Models",
+   "wraps": [
+    "claude",
+    "ollama"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "Evaluation",
+   "wraps": [
+    "rageval",
+    "ageval",
+    "geval"
+   ]
+  },
+  {
+   "kind": "region",
+   "label": "External services",
+   "wraps": [
+    "lf",
+    "webx"
+   ]
+  },
+  {
+   "kind": "security-group",
+   "label": "Security & guardrails",
+   "wraps": [
+    "signin",
+    "guard"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "u-copilot",
+   "from": "user",
+   "to": "copilot",
+   "label": "Web UI · React 19",
+   "variant": "emphasis"
+  },
+  {
+   "id": "g-askrag",
+   "from": "ground",
+   "to": "askrag"
+  },
+  {
+   "id": "g-evid",
+   "from": "ground",
+   "to": "evid"
+  },
+  {
+   "id": "g-copilot",
+   "from": "ground",
+   "to": "copilot"
+  },
+  {
+   "id": "g-lens",
+   "from": "ground",
+   "to": "lens"
+  },
+  {
+   "id": "g-explorer",
+   "from": "ground",
+   "to": "explorer"
+  },
+  {
+   "id": "upsearch-g",
+   "from": "upsearch",
+   "to": "ground"
+  },
+  {
+   "id": "web-g",
+   "from": "web",
+   "to": "ground"
+  },
+  {
+   "id": "hybrid-g",
+   "from": "hybrid",
+   "to": "ground"
+  },
+  {
+   "id": "trav-g",
+   "from": "trav",
+   "to": "ground"
+  },
+  {
+   "id": "recall-g",
+   "from": "recall",
+   "to": "ground"
+  },
+  {
+   "id": "sess-up",
+   "from": "sessions",
+   "to": "upsearch"
+  },
+  {
+   "id": "vi-hy",
+   "from": "vindex",
+   "to": "hybrid",
+   "label": "SQL · psycopg"
+  },
+  {
+   "id": "gr-tr",
+   "from": "graph",
+   "to": "trav"
+  },
+  {
+   "id": "rc-am",
+   "from": "recall",
+   "to": "amem",
+   "label": "recall · retain"
+  },
+  {
+   "id": "cv-sess",
+   "from": "convert",
+   "to": "sessions",
+   "label": "session uploads"
+  },
+  {
+   "id": "cu-corp",
+   "from": "curate",
+   "to": "corpus",
+   "label": "publish"
+  },
+  {
+   "id": "ch-vi",
+   "from": "chunk",
+   "to": "vindex",
+   "label": "chunks + vectors"
+  },
+  {
+   "id": "kg-gr",
+   "from": "buildkg",
+   "to": "graph",
+   "label": "Bolt · load"
+  },
+  {
+   "id": "cv-cu",
+   "from": "convert",
+   "to": "curate"
+  },
+  {
+   "id": "cu-ch",
+   "from": "curate",
+   "to": "chunk"
+  },
+  {
+   "id": "docs-cv",
+   "from": "docs",
+   "to": "convert",
+   "label": "convert"
+  },
+  {
+   "id": "fold-ch",
+   "from": "folders",
+   "to": "chunk",
+   "label": "index"
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "Frontend",
+   "items": [
+    "React 19 · TypeScript 5.9 · Vite 8",
+    "MUI 9 + Emotion · D3 7 · Mermaid · marked + DOMPurify",
+    "SSE streams read with fetch + stream reader"
+   ]
+  },
+  {
+   "dot": "emerald",
+   "title": "Backend & runtime",
+   "items": [
+    "Python 3.12 · FastAPI · Uvicorn · Pydantic",
+    "Docker image + Compose: app, pgvector/pg18, Ollama, Neo4j 5",
+    "Hindsight runs in its own environment"
+   ]
+  },
+  {
+   "dot": "violet",
+   "title": "Models",
+   "items": [
+    "Claude Opus 5: answers, agents, Cypher",
+    "Claude Sonnet 5: Ragas judge, web search · Haiku 4.5: scope check",
+    "Ollama bge-m3 (1024-d) for all embeddings; optional Qwen3-VL via MLX for images"
+   ]
+  },
+  {
+   "dot": "amber",
+   "title": "Data",
+   "items": [
+    "PostgreSQL 18 + pgvector: HNSW cosine + tsvector, run history, per-upload schemas",
+    "Neo4j 5 Community + APOC over Bolt; graph JSON is the source of truth",
+    "Markdown corpus on disk / Docker volumes"
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "Quality & security",
+   "items": [
+    "Ragas + langchain-community · agent_eval (no model) · graph_eval",
+    "Langfuse via OpenTelemetry Anthropic instrumentor",
+    "HMAC cookie sign-in (pages only) · ASGI redaction · Haiku scope check"
+   ]
+  }
+ ]
+}

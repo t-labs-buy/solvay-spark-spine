@@ -143,7 +143,7 @@ From the command line, same engine, no browser:
 | Cypher and Neo4j | [docs/neo4j.md](docs/neo4j.md) |
 | Langfuse tracing, agent scores, Ragas answer scoring | [docs/tracing-and-evaluation.md](docs/tracing-and-evaluation.md), [docs/rag-evaluation.md](docs/rag-evaluation.md) |
 | Sign-in and Demo Mode | [docs/sign-in-and-demo-mode.md](docs/sign-in-and-demo-mode.md) |
-| Deploying on a server: container image, registry, compose stack | [docs/deployment.md](docs/deployment.md) |
+| Deploying on a server: container image, registry, compose stack | [docs/deployment.md](docs/deployment.md); beginner walkthrough: [docs/deployment-guide.html](docs/deployment-guide.html) |
 | Architecture and pipeline | [docs/system-diagram.md](docs/system-diagram.md), [docs/pipeline.md](docs/pipeline.md) |
 
 ## Tests

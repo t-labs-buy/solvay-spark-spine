@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/candidate.json",
+    "sha256": "8b4e4728223118805940bc3dfc12d003d111c6c52d8ba33e102c56ec33a3ab81",
+    "bytes": 17991
+  },
+  "artifact": {
+    "path": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/spark-component-architecture.html",
+    "sha256": "73bd10896a6653033e030870b3a26f96bbecbca7f84ba62e4f2a47fb262f86c2",
+    "bytes": 817189
+  },
+  "gates": {
+    "validate": "fail",
+    "deliver": "not-run",
+    "check": "not-run",
+    "browser-check": "not-run"
+  },
+  "failedStage": "validate",
+  "diagnostics": [
+    {
+      "code": "composition/label-route-clearance",
+      "severity": "error",
+      "message": "[composition/label-route-clearance] showcase architecture label \"vector + keyword\" on connections[23] id \"rag-pg\" \"rag\" -> \"pg\" label \"vector + keyword\" is 0px from connections[22] id \"files-rag\" \"files\" -> \"rag\" label \"read · chunk · index\" segment 2 [846, 638] -> [846, 614] (label rect [817, 618, 87, 14]; minimum 4px) — if the authored labelDy are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust labelAt, labelDx, labelDy, or labelSegment; otherwise adjust the other relationship route/via/channel.",
+      "subject": {
+        "diagramType": "architecture",
+        "collection": "connections",
+        "index": 23,
+        "id": "rag-pg",
+        "from": "rag",
+        "to": "pg"
+      },
+      "evidence": {
+        "label": "vector + keyword",
+        "otherRelationship": {
+          "diagramType": "architecture",
+          "collection": "connections",
+          "index": 22,
+          "id": "files-rag",
+          "from": "files",
+          "to": "rag"
+        },
+        "segmentIndex": 2,
+        "clearancePx": 0,
+        "minimumPx": 4,
+        "labelRect": {
+          "relation": {
+            "id": "rag-pg",
+            "from": "rag",
+            "to": "pg",
+            "label": "vector + keyword",
+            "labelDy": 24
+          },
+          "relationIndex": 23,
+          "label": "vector + keyword",
+          "x": 816.6,
+          "y": 618,
+          "width": 86.8,
+          "height": 14,
+          "lx": 860,
+          "ly": 628
+        },
+        "from": [
+          846,
+          638
+        ],
+        "to": [
+          846,
+          614
+        ]
+      },
+      "supportedFixes": [
+        "if the authored labelDy are not required by the user, remove them so the renderer can re-plan; otherwise preserve that intent and adjust labelAt, labelDx, labelDy, or labelSegment; otherwise adjust the other relationship route/via/channel"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/review-2/spark-component-architecture.finalize.json",
+    "summaryReceipt": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/review-2/spark-component-architecture.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-29T06:19:58.761Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 376,
+  "nextAction": {
+    "action": "edit-in-place",
+    "candidate": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-spark-components-20260929-115810/candidate.json",
+    "constraint": "Preserve all semantics and user-fixed geometry. Use references/architecture-layout-repair.md to choose a local repair or connected-scene reflow; edit the existing candidate.",
+    "then": "finalize-once"
+  }
+}

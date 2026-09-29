@@ -12,22 +12,26 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/docling
+      DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/solvay
       OLLAMA_HOST: http://ollama:11434
       NEO4J_URI: bolt://neo4j:7687
-      # Evidence Agent memory needs its own server; not part of this stack.
-      HINDSIGHT_URL: ""
+      # Evidence Agent memory (the hindsight service below). Empty turns it off.
+      HINDSIGHT_URL: http://hindsight:8888
     ports:
       # Put a TLS reverse proxy in front before opening this beyond the host:
       # /api/* has no authentication (see docs/deployment.md).
       - "${APP_PORT:-8000}:8000"
     volumes:
       - workdir:/app/.workdir
-      - knowledge-base:/app/knowledge_base
       # Seeded from the image on first start; graph rebuilds rewrite it.
       - graph-data:/app/data
       # The SPARK corpus, copied to the server separately.
       - ./solvay-spark:/app/solvay-spark:ro
+      # Part of the corpus too: the BPML hierarchy the graph is built on
+      # (BPML_Process_xlsx.md) and documents added from the UI. Copied to the
+      # server separately; writable, because the UI adds to it. The container
+      # runs as uid 1000, so the folder must be writable by that user.
+      - ./knowledge_base:/app/knowledge_base
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,18 +45,61 @@ services:
     restart: unless-stopped
     environment:
       # A superuser: the app runs CREATE EXTENSION vector and creates the
-      # docling_session database for uploads (backend/rag/rag.py).
+      # solvay_session database for uploads (backend/rag/rag.py).
       POSTGRES_USER: spark
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: docling
+      POSTGRES_DB: solvay
     volumes:
       # pg18 images keep their data under /var/lib/postgresql/<major>/.
       - pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U spark -d docling"]
+      test: ["CMD-SHELL", "pg_isready -U spark -d solvay"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # One-shot: creates the hindsight database beside solvay, then exits.
+  # POSTGRES_DB only acts on a brand-new volume, and the server's was created
+  # before Hindsight joined the stack, so this checks and creates it itself.
+  hindsight-db:
+    image: docker.io/pgvector/pgvector:pg18
+    environment:
+      PGHOST: postgres
+      PGUSER: spark
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Retries: a brand-new Postgres reports healthy while its first-start
+    # setup still refuses TCP connections.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 30); do
+          psql -d solvay -tAc "select 1" >/dev/null 2>&1 && break
+          sleep 2
+        done
+        psql -d solvay -tAc "select 1 from pg_database where datname = 'hindsight'" | grep -q 1 || createdb hindsight
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Hindsight, the Evidence Agent's long-term memory (docs/agent-memory.md).
+  # Same models as scripts/hindsight.sh: Opus reads and files what each
+  # investigation found, Sonnet answers "Ask memory" within its deadline.
+  hindsight:
+    image: reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight:${HINDSIGHT_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/hindsight
+      HINDSIGHT_API_LLM_PROVIDER: litellm
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_MODEL:-anthropic/claude-opus-5}
+      HINDSIGHT_API_LLM_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      HINDSIGHT_API_REFLECT_LLM_MODEL: ${HINDSIGHT_REFLECT_MODEL:-anthropic/claude-sonnet-5}
+      HINDSIGHT_API_REFLECT_LLM_TIMEOUT: ${HINDSIGHT_REFLECT_TIMEOUT:-60}
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: local
+    depends_on:
+      hindsight-db:
+        condition: service_completed_successfully
 
   ollama:
     image: docker.io/ollama/ollama:latest
@@ -91,7 +138,6 @@ services:
 
 volumes:
   workdir:
-  knowledge-base:
   graph-data:
   pgdata:
   ollama:

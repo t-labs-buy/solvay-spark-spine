@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "68e690c6-6b8a-4752-b069-43ca88fbd28b",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/candidate.json",
+  "output": "/Users/senthilpalanivelu/Programme/solvay-spark-spine/.archify/architecture-tech-stack-20260929-134104/tech-stack.html",
+  "specification": {
+    "sha256": "789a0438dd54c43720332062625b6577aba8071f04c705c28ffeed6b9a2eb48d",
+    "bytes": 20051
+  },
+  "artifact": {
+    "sha256": "db1959919c8a6361bb021549fb8781454e02edb17ed0d811e8a335b69a548fba",
+    "bytes": 819211
+  }
+}

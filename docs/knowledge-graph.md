@@ -2,7 +2,7 @@
 
 The knowledge graph behind the **Knowledge Graph** page: what is in it, how its quality is checked, and how questions are answered over it.
 
-Docling Studio includes an interactive enterprise Knowledge Graph (2,390 entities and 4,789 relationships, plus a passage layer of 8,867 chunks) constructed from Solvay SPARK project specifications, business streams, core systems, and BPML process taxonomies.
+Solvay Spark Spine AI includes an interactive enterprise Knowledge Graph (2,390 entities and 4,789 relationships, plus a passage layer of 8,867 chunks) constructed from Solvay SPARK project specifications, business streams, core systems, and BPML process taxonomies.
 
 Users can explore the ontology visually via an interactive D3 force-directed canvas and ask natural language questions (e.g. *"What specs are linked to Salesforce?"*, *"How does eCommerce connect to S/4HANA?"*, *"What is BPML process O-020-090?"*).
 

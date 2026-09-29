@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1830" height="1160" viewBox="0 0 1830 1160" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr56606E" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#56606E"/></marker><style>.lbl{paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}</style></defs>
+<rect width="1830" height="1160" fill="#FFFFFF"/>
+<text x="915.0" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1E2530">Solvay Spark Spine AI — Technical Architecture</text>
+<rect x="20" y="60" width="1320" height="130" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="90" font-size="13" font-weight="700" fill="#5B6B7F">1</text>
+<text x="40" y="110" font-size="15" font-weight="700" fill="#1E2530">Presentation</text>
+<rect x="20" y="210" width="1320" height="130" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="240" font-size="13" font-weight="700" fill="#5B6B7F">2</text>
+<text x="40" y="260" font-size="15" font-weight="700" fill="#1E2530">API &amp;</text>
+<text x="40" y="278" font-size="15" font-weight="700" fill="#1E2530">Cross-cutting</text>
+<rect x="20" y="360" width="1320" height="250" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="390" font-size="13" font-weight="700" fill="#5B6B7F">3</text>
+<text x="40" y="410" font-size="15" font-weight="700" fill="#1E2530">AI Agents</text>
+<rect x="20" y="630" width="1320" height="130" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="660" font-size="13" font-weight="700" fill="#5B6B7F">4</text>
+<text x="40" y="680" font-size="15" font-weight="700" fill="#1E2530">Application</text>
+<text x="40" y="698" font-size="15" font-weight="700" fill="#1E2530">Services</text>
+<rect x="20" y="780" width="1320" height="130" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="810" font-size="13" font-weight="700" fill="#5B6B7F">5</text>
+<text x="40" y="830" font-size="15" font-weight="700" fill="#1E2530">Data &amp;</text>
+<text x="40" y="848" font-size="15" font-weight="700" fill="#1E2530">Memory</text>
+<rect x="20" y="930" width="1320" height="130" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="40" y="960" font-size="13" font-weight="700" fill="#5B6B7F">6</text>
+<text x="40" y="980" font-size="15" font-weight="700" fill="#1E2530">Evaluation</text>
+<rect x="1420" y="190" width="330" height="290" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1436" y="216" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">8  </tspan>External Services</text>
+<rect x="1420" y="492" width="330" height="298" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1436" y="518" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">7  </tspan>Model Serving</text>
+<path d="M430,125 L788,125" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M890,164 L890,234" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M790,275 L712,275" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M990,275 L1068,275" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M890,314 L890,375" fill="none" stroke="#56606E" stroke-width="1.7"/>
+<path d="M610,375 L1170,375" fill="none" stroke="#56606E" stroke-width="1.7"/>
+<path d="M610,375 L610,389" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M890,375 L890,389" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1170,375 L1170,389" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M830,314 L830,335 Q830,345 820,345 L215,345 Q205,345 205,355 L205,628" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M950,314 L950,335 Q950,345 960,345 L1580,345 Q1590,345 1590,335 L1590,316" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M610,469 L610,504" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M890,469 L890,504" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1170,469 L1170,504" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M560,560 L340,560 Q330,560 330,570 L330,654" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1170,584 L1170,654" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M890,584 L890,804" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1220,530 L1385,530 Q1395,530 1395,520 L1395,440 Q1395,430 1405,430 L1488,430" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1220,568 L1488,568" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M610,734 L610,804" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M400,734 L400,760 Q400,770 410,770 L550,770 Q560,770 560,780 L560,802" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M330,734 L330,804" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1170,734 L1170,804" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1270,725 L1300,725 Q1310,725 1310,735 L1310,985 Q1310,995 1300,995 L1272,995" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M230,715 L210,715 Q200,715 200,725 L200,985 Q200,995 210,995 L228,995" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1030,584 L1030,985 Q1030,995 1020,995 L992,995" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M330,956 L330,886" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1200,930 L1200,888" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1340,975 L1755,975 Q1765,975 1765,965 L1765,595 Q1765,585 1755,585 L1692,585" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1340,1025 L1785,1025 Q1795,1025 1795,1015 L1795,285 Q1795,275 1785,275 L1692,275" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1270,690 L1488,690" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M1340,655 L1580,655 Q1590,655 1590,645 L1590,613" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M710,830 L750,830 Q760,830 760,820 L760,782 Q760,772 770,772 L1100,772 Q1110,772 1110,762 L1110,736" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<circle cx="890" cy="375" r="3.5" fill="#56606E"/>
+<text x="609" y="116" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">HTTPS</text>
+<text x="900" y="204" text-anchor="start" font-size="12" fill="#37424F" class="lbl">REST / SSE</text>
+<text x="751" y="266" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">checks</text>
+<text x="1029" y="266" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">applies</text>
+<text x="213" y="500" text-anchor="start" font-size="12" fill="#37424F" class="lbl">upload · index · ask · graph</text>
+<text x="1300" y="337" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">traces + scores</text>
+<text x="340" y="610" text-anchor="end" font-size="12" fill="#37424F" class="lbl">traverse</text>
+<text x="1180" y="622" text-anchor="start" font-size="12" fill="#37424F" class="lbl">search</text>
+<text x="900" y="700" text-anchor="start" font-size="12" fill="#37424F" class="lbl">recall · retain</text>
+<text x="1385" y="482" text-anchor="end" font-size="12" fill="#37424F" class="lbl">gated search</text>
+<text x="1300" y="559" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">Messages API</text>
+<text x="620" y="772" text-anchor="start" font-size="12" fill="#37424F" class="lbl">Markdown</text>
+<text x="480" y="762" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">reads</text>
+<text x="340" y="790" text-anchor="start" font-size="12" fill="#37424F" class="lbl">Bolt · sync</text>
+<text x="1180" y="792" text-anchor="start" font-size="12" fill="#37424F" class="lbl">SQL (psycopg)</text>
+<text x="1318" y="850" text-anchor="start" font-size="12" fill="#37424F" class="lbl">score answer</text>
+<text x="208" y="770" text-anchor="start" font-size="12" fill="#37424F" class="lbl">check graph</text>
+<text x="1022" y="622" text-anchor="end" font-size="12" fill="#37424F" class="lbl">run results</text>
+<text x="340" y="925" text-anchor="start" font-size="12" fill="#37424F" class="lbl">Bolt · Cypher</text>
+<text x="1208" y="918" text-anchor="start" font-size="12" fill="#37424F" class="lbl">eval runs</text>
+<text x="1560" y="966" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">judges · Cypher</text>
+<text x="1560" y="1016" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">OTel · scores</text>
+<text x="1380" y="681" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">HTTP · embed</text>
+<text x="1465" y="646" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">answer · Cypher</text>
+<text x="960" y="764" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">read · chunk · index</text>
+<text x="900" y="360" text-anchor="start" font-size="12" fill="#37424F" class="lbl">run agents</text>
+<circle cx="330" cy="100" r="11" fill="#FFFFFF" stroke="#56606E" stroke-width="1.6"/><path d="M330,111 V135 M312,120 H348 M330,135 L316,154 M330,135 L344,154" stroke="#56606E" stroke-width="1.6" fill="none"/>
+<text x="365" y="122" font-size="14" font-weight="700" fill="#1E2530">Analyst /</text>
+<text x="365" y="139" font-size="14" font-weight="700" fill="#1E2530">Consultant</text>
+<rect x="790.0" y="86.0" width="200" height="78" rx="10" fill="#EEF4FF" stroke="#6B8BC9" stroke-width="1.5"/>
+<text x="890" y="113.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Web UI</text>
+<text x="890" y="130.0" text-anchor="middle" font-size="12.5" fill="#4A5563">React 19 · TypeScript · Vite 8</text>
+<text x="890" y="147.0" text-anchor="middle" font-size="12.5" fill="#4A5563">MUI · D3 · Mermaid</text>
+<rect x="510.0" y="236.0" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="610" y="263.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Sign-in</text>
+<text x="610" y="280.0" text-anchor="middle" font-size="12.5" fill="#4A5563">HMAC-signed session cookie</text>
+<text x="610" y="297.0" text-anchor="middle" font-size="12.5" fill="#4A5563">FastAPI router</text>
+<rect x="790.0" y="236.0" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="890" y="263.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Backend API</text>
+<text x="890" y="280.0" text-anchor="middle" font-size="12.5" fill="#4A5563">FastAPI · Uvicorn · Pydantic</text>
+<text x="890" y="297.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Python 3.12 · REST + SSE</text>
+<rect x="1070.0" y="236.0" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="1170" y="263.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Guardrails</text>
+<text x="1170" y="280.0" text-anchor="middle" font-size="12.5" fill="#4A5563">ASGI redaction middleware</text>
+<text x="1170" y="297.0" text-anchor="middle" font-size="12.5" fill="#4A5563">scope check: Claude Haiku</text>
+<rect x="510.0" y="391.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="610" y="418.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Evidence Agent</text>
+<text x="610" y="435.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Claude Opus 5 · tool use</text>
+<text x="610" y="452.0" text-anchor="middle" font-size="12.5" fill="#4A5563">quote verification</text>
+<rect x="790.0" y="391.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="890" y="418.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">InsightLens</text>
+<text x="890" y="435.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Claude Opus 5 · per step</text>
+<text x="890" y="452.0" text-anchor="middle" font-size="12.5" fill="#4A5563">verifier + synthesis</text>
+<rect x="1070.0" y="391.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="1170" y="418.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Fit-Gap Copilot</text>
+<text x="1170" y="435.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Claude Opus 5 · 2 passes</text>
+<text x="1170" y="452.0" text-anchor="middle" font-size="12.5" fill="#4A5563">WeasyPrint · docx · openpyxl</text>
+<rect x="560.0" y="506.0" width="660" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="890" y="533.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent Runtime</text>
+<text x="890" y="550.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Anthropic SDK tool loop · psycopg · neo4j driver · hindsight-client</text>
+<text x="890" y="567.0" text-anchor="middle" font-size="12.5" fill="#4A5563">web_search tool (Claude Sonnet 5) · Pydantic schemas</text>
+<rect x="510.0" y="656.0" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="610" y="683.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Document Ingestion</text>
+<text x="610" y="700.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Docling · Tesseract · OpenCV</text>
+<text x="610" y="717.0" text-anchor="middle" font-size="12.5" fill="#4A5563">LibreOffice · Poppler · VLM</text>
+<rect x="230.0" y="656.0" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="330" y="683.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Knowledge Graph</text>
+<text x="330" y="700.0" text-anchor="middle" font-size="12.5" fill="#4A5563">rules + ontology → JSON</text>
+<text x="330" y="717.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Claude Opus 5 NL → Cypher</text>
+<rect x="1070.0" y="656.0" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="1170" y="683.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">RAG Engine</text>
+<text x="1170" y="700.0" text-anchor="middle" font-size="12.5" fill="#4A5563">psycopg · pgvector HNSW</text>
+<text x="1170" y="717.0" text-anchor="middle" font-size="12.5" fill="#4A5563">tsvector · RRF · Claude Opus 5</text>
+<path d="M510.0,816.0 V810.0 Q510.0,806.0 514.0,806.0 H570.0 L580.0,816.0 H704.0 Q710.0,816.0 710.0,822.0 V878.0 Q710.0,884.0 704.0,884.0 H516.0 Q510.0,884.0 510.0,878.0 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="610" y="836.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Document Corpus</text>
+<text x="610" y="853.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Markdown on disk</text>
+<text x="610" y="870.0" text-anchor="middle" font-size="12.5" fill="#4A5563">solvay-spark · knowledge_base</text>
+<path d="M230.0,815.0 A100.0,9 0 0 1 430.0,815.0 V875.0 A100.0,9 0 0 1 230.0,875.0 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<path d="M230.0,815.0 A100.0,9 0 0 0 430.0,815.0" fill="none" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="330" y="835.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Neo4j Community</text>
+<text x="330" y="852.0" text-anchor="middle" font-size="12.5" fill="#4A5563">v5 Community · APOC plugin</text>
+<text x="330" y="869.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Bolt :7687 · Browser :7474</text>
+<rect x="790.0" y="806.0" width="200" height="78" rx="10" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="890" y="833.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Hindsight</text>
+<text x="890" y="850.0" text-anchor="middle" font-size="12.5" fill="#4A5563">HTTP API :8888 · own venv</text>
+<text x="890" y="867.0" text-anchor="middle" font-size="12.5" fill="#4A5563">LiteLLM → Claude</text>
+<path d="M1070.0,815.0 A100.0,9 0 0 1 1270.0,815.0 V875.0 A100.0,9 0 0 1 1070.0,875.0 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<path d="M1070.0,815.0 A100.0,9 0 0 0 1270.0,815.0" fill="none" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="1170" y="835.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">PostgreSQL + pgvector</text>
+<text x="1170" y="852.0" text-anchor="middle" font-size="12.5" fill="#4A5563">PostgreSQL 18 + pgvector</text>
+<text x="1170" y="869.0" text-anchor="middle" font-size="12.5" fill="#4A5563">HNSW · tsvector · psycopg 3</text>
+<rect x="1490.0" y="236.0" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1590" y="263.0" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Langfuse Cloud</text>
+<text x="1590" y="280.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">OpenTelemetry instrumentor</text>
+<text x="1590" y="297.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">traces · scores API</text>
+<rect x="1490.0" y="391.0" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1590" y="418.0" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Web (allow-listed)</text>
+<text x="1590" y="435.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">Anthropic web_search tool</text>
+<text x="1590" y="452.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">SAP · EU allow-list</text>
+<rect x="1490.0" y="533.0" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1590" y="560.0" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Anthropic Claude</text>
+<text x="1590" y="577.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">Opus 5 · Sonnet 5 · Haiku 4.5</text>
+<text x="1590" y="594.0" text-anchor="middle" font-size="12.5" fill="#D6D6DA">Anthropic Messages API</text>
+<rect x="1490.0" y="661.0" width="200" height="78" rx="10" fill="#EAF7F7" stroke="#3F9A9A" stroke-width="1.5"/>
+<text x="1590" y="688.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Ollama (local)</text>
+<text x="1590" y="705.0" text-anchor="middle" font-size="12.5" fill="#4A5563">HTTP :11434 · bge-m3</text>
+<text x="1590" y="722.0" text-anchor="middle" font-size="12.5" fill="#4A5563">1024-d embeddings</text>
+<rect x="1070.0" y="956.0" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1170" y="983.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">RAG Evaluation</text>
+<text x="1170" y="1000.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Ragas · langchain-community</text>
+<text x="1170" y="1017.0" text-anchor="middle" font-size="12.5" fill="#4A5563">judge: Claude Sonnet 5</text>
+<rect x="230.0" y="956.0" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="330" y="983.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Knowledge Graph Eval</text>
+<text x="330" y="1000.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Python checks · neo4j driver</text>
+<text x="330" y="1017.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Claude Opus 5 · exec accuracy</text>
+<rect x="790.0" y="956.0" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="890" y="983.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent Evaluation</text>
+<text x="890" y="1000.0" text-anchor="middle" font-size="12.5" fill="#4A5563">pure-Python scoring</text>
+<text x="890" y="1017.0" text-anchor="middle" font-size="12.5" fill="#4A5563">Langfuse scores API</text>
+<rect x="20" y="1080" width="1320" height="76" rx="10" fill="#F8FAFC" stroke="#D5DCE4"/>
+<text x="40" y="1103" font-size="12.5" fill="#4A5563">Arrows = request / data direction · an arrow to a layer = used by several of its parts · dark boxes = cloud services</text>
+<text x="40" y="1121" font-size="12.5" fill="#4A5563">Runtime: one Docker image (python:3.12-slim, UI built on node:22) · compose: app, pgvector/pg18, ollama, neo4j:5-community</text>
+<text x="40" y="1139" font-size="12.5" fill="#4A5563">Hindsight runs in its own environment (not in compose) · sign-in guards the pages only; /api stays open — run on localhost</text>
+</svg>

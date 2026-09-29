@@ -1,11 +1,11 @@
 @startuml system-diagram-simple
-title Docling Studio — System Architecture (simplified)
+title Solvay Spark Spine AI — Architecture at a glance
 
 skinparam backgroundColor #FFFFFF
 skinparam defaultTextAlignment center
 skinparam shadowing false
 skinparam roundcorner 8
-skinparam nodesep 50
+skinparam nodesep 40
 skinparam ranksep 60
 skinparam rectangle {
   BorderColor #666666
@@ -19,49 +19,51 @@ skinparam database {
   BorderColor #666666
 }
 skinparam ArrowColor #444444
+left to right direction
 
-actor "User" as User
+actor "Analyst" as User
+rectangle "Web UI\nReact SPA" as UI
+rectangle "FastAPI + Guardrails\n:8000" as API
+rectangle "Ingestion\nDocling · OCR → Markdown" as ING
+rectangle "RAG system\nchunk · Ollama bge-m3\nhybrid search" as RAG
+rectangle "Knowledge graph\nknowledge_graph.json\nBFS · 2-hop" as KG
+database "Neo4j 5 Community\nread-only copy · Cypher" as NEO
+rectangle "Agents\nEvidence · InsightLens\nFit-Gap Copilot" as AGENTS
+rectangle "Hindsight\nagent memory" as MEM
+rectangle "Ragas evaluation\nanswer quality" as RAGAS
+database "PostgreSQL + pgvector\nchunks · runs · uploads" as PG
+cloud "Anthropic Claude" as CLAUDE
+cloud "Langfuse Cloud\ntraces · scores" as LF
 
-rectangle "Web UI\nExtract · Ask · Graph" as UI
-rectangle "FastAPI\napp.py · :8000" as API
-rectangle "Converter\nDocling · OCR · CV · VLM" as CONV
-rectangle "RAG engine\nchunk · hybrid search · answer" as RAG
-rectangle "Graph engine\nregex extract · BFS · 2-hop" as KG
+User --> UI : HTTPS
+UI --> API : REST · SSE
+API --> ING : convert
+ING --> RAG : Markdown
+ING --> KG : Markdown
+API --> RAG : embed · ask
+API --> KG : rebuild
+API --> AGENTS : run
+RAG --> PG : vectors · BM25
+KG --> PG : reads chunks
+KG --> NEO : load whole
+API --> NEO : Cypher (Claude-written)
+AGENTS --> RAG : search tool
+AGENTS --> KG : graph tools
+AGENTS --> MEM : recall · retain
+AGENTS --> PG : store run
+AGENTS --> CLAUDE : tool-use loop
+RAG --> CLAUDE : answer
+AGENTS --> LF : traces · scores
+RAG --> LF : traces
+API --> RAGAS : score answer
+RAGAS --> CLAUDE : judges
+RAGAS --> LF : scores
 
-database "Markdown corpus\npkg/markdown · knowledge_base" as FILES
-database "PostgreSQL\npgvector · full-text" as PG
-database "knowledge_graph.json" as KGJSON
-
-rectangle "Ollama\nbge-m3 · local · 1024-d" as OLLAMA
-
-cloud "Anthropic Claude\nclaude-opus-5" as CLAUDE
-
-User -down-> UI : HTTPS
-UI -down-> API : REST · SSE
-API -right-> CONV : convert(src)
-CONV -down-> FILES : output.md
-
-API -down-> RAG : embed · ask
-API -down-> KG : query_graph()
-
-RAG -down-> FILES : read .md
-RAG -down-> OLLAMA : embed (local)
-RAG -down-> PG : store · search
-RAG -down-> CLAUDE : excerpts → answer
-
-KG -down-> FILES : read .md · regex
-KG -down-> KGJSON : cache
-
-note bottom of FILES
-  Both engines read the SAME Markdown corpus
-  and never call each other.
-end note
-
-note bottom of CLAUDE
-  Omitted here: preview rendering, the individual
-  image readers (Tesseract · table_cv · flow_cv ·
-  Qwen3-VL), md_chunker, and the optional cloud
-  vision provider. Full view: system-diagram.png
+note bottom of LF
+  Simplified: the corpus files, Ollama,
+  NL → Cypher module and scope classifier are
+  folded in. Full view: system-diagram.png.
+  Dark boxes = external services.
 end note
 
 @enduml

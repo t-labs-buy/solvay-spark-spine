@@ -1,0 +1,932 @@
+{
+ "title": "Solvay Spark Spine AI — Component Architecture",
+ "canvas": {
+  "width": 1830,
+  "height": 1160
+ },
+ "box": {
+  "w": 200,
+  "h": 78
+ },
+ "bands": [
+  {
+   "n": "1",
+   "name": "Presentation",
+   "x": 20,
+   "y": 60,
+   "w": 1320,
+   "h": 130
+  },
+  {
+   "n": "2",
+   "name": "API &\nCross-cutting",
+   "x": 20,
+   "y": 210,
+   "w": 1320,
+   "h": 130
+  },
+  {
+   "n": "3",
+   "name": "AI Agents",
+   "x": 20,
+   "y": 360,
+   "w": 1320,
+   "h": 250
+  },
+  {
+   "n": "4",
+   "name": "Application\nServices",
+   "x": 20,
+   "y": 630,
+   "w": 1320,
+   "h": 130
+  },
+  {
+   "n": "5",
+   "name": "Data &\nMemory",
+   "x": 20,
+   "y": 780,
+   "w": 1320,
+   "h": 130
+  },
+  {
+   "n": "6",
+   "name": "Evaluation",
+   "x": 20,
+   "y": 930,
+   "w": 1320,
+   "h": 130
+  }
+ ],
+ "groups": [
+  {
+   "n": "8",
+   "name": "External Services",
+   "x": 1420,
+   "y": 190,
+   "w": 330,
+   "h": 290
+  },
+  {
+   "n": "7",
+   "name": "Model Serving",
+   "x": 1420,
+   "y": 492,
+   "w": 330,
+   "h": 298
+  }
+ ],
+ "actors": [
+  {
+   "label": "Analyst /\nConsultant",
+   "cx": 330,
+   "cy": 125
+  }
+ ],
+ "nodes": [
+  {
+   "id": "UI",
+   "title": "Web UI",
+   "sub": "React · Vite\nApp + Demo Mode",
+   "kind": "ui",
+   "cx": 890,
+   "cy": 125
+  },
+  {
+   "id": "AUTH",
+   "title": "Sign-in",
+   "sub": "session cookie\n(presentation lock)",
+   "kind": "api",
+   "cx": 610,
+   "cy": 275
+  },
+  {
+   "id": "API",
+   "title": "Backend API",
+   "sub": "FastAPI · REST + SSE\n:8000",
+   "kind": "api",
+   "cx": 890,
+   "cy": 275
+  },
+  {
+   "id": "GUARD",
+   "title": "Guardrails",
+   "sub": "scope check\ncontact redaction",
+   "kind": "api",
+   "cx": 1170,
+   "cy": 275
+  },
+  {
+   "id": "EVID",
+   "title": "Evidence Agent",
+   "sub": "cited, verified\nanswers",
+   "kind": "agent",
+   "cx": 610,
+   "cy": 430
+  },
+  {
+   "id": "LENS",
+   "title": "InsightLens",
+   "sub": "per-process\nfit-gap",
+   "kind": "agent",
+   "cx": 890,
+   "cy": 430
+  },
+  {
+   "id": "COPILOT",
+   "title": "Fit-Gap Copilot",
+   "sub": "rollout comparison\nworkshop export",
+   "kind": "agent",
+   "cx": 1170,
+   "cy": 430
+  },
+  {
+   "id": "RT",
+   "title": "Agent Runtime",
+   "sub": "tool-use loop · tools · quote verification",
+   "kind": "agent",
+   "cx": 890,
+   "cy": 545,
+   "w": 660
+  },
+  {
+   "id": "INGEST",
+   "title": "Document Ingestion",
+   "sub": "convert → Markdown\nOCR · tables · diagrams",
+   "kind": "svc",
+   "cx": 610,
+   "cy": 695
+  },
+  {
+   "id": "KG",
+   "title": "Knowledge Graph",
+   "sub": "build · traverse\nNL → Cypher",
+   "kind": "svc",
+   "cx": 330,
+   "cy": 695
+  },
+  {
+   "id": "RAG",
+   "title": "RAG Engine",
+   "sub": "hybrid search\ngrounded answer",
+   "kind": "svc",
+   "cx": 1170,
+   "cy": 695
+  },
+  {
+   "id": "FILES",
+   "title": "Document Corpus",
+   "sub": "source files\n+ Markdown",
+   "kind": "data",
+   "cx": 610,
+   "cy": 845,
+   "shape": "folder"
+  },
+  {
+   "id": "NEO",
+   "title": "Neo4j Community",
+   "sub": "graph explorer\n(read-only copy)",
+   "kind": "data",
+   "cx": 330,
+   "cy": 845,
+   "shape": "cyl"
+  },
+  {
+   "id": "MEM",
+   "title": "Hindsight",
+   "sub": "agent long-term memory\n(all agents)",
+   "kind": "data",
+   "cx": 890,
+   "cy": 845
+  },
+  {
+   "id": "PG",
+   "title": "PostgreSQL + pgvector",
+   "sub": "chunks · vectors\nscores · run history",
+   "kind": "data",
+   "cx": 1170,
+   "cy": 845,
+   "shape": "cyl"
+  },
+  {
+   "id": "LF",
+   "title": "Langfuse Cloud",
+   "sub": "traces\nquality scores",
+   "kind": "ext",
+   "cx": 1590,
+   "cy": 275,
+   "shape": "cloud"
+  },
+  {
+   "id": "WEB",
+   "title": "Web (allow-listed)",
+   "sub": "SAP · EU sites",
+   "kind": "ext",
+   "cx": 1590,
+   "cy": 430,
+   "shape": "cloud"
+  },
+  {
+   "id": "CLAUDE",
+   "title": "Anthropic Claude",
+   "sub": "answers · agents\njudges · Cypher",
+   "kind": "ext",
+   "cx": 1590,
+   "cy": 572,
+   "shape": "cloud"
+  },
+  {
+   "id": "OLLAMA",
+   "title": "Ollama (local)",
+   "sub": "embeddings\nbge-m3",
+   "kind": "model",
+   "cx": 1590,
+   "cy": 700
+  },
+  {
+   "id": "RAGEVAL",
+   "title": "RAG Evaluation",
+   "sub": "Ragas · 12 LLM judges\n+ ground-truth experiments",
+   "kind": "eval",
+   "cx": 1170,
+   "cy": 995
+  },
+  {
+   "id": "KGEVAL",
+   "title": "Knowledge Graph Eval",
+   "sub": "structure checks\nNL → Cypher accuracy",
+   "kind": "eval",
+   "cx": 330,
+   "cy": 995
+  },
+  {
+   "id": "AGEVAL",
+   "title": "Agent Evaluation",
+   "sub": "Evidence · Fit-Gap\ncode-only run scores",
+   "kind": "eval",
+   "cx": 890,
+   "cy": 995
+  }
+ ],
+ "links": [
+  {
+   "pts": [
+    [
+     430,
+     125
+    ],
+    [
+     788,
+     125
+    ]
+   ],
+   "label": "HTTPS",
+   "label_at": [
+    609,
+    116
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     890,
+     164
+    ],
+    [
+     890,
+     234
+    ]
+   ],
+   "label": "REST / SSE",
+   "label_at": [
+    900,
+    204
+   ]
+  },
+  {
+   "pts": [
+    [
+     790,
+     275
+    ],
+    [
+     712,
+     275
+    ]
+   ],
+   "label": "checks",
+   "label_at": [
+    751,
+    266
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     990,
+     275
+    ],
+    [
+     1068,
+     275
+    ]
+   ],
+   "label": "applies",
+   "label_at": [
+    1029,
+    266
+   ],
+   "anchor": "middle"
+  },
+  {
+   "name": "run agents (bus)",
+   "pts": [
+    [
+     890,
+     314
+    ],
+    [
+     890,
+     375
+    ]
+   ],
+   "arrow": false
+  },
+  {
+   "name": "run agents (bus)",
+   "pts": [
+    [
+     610,
+     375
+    ],
+    [
+     1170,
+     375
+    ]
+   ],
+   "arrow": false
+  },
+  {
+   "pts": [
+    [
+     610,
+     375
+    ],
+    [
+     610,
+     389
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     890,
+     375
+    ],
+    [
+     890,
+     389
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     1170,
+     375
+    ],
+    [
+     1170,
+     389
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     830,
+     314
+    ],
+    [
+     830,
+     345
+    ],
+    [
+     205,
+     345
+    ],
+    [
+     205,
+     628
+    ]
+   ],
+   "label": "upload · index · ask · graph",
+   "label_at": [
+    213,
+    500
+   ]
+  },
+  {
+   "pts": [
+    [
+     950,
+     314
+    ],
+    [
+     950,
+     345
+    ],
+    [
+     1590,
+     345
+    ],
+    [
+     1590,
+     316
+    ]
+   ],
+   "label": "traces + scores",
+   "label_at": [
+    1300,
+    337
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     610,
+     469
+    ],
+    [
+     610,
+     504
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     890,
+     469
+    ],
+    [
+     890,
+     504
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     1170,
+     469
+    ],
+    [
+     1170,
+     504
+    ]
+   ]
+  },
+  {
+   "pts": [
+    [
+     560,
+     560
+    ],
+    [
+     330,
+     560
+    ],
+    [
+     330,
+     654
+    ]
+   ],
+   "label": "traverse",
+   "label_at": [
+    340,
+    610
+   ],
+   "anchor": "end"
+  },
+  {
+   "pts": [
+    [
+     1170,
+     584
+    ],
+    [
+     1170,
+     654
+    ]
+   ],
+   "label": "search",
+   "label_at": [
+    1180,
+    622
+   ]
+  },
+  {
+   "pts": [
+    [
+     890,
+     584
+    ],
+    [
+     890,
+     804
+    ]
+   ],
+   "label": "recall · retain",
+   "label_at": [
+    900,
+    700
+   ]
+  },
+  {
+   "pts": [
+    [
+     1220,
+     530
+    ],
+    [
+     1395,
+     530
+    ],
+    [
+     1395,
+     430
+    ],
+    [
+     1488,
+     430
+    ]
+   ],
+   "label": "gated search",
+   "label_at": [
+    1385,
+    482
+   ],
+   "anchor": "end"
+  },
+  {
+   "pts": [
+    [
+     1220,
+     568
+    ],
+    [
+     1488,
+     568
+    ]
+   ],
+   "label": "reason · tools",
+   "label_at": [
+    1300,
+    559
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     610,
+     734
+    ],
+    [
+     610,
+     804
+    ]
+   ],
+   "label": "Markdown",
+   "label_at": [
+    620,
+    772
+   ],
+   "anchor": "start"
+  },
+  {
+   "pts": [
+    [
+     400,
+     734
+    ],
+    [
+     400,
+     770
+    ],
+    [
+     560,
+     770
+    ],
+    [
+     560,
+     802
+    ]
+   ],
+   "label": "reads",
+   "label_at": [
+    480,
+    762
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     330,
+     734
+    ],
+    [
+     330,
+     804
+    ]
+   ],
+   "label": "sync",
+   "label_at": [
+    340,
+    790
+   ],
+   "anchor": "start"
+  },
+  {
+   "pts": [
+    [
+     1170,
+     734
+    ],
+    [
+     1170,
+     804
+    ]
+   ],
+   "label": "vector + keyword",
+   "label_at": [
+    1180,
+    792
+   ]
+  },
+  {
+   "pts": [
+    [
+     1270,
+     725
+    ],
+    [
+     1310,
+     725
+    ],
+    [
+     1310,
+     995
+    ],
+    [
+     1272,
+     995
+    ]
+   ],
+   "label": "score answer",
+   "label_at": [
+    1318,
+    850
+   ]
+  },
+  {
+   "pts": [
+    [
+     230,
+     715
+    ],
+    [
+     200,
+     715
+    ],
+    [
+     200,
+     995
+    ],
+    [
+     228,
+     995
+    ]
+   ],
+   "label": "check graph",
+   "label_at": [
+    208,
+    770
+   ],
+   "anchor": "start"
+  },
+  {
+   "pts": [
+    [
+     1030,
+     584
+    ],
+    [
+     1030,
+     995
+    ],
+    [
+     992,
+     995
+    ]
+   ],
+   "label": "run results",
+   "label_at": [
+    1022,
+    622
+   ],
+   "anchor": "end"
+  },
+  {
+   "pts": [
+    [
+     330,
+     956
+    ],
+    [
+     330,
+     886
+    ]
+   ],
+   "label": "run Cypher",
+   "label_at": [
+    340,
+    925
+   ],
+   "anchor": "start"
+  },
+  {
+   "pts": [
+    [
+     1200,
+     930
+    ],
+    [
+     1200,
+     888
+    ]
+   ],
+   "label": "eval runs",
+   "label_at": [
+    1208,
+    918
+   ]
+  },
+  {
+   "pts": [
+    [
+     1340,
+     975
+    ],
+    [
+     1765,
+     975
+    ],
+    [
+     1765,
+     585
+    ],
+    [
+     1692,
+     585
+    ]
+   ],
+   "label": "judges · Cypher",
+   "label_at": [
+    1560,
+    966
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     1340,
+     1025
+    ],
+    [
+     1795,
+     1025
+    ],
+    [
+     1795,
+     275
+    ],
+    [
+     1692,
+     275
+    ]
+   ],
+   "label": "scores",
+   "label_at": [
+    1560,
+    1016
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     1270,
+     690
+    ],
+    [
+     1488,
+     690
+    ]
+   ],
+   "label": "embed",
+   "label_at": [
+    1380,
+    681
+   ],
+   "anchor": "middle"
+  },
+  {
+   "pts": [
+    [
+     1340,
+     655
+    ],
+    [
+     1590,
+     655
+    ],
+    [
+     1590,
+     613
+    ]
+   ],
+   "label": "answer · Cypher",
+   "label_at": [
+    1465,
+    646
+   ],
+   "anchor": "middle"
+  },
+  {
+   "name": "Corpus → RAG (index)",
+   "pts": [
+    [
+     710,
+     830
+    ],
+    [
+     760,
+     830
+    ],
+    [
+     760,
+     772
+    ],
+    [
+     1110,
+     772
+    ],
+    [
+     1110,
+     736
+    ]
+   ],
+   "label": "read · chunk · index",
+   "label_at": [
+    960,
+    764
+   ],
+   "anchor": "middle"
+  }
+ ],
+ "junctions": [
+  [
+   890,
+   375
+  ]
+ ],
+ "labels": [
+  {
+   "text": "run agents",
+   "at": [
+    900,
+    360
+   ]
+  }
+ ],
+ "legend": {
+  "box": {
+   "x": 20,
+   "y": 1080,
+   "w": 1320
+  },
+  "lines": [
+   "Arrows = request / data direction · an arrow to a layer = used by several of its parts",
+   "Dark boxes = cloud services outside the app · green = data stores",
+   "Sign-in guards the pages only; /api stays open — run on localhost"
+  ]
+ }
+}

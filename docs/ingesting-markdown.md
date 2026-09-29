@@ -33,7 +33,7 @@ below copies the files in rather than indexing them where they lie.
 ## The commands
 
 ```bash
-cd /Users/senthilpalanivelu/Programme/docling-studio
+cd /Users/senthilpalanivelu/Programme/solvay-spark-spine
 
 # 1. Put the files where both the corpus and the graph will look
 mkdir -p solvay-spark/sap/markdown

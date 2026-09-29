@@ -1,0 +1,770 @@
+{
+ "title": "Solvay Spark Spine AI — Tech Stack",
+ "canvas": {
+  "width": 1810,
+  "height": 1240
+ },
+ "box": {
+  "w": 220,
+  "h": 70
+ },
+ "kinds": {
+  "cons": {
+   "fill": "#FFFFFF",
+   "stroke": "#7FA7C0"
+  },
+  "retr": {
+   "fill": "#F3FAFA",
+   "stroke": "#5FA3AB"
+  },
+  "mem": {
+   "fill": "#F5F7FA",
+   "stroke": "#8EA2BA"
+  },
+  "ing": {
+   "fill": "#FFFFFF",
+   "stroke": "#AAB6C5"
+  },
+  "src": {
+   "fill": "#FFFFFF",
+   "stroke": "#B9C3CF"
+  }
+ },
+ "bands": [
+  {
+   "name": "Consumption",
+   "x": 20,
+   "y": 150,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#22303F",
+   "stroke": "#22303F",
+   "title_color": "#A9D6E5",
+   "desc_color": "#E4ECF2",
+   "rx": 6
+  },
+  {
+   "name": "Retrieval & grounding",
+   "x": 20,
+   "y": 354,
+   "w": 1320,
+   "h": 246,
+   "caps": true,
+   "fill": "#4A8C96",
+   "stroke": "#4A8C96",
+   "title_color": "#FFFFFF",
+   "desc_color": "#F0F8F9",
+   "rx": 6
+  },
+  {
+   "name": "Memory layer",
+   "x": 20,
+   "y": 644,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#3B4A5E",
+   "stroke": "#3B4A5E",
+   "title_color": "#CFE3EC",
+   "desc_color": "#E8EEF4",
+   "rx": 6
+  },
+  {
+   "name": "Ingestion & curation",
+   "x": 20,
+   "y": 848,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#F4F6F9",
+   "stroke": "#CED6E0",
+   "title_color": "#22303F",
+   "desc_color": "#3B4A5E",
+   "rx": 6
+  },
+  {
+   "name": "Sources",
+   "x": 20,
+   "y": 1052,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#F7F9FB",
+   "stroke": "#D5DCE4",
+   "title_color": "#22303F",
+   "desc_color": "#3B4A5E",
+   "rx": 6,
+   "desc": "Programme documents, country As-Is attachments and existing corpus folders"
+  }
+ ],
+ "groups": [
+  {
+   "n": "",
+   "name": "Models",
+   "x": 1380,
+   "y": 150,
+   "w": 410,
+   "h": 180
+  },
+  {
+   "n": "",
+   "name": "Evaluation",
+   "x": 1380,
+   "y": 354,
+   "w": 410,
+   "h": 246
+  },
+  {
+   "n": "",
+   "name": "External services",
+   "x": 1380,
+   "y": 644,
+   "w": 410,
+   "h": 180
+  },
+  {
+   "n": "",
+   "name": "Security & guardrails",
+   "x": 1380,
+   "y": 848,
+   "w": 410,
+   "h": 180
+  }
+ ],
+ "actors": [
+  {
+   "label": "",
+   "cx": 679,
+   "cy": 100,
+   "style": "bust"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "Ask RAG",
+   "title": "Ask RAG",
+   "sub": "React 19 · MUI · SSE stream\nFastAPI /api/ask",
+   "kind": "cons",
+   "cx": 155,
+   "cy": 259
+  },
+  {
+   "id": "Evidence Agent",
+   "title": "Evidence Agent",
+   "sub": "Claude Opus 5 · tool use\nFastAPI /api/evidence · SSE",
+   "kind": "cons",
+   "cx": 417,
+   "cy": 259
+  },
+  {
+   "id": "Fit-Gap Copilot",
+   "title": "Fit-Gap Copilot",
+   "sub": "Claude Opus 5 · WeasyPrint\npython-docx · openpyxl",
+   "kind": "cons",
+   "cx": 679,
+   "cy": 259
+  },
+  {
+   "id": "InsightLens",
+   "title": "InsightLens",
+   "sub": "Claude Opus 5 · per BPML step\nopenpyxl XLSX export",
+   "kind": "cons",
+   "cx": 941,
+   "cy": 259
+  },
+  {
+   "id": "Graph Explorer",
+   "title": "Graph Explorer",
+   "sub": "D3 canvas · Neo4j Browser\nCypher over Bolt",
+   "kind": "cons",
+   "cx": 1203,
+   "cy": 259
+  },
+  {
+   "id": "ground",
+   "title": "Grounding & verification",
+   "sub": "Anthropic Messages API (Claude Opus 5) · cited answers · character-level quote verifier (Python) · computed confidence scores",
+   "kind": "retr",
+   "cx": 679,
+   "cy": 456,
+   "w": 1270,
+   "h": 56
+  },
+  {
+   "id": "Upload search",
+   "title": "Upload search",
+   "sub": "psycopg · pgvector\nschema per upload session",
+   "kind": "retr",
+   "cx": 155,
+   "cy": 549
+  },
+  {
+   "id": "Gated web search",
+   "title": "Gated web search",
+   "sub": "Anthropic web_search tool\nClaude Sonnet 5 · allow-list",
+   "kind": "retr",
+   "cx": 417,
+   "cy": 549
+  },
+  {
+   "id": "Hybrid search",
+   "title": "Hybrid search",
+   "sub": "pgvector HNSW + tsvector\nRRF fusion · psycopg 3",
+   "kind": "retr",
+   "cx": 679,
+   "cy": 549
+  },
+  {
+   "id": "Graph traversal",
+   "title": "Graph traversal",
+   "sub": "in-memory graph (Python)\nNL → Cypher: Claude Opus 5",
+   "kind": "retr",
+   "cx": 941,
+   "cy": 549
+  },
+  {
+   "id": "Memory recall",
+   "title": "Memory recall",
+   "sub": "hindsight-client (HTTP)\nHindsight API :8888",
+   "kind": "retr",
+   "cx": 1203,
+   "cy": 549
+  },
+  {
+   "id": "Upload sessions",
+   "title": "Upload sessions",
+   "sub": "PostgreSQL 18 · pgvector\ndocling_session database",
+   "kind": "mem",
+   "cx": 155,
+   "cy": 758,
+   "shape": "cyl",
+   "h": 86
+  },
+  {
+   "id": "Document corpus",
+   "title": "Document corpus",
+   "sub": "Markdown files\ndisk · Docker volume",
+   "kind": "mem",
+   "cx": 417,
+   "cy": 758,
+   "shape": "folder",
+   "h": 86
+  },
+  {
+   "id": "Vector & keyword index",
+   "title": "Vector & keyword index",
+   "sub": "PostgreSQL 18 + pgvector\nHNSW cosine · tsvector",
+   "kind": "mem",
+   "cx": 679,
+   "cy": 758,
+   "shape": "cyl",
+   "h": 86
+  },
+  {
+   "id": "Process knowledge graph",
+   "title": "Process knowledge graph",
+   "sub": "JSON file · Neo4j 5 + APOC\nBolt :7687 · neo4j driver",
+   "kind": "mem",
+   "cx": 941,
+   "cy": 758,
+   "shape": "cyl",
+   "h": 86
+  },
+  {
+   "id": "Agent memory",
+   "title": "Agent memory",
+   "sub": "Hindsight · embedded Postgres\nLiteLLM → Claude",
+   "kind": "mem",
+   "cx": 1203,
+   "cy": 758,
+   "shape": "rect",
+   "h": 86
+  },
+  {
+   "id": "Convert to Markdown",
+   "title": "Convert to Markdown",
+   "sub": "Docling · Tesseract · OpenCV\nLibreOffice · Poppler · VLM",
+   "kind": "ing",
+   "cx": 155,
+   "cy": 957
+  },
+  {
+   "id": "Curate & publish",
+   "title": "Curate & publish",
+   "sub": "FastAPI · React UI\ncategory in front matter",
+   "kind": "ing",
+   "cx": 417,
+   "cy": 957
+  },
+  {
+   "id": "Chunk & embed",
+   "title": "Chunk & embed",
+   "sub": "Markdown chunker (Python)\nOllama bge-m3 · 1024-d",
+   "kind": "ing",
+   "cx": 679,
+   "cy": 957
+  },
+  {
+   "id": "Build knowledge graph",
+   "title": "Build knowledge graph",
+   "sub": "Python rules + ontology\nopenpyxl (BPML) · neo4j",
+   "kind": "ing",
+   "cx": 941,
+   "cy": 957
+  },
+  {
+   "id": "Documents",
+   "title": "Documents",
+   "sub": "PDF · Word · PowerPoint · Excel\nHTML · XML · CSV · TXT · e-mail",
+   "kind": "src",
+   "cx": 155,
+   "cy": 1161,
+   "h": 78
+  },
+  {
+   "id": "Existing corpus folders",
+   "title": "Existing corpus folders",
+   "sub": "Markdown (PKG · DR)\nindexed from the CLI",
+   "kind": "src",
+   "cx": 679,
+   "cy": 1161,
+   "h": 78
+  },
+  {
+   "id": "side-llm",
+   "title": "Anthropic Claude",
+   "sub": "Opus 5 · Sonnet 5 · Haiku 4.5",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 212,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-embedding",
+   "title": "Ollama (local)",
+   "sub": "bge-m3 · HTTP :11434",
+   "kind": "model",
+   "cx": 1585,
+   "cy": 282,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-RAG Evaluation",
+   "title": "RAG Evaluation",
+   "sub": "Ragas · Claude Sonnet 5 judge",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 418,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Agent Evaluation",
+   "title": "Agent Evaluation",
+   "sub": "pure Python · Langfuse scores",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 480,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Graph Evaluation",
+   "title": "Graph Evaluation",
+   "sub": "Python checks · Neo4j · Claude",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 542,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-observability",
+   "title": "Langfuse Cloud",
+   "sub": "OpenTelemetry · traces · scores",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 706,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-Web (allow-listed)",
+   "title": "Web (allow-listed)",
+   "sub": "Anthropic web_search · SAP · EU",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 776,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-Sign-in",
+   "title": "Sign-in",
+   "sub": "HMAC cookie · FastAPI router",
+   "kind": "api",
+   "cx": 1585,
+   "cy": 910,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Guardrails",
+   "title": "Guardrails",
+   "sub": "ASGI middleware · Claude Haiku",
+   "kind": "api",
+   "cx": 1585,
+   "cy": 980,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  }
+ ],
+ "links": [
+  {
+   "pts": [
+    [
+     679,
+     124
+    ],
+    [
+     679,
+     148
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     354
+    ],
+    [
+     155,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     354
+    ],
+    [
+     417,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     354
+    ],
+    [
+     679,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     354
+    ],
+    [
+     941,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     354
+    ],
+    [
+     1203,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     644
+    ],
+    [
+     155,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     644
+    ],
+    [
+     679,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     644
+    ],
+    [
+     941,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     600
+    ],
+    [
+     1203,
+     642
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     848
+    ],
+    [
+     155,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     848
+    ],
+    [
+     417,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     848
+    ],
+    [
+     679,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     848
+    ],
+    [
+     941,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     1052
+    ],
+    [
+     155,
+     1010
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     1052
+    ],
+    [
+     679,
+     1010
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     514.0
+    ],
+    [
+     155,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     417,
+     514.0
+    ],
+    [
+     417,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     679,
+     514.0
+    ],
+    [
+     679,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     941,
+     514.0
+    ],
+    [
+     941,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     514.0
+    ],
+    [
+     1203,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     265,
+     957
+    ],
+    [
+     305,
+     957
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     527,
+     957
+    ],
+    [
+     567,
+     957
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     992.0
+    ],
+    [
+     417,
+     1000
+    ],
+    [
+     901,
+     1000
+    ],
+    [
+     901,
+     994.0
+    ]
+   ],
+   "color": "#6B8599"
+  }
+ ],
+ "labels": [],
+ "legend": {
+  "box": {
+   "x": 1380,
+   "y": 1052,
+   "w": 410
+  },
+  "lines": [
+   "Arrows = data / request flow, sources → consumption",
+   "Dark boxes = cloud services · side panel = cross-cutting",
+   "Runtime: Python 3.12 · FastAPI · Uvicorn",
+   "React 19 + Vite 8 · Docker Compose"
+  ]
+ }
+}

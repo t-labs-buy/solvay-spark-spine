@@ -71,7 +71,7 @@ spaces.
 | `belongs_to` | document | stream | 237 | `\bL2C\b` / `\bI2D\b` / `\bR2R\b` / `\bP2P\b` matches |
 | `mentions_system` | document | system | 556 | the system's pattern matches (`SYSTEM_RE`) |
 | `specifies_process` | document | process | 1,947 | `CODE_RE` in the **body only** |
-| `subprocess_of` | process | process | 1,846 | **Not matched — looked up** in the BPML workbook. See below. |
+| `subprocess_of` | process | process | 1,846 | **Not matched — looked up** in the BPML hierarchy. See below. |
 | `implements_ticket` | document | spec | 13 | `\bSPARK[-_ ]?(\d{4,6})\b` matches **and** the number is in the filename |
 | `references_ticket` | document | spec | 190 | Same match, but the number is **not** in the filename |
 | `has_chunk` | document | chunk | 8,867 | every chunk the retrieval index holds for the document |
@@ -89,7 +89,7 @@ now one type, `mentions_system`, and what kind of system it is lives on the node
 
 | Property | Meaning |
 |---|---|
-| `method` | the rule that made it: `name_match`, `code_match`, `ticket_match`, `ticket_in_filename` (`subprocess_of` carries `bpml_workbook`) |
+| `method` | the rule that made it: `name_match`, `code_match`, `ticket_match`, `ticket_in_filename` (`subprocess_of` carries `bpml_hierarchy`) |
 | `mentions` | how many times the document names the target |
 | `chunk_count` | how many of its chunks name the target |
 | `chunks` | the first five of those chunk keys (`PKG:10003882`), the ids retrieval uses — open one with `get_chunk` or `rag.chunk()` |
@@ -114,10 +114,11 @@ as `bytes`.
 Every relationship out of a document is **read**: a pattern matched text, and its
 `chunks` property says where, so you can go and see it in the source.
 
-`subprocess_of` is **derived**. It appears in no document; it comes from
-`solvay-spark/pkg/BPML_ProcessesHierarchyExtended.xlsx`, whose own Markdown conversion
-is a 172-byte stub, so the workbook is read directly. Each code is looked up, linked to
-its real parent, and the chain is walked to the top:
+`subprocess_of` is **derived**. No document states it; it comes from the BPML
+process house document, `knowledge_base/BPML_Process_xlsx.md`
+(`bpml_markdown.hierarchy()`): a numbered process sits under the last numbered
+segment of its path, a lettered code under the process that performs it as a task.
+Each code is looked up, linked to its real parent, and the chain is walked to the top:
 
 ```
 O-030-010 Identify Order → 4.5.2.4 Validate/Perform Order Readiness

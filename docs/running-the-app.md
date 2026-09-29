@@ -1,6 +1,6 @@
 # Running the app and its services
 
-How to start, set up and stop everything Docling Studio depends on. The short version is in the [README](../README.md#run).
+How to start, set up and stop everything Solvay Spark Spine AI depends on. The short version is in the [README](../README.md#run).
 
 ## Starting the services
 

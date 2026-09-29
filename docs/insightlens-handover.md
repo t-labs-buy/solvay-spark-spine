@@ -1,7 +1,7 @@
 # InsightLens: build handover
 
 **Programme:** Solvay SPARK S/4HANA rollout, Tarento Wave Factory
-**Scope of this build:** Lead-to-Cash (L2C) slice, on top of the existing Docling Studio stack
+**Scope of this build:** Lead-to-Cash (L2C) slice, on top of the existing Solvay Spark Spine AI stack
 **Handover date:** 21 Sept 2026
 **Status:** ready to build. Section 12 is the kickoff prompt; paste it into a new Claude Code session opened at the repo root.
 
@@ -22,7 +22,7 @@ Non-negotiable principle from the proposal: **AI proposes, humans decide.** Ever
 
 ## 2. What already exists (do not rebuild it)
 
-The **Docling Studio** stack, from `system-diagram.md` and `system-workflow.puml`:
+The **Solvay Spark Spine AI** stack, from `system-diagram.md` and `system-workflow.puml`:
 
 | Component | File | What it does |
 |---|---|---|
@@ -288,7 +288,7 @@ Export 30 entries, stratified by class and confidence, to XLSX with columns for 
 ## 12. Kickoff prompt (paste into the new session)
 
 ```
-You are joining an existing repository called Docling Studio (FastAPI + React) that
+You are joining an existing repository called Solvay Spark Spine AI (FastAPI + React) that
 indexes a Markdown corpus of Solvay SPARK S/4HANA Lead-to-Cash documents. Read
 docs/insightlens-handover.md in full before doing anything else. It is the
 specification for what you will build: the InsightLens agent and an evaluation

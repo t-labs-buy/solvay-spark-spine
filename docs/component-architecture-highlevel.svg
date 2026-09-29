@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1810" height="1240" viewBox="0 0 1810 1240" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr56606E" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#56606E"/></marker><marker id="arr6B8599" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6B8599"/></marker><marker id="arrE4F1F3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E4F1F3"/></marker><style>.lbl{paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}</style></defs>
+<rect width="1810" height="1240" fill="#FFFFFF"/>
+<text x="905.0" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1E2530">Solvay Spark Spine AI — High-Level Architecture</text>
+<rect x="20" y="150" width="1320" height="160" rx="6" fill="#22303F" stroke="#22303F" stroke-width="1.3"/>
+<text x="48" y="186" font-size="19" font-weight="800" letter-spacing="3.5" fill="#A9D6E5">CONSUMPTION</text>
+<rect x="20" y="354" width="1320" height="246" rx="6" fill="#4A8C96" stroke="#4A8C96" stroke-width="1.3"/>
+<text x="48" y="390" font-size="19" font-weight="800" letter-spacing="3.5" fill="#FFFFFF">RETRIEVAL &amp; GROUNDING</text>
+<rect x="20" y="644" width="1320" height="160" rx="6" fill="#3B4A5E" stroke="#3B4A5E" stroke-width="1.3"/>
+<text x="48" y="680" font-size="19" font-weight="800" letter-spacing="3.5" fill="#CFE3EC">MEMORY LAYER</text>
+<rect x="20" y="848" width="1320" height="160" rx="6" fill="#F4F6F9" stroke="#CED6E0" stroke-width="1.3"/>
+<text x="48" y="884" font-size="19" font-weight="800" letter-spacing="3.5" fill="#22303F">INGESTION &amp; CURATION</text>
+<rect x="20" y="1052" width="1320" height="160" rx="6" fill="#F7F9FB" stroke="#D5DCE4" stroke-width="1.3"/>
+<text x="48" y="1088" font-size="19" font-weight="800" letter-spacing="3.5" fill="#22303F">SOURCES</text>
+<text x="48" y="1112" font-size="14" fill="#3B4A5E">Programme documents, country As-Is attachments and existing corpus folders</text>
+<rect x="1380" y="150" width="410" height="180" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1396" y="176" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">  </tspan>Models</text>
+<rect x="1380" y="354" width="410" height="246" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1396" y="380" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">  </tspan>Evaluation</text>
+<rect x="1380" y="644" width="410" height="180" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1396" y="670" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">  </tspan>External services</text>
+<rect x="1380" y="848" width="410" height="180" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1396" y="874" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">  </tspan>Security &amp; guardrails</text>
+<path d="M679,124 L679,148" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M155,354 L155,312" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M417,354 L417,312" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M679,354 L679,312" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M941,354 L941,312" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M1203,354 L1203,312" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M155,644 L155,602" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M679,644 L679,602" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M941,644 L941,602" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M1203,600 L1203,642" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M155,848 L155,806" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M417,848 L417,806" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M679,848 L679,806" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M941,848 L941,806" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M155,1052 L155,1010" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M679,1052 L679,1010" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M155,514.0 L155,486.0" fill="none" stroke="#E4F1F3" stroke-width="1.7" marker-end="url(#arrE4F1F3)"/>
+<path d="M417,514.0 L417,486.0" fill="none" stroke="#E4F1F3" stroke-width="1.7" marker-end="url(#arrE4F1F3)"/>
+<path d="M679,514.0 L679,486.0" fill="none" stroke="#E4F1F3" stroke-width="1.7" marker-end="url(#arrE4F1F3)"/>
+<path d="M941,514.0 L941,486.0" fill="none" stroke="#E4F1F3" stroke-width="1.7" marker-end="url(#arrE4F1F3)"/>
+<path d="M1203,514.0 L1203,486.0" fill="none" stroke="#E4F1F3" stroke-width="1.7" marker-end="url(#arrE4F1F3)"/>
+<path d="M265,957 L305,957" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M527,957 L567,957" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<path d="M417,992.0 L417,996 Q417,1000 427,1000 L891,1000 Q901,1000 901,997 L901,994.0" fill="none" stroke="#6B8599" stroke-width="1.7" marker-end="url(#arr6B8599)"/>
+<circle cx="679" cy="79" r="12" fill="#3B4A5E"/><path d="M657,119 C657,101 667,94 679,94 C691,94 701,101 701,119 Z" fill="#3B4A5E"/>
+<text x="714" y="97" font-size="14" font-weight="700" fill="#1E2530"></text>
+<rect x="45.0" y="224.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#7FA7C0" stroke-width="1.5"/>
+<text x="155" y="255.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Ask RAG</text>
+<text x="155" y="272.5" text-anchor="middle" font-size="12.5" fill="#4A5563">cited answers · streamed</text>
+<rect x="307.0" y="224.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#7FA7C0" stroke-width="1.5"/>
+<text x="417" y="255.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Evidence Agent</text>
+<text x="417" y="272.5" text-anchor="middle" font-size="12.5" fill="#4A5563">claims with verified quotes</text>
+<rect x="569.0" y="224.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#7FA7C0" stroke-width="1.5"/>
+<text x="679" y="255.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Fit-Gap Copilot</text>
+<text x="679" y="272.5" text-anchor="middle" font-size="12.5" fill="#4A5563">country As-Is vs template</text>
+<rect x="831.0" y="224.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#7FA7C0" stroke-width="1.5"/>
+<text x="941" y="255.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">InsightLens</text>
+<text x="941" y="272.5" text-anchor="middle" font-size="12.5" fill="#4A5563">per-process fit-gap</text>
+<rect x="1093.0" y="224.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#7FA7C0" stroke-width="1.5"/>
+<text x="1203" y="255.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Graph Explorer</text>
+<text x="1203" y="272.5" text-anchor="middle" font-size="12.5" fill="#4A5563">canvas · graph queries</text>
+<rect x="44.0" y="428.0" width="1270" height="56" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="679" y="452.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Grounding &amp; verification</text>
+<text x="679" y="469.5" text-anchor="middle" font-size="12.5" fill="#4A5563">The system answers only from retrieved passages · citation on every answer · every quote verified · confidence computed, not generated</text>
+<rect x="45.0" y="514.0" width="220" height="70" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="155" y="545.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Upload search</text>
+<text x="155" y="562.5" text-anchor="middle" font-size="12.5" fill="#4A5563">session attachments</text>
+<rect x="307.0" y="514.0" width="220" height="70" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="417" y="545.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Gated web search</text>
+<text x="417" y="562.5" text-anchor="middle" font-size="12.5" fill="#4A5563">SAP · EU sites, after the corpus</text>
+<rect x="569.0" y="514.0" width="220" height="70" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="679" y="545.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Hybrid search</text>
+<text x="679" y="562.5" text-anchor="middle" font-size="12.5" fill="#4A5563">vector + keyword</text>
+<rect x="831.0" y="514.0" width="220" height="70" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="941" y="545.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Graph traversal</text>
+<text x="941" y="562.5" text-anchor="middle" font-size="12.5" fill="#4A5563">neighbours · paths · NL → Cypher</text>
+<rect x="1093.0" y="514.0" width="220" height="70" rx="10" fill="#F3FAFA" stroke="#5FA3AB" stroke-width="1.5"/>
+<text x="1203" y="545.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Memory recall</text>
+<text x="1203" y="562.5" text-anchor="middle" font-size="12.5" fill="#4A5563">past runs</text>
+<path d="M45.0,727.0 A110.0,9 0 0 1 265.0,727.0 V779.0 A110.0,9 0 0 1 45.0,779.0 Z" fill="#F5F7FA" stroke="#8EA2BA" stroke-width="1.5"/>
+<path d="M45.0,727.0 A110.0,9 0 0 0 265.0,727.0" fill="none" stroke="#8EA2BA" stroke-width="1.5"/>
+<text x="155" y="751.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Upload sessions</text>
+<text x="155" y="768.5" text-anchor="middle" font-size="12.5" fill="#4A5563">Postgres schema</text>
+<path d="M307.0,728.0 V722.0 Q307.0,718.0 311.0,718.0 H367.0 L377.0,728.0 H521.0 Q527.0,728.0 527.0,734.0 V782.0 Q527.0,788.0 521.0,788.0 H313.0 Q307.0,788.0 307.0,782.0 Z" fill="#F5F7FA" stroke="#8EA2BA" stroke-width="1.5"/>
+<text x="417" y="752.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Document corpus</text>
+<text x="417" y="769.5" text-anchor="middle" font-size="12.5" fill="#4A5563">Markdown · source of truth</text>
+<path d="M569.0,727.0 A110.0,9 0 0 1 789.0,727.0 V779.0 A110.0,9 0 0 1 569.0,779.0 Z" fill="#F5F7FA" stroke="#8EA2BA" stroke-width="1.5"/>
+<path d="M569.0,727.0 A110.0,9 0 0 0 789.0,727.0" fill="none" stroke="#8EA2BA" stroke-width="1.5"/>
+<text x="679" y="751.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Vector &amp; keyword index</text>
+<text x="679" y="768.5" text-anchor="middle" font-size="12.5" fill="#4A5563">PostgreSQL · vector search</text>
+<path d="M831.0,727.0 A110.0,9 0 0 1 1051.0,727.0 V779.0 A110.0,9 0 0 1 831.0,779.0 Z" fill="#F5F7FA" stroke="#8EA2BA" stroke-width="1.5"/>
+<path d="M831.0,727.0 A110.0,9 0 0 0 1051.0,727.0" fill="none" stroke="#8EA2BA" stroke-width="1.5"/>
+<text x="941" y="751.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Process knowledge graph</text>
+<text x="941" y="768.5" text-anchor="middle" font-size="12.5" fill="#4A5563">graph file + graph database</text>
+<rect x="1093.0" y="718.0" width="220" height="70" rx="10" fill="#F5F7FA" stroke="#8EA2BA" stroke-width="1.5"/>
+<text x="1203" y="749.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent memory</text>
+<text x="1203" y="766.5" text-anchor="middle" font-size="12.5" fill="#4A5563">verified findings from past runs</text>
+<rect x="45.0" y="922.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#AAB6C5" stroke-width="1.5"/>
+<text x="155" y="953.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Convert to Markdown</text>
+<text x="155" y="970.5" text-anchor="middle" font-size="12.5" fill="#4A5563">layout · OCR · tables · diagrams</text>
+<rect x="307.0" y="922.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#AAB6C5" stroke-width="1.5"/>
+<text x="417" y="953.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Curate &amp; publish</text>
+<text x="417" y="970.5" text-anchor="middle" font-size="12.5" fill="#4A5563">analyst adds to KB · category</text>
+<rect x="569.0" y="922.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#AAB6C5" stroke-width="1.5"/>
+<text x="679" y="953.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Chunk &amp; embed</text>
+<text x="679" y="970.5" text-anchor="middle" font-size="12.5" fill="#4A5563">heading-aware · local embeddings</text>
+<rect x="831.0" y="922.0" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#AAB6C5" stroke-width="1.5"/>
+<text x="941" y="953.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Build knowledge graph</text>
+<text x="941" y="970.5" text-anchor="middle" font-size="12.5" fill="#4A5563">entities · links · evidence</text>
+<rect x="45.0" y="1122.0" width="220" height="78" rx="10" fill="#FFFFFF" stroke="#B9C3CF" stroke-width="1.5"/>
+<text x="155" y="1149.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Documents</text>
+<text x="155" y="1166.0" text-anchor="middle" font-size="12.5" fill="#4A5563">programme docs · decks · e-mails</text>
+<text x="155" y="1183.0" text-anchor="middle" font-size="12.5" fill="#4A5563">country As-Is attachments</text>
+<rect x="569.0" y="1122.0" width="220" height="78" rx="10" fill="#FFFFFF" stroke="#B9C3CF" stroke-width="1.5"/>
+<text x="679" y="1157.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Existing corpus folders</text>
+<text x="679" y="1174.5" text-anchor="middle" font-size="12.5" fill="#4A5563">PKG · DR Markdown</text>
+<rect x="1420.0" y="186.0" width="330" height="52" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1585" y="208.5" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Large language model</text>
+<text x="1585" y="225.5" text-anchor="middle" font-size="12.5" fill="#D6D6DA">cloud · answers · agent loops · judges</text>
+<rect x="1420.0" y="256.0" width="330" height="52" rx="10" fill="#EAF7F7" stroke="#3F9A9A" stroke-width="1.5"/>
+<text x="1585" y="278.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Embedding model</text>
+<text x="1585" y="295.5" text-anchor="middle" font-size="12.5" fill="#4A5563">local · text → vectors</text>
+<rect x="1420.0" y="392.0" width="330" height="52" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1585" y="423.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">RAG Evaluation</text>
+<rect x="1420.0" y="454.0" width="330" height="52" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1585" y="485.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent Evaluation</text>
+<rect x="1420.0" y="516.0" width="330" height="52" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1585" y="547.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Graph Evaluation</text>
+<rect x="1420.0" y="680.0" width="330" height="52" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1585" y="702.5" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Observability</text>
+<text x="1585" y="719.5" text-anchor="middle" font-size="12.5" fill="#D6D6DA">traces · every quality score</text>
+<rect x="1420.0" y="750.0" width="330" height="52" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1585" y="772.5" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Web (allow-listed)</text>
+<text x="1585" y="789.5" text-anchor="middle" font-size="12.5" fill="#D6D6DA">SAP · EU regulation sites</text>
+<rect x="1420.0" y="884.0" width="330" height="52" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="1585" y="906.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Sign-in</text>
+<text x="1585" y="923.5" text-anchor="middle" font-size="12.5" fill="#4A5563">presentation lock · /api stays open</text>
+<rect x="1420.0" y="954.0" width="330" height="52" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="1585" y="976.5" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Guardrails</text>
+<text x="1585" y="993.5" text-anchor="middle" font-size="12.5" fill="#4A5563">scope check · contact redaction</text>
+<rect x="1380" y="1052" width="410" height="58" rx="10" fill="#F8FAFC" stroke="#D5DCE4"/>
+<text x="1400" y="1075" font-size="12.5" fill="#4A5563">Arrows = data / request flow, sources → consumption</text>
+<text x="1400" y="1093" font-size="12.5" fill="#4A5563">Dark boxes = cloud services · side panel = cross-cutting</text>
+</svg>

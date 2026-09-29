@@ -1,12 +1,12 @@
 @startuml system-diagram
-title Docling Studio — System Architecture
+title Solvay Spark Spine AI — System Architecture
 
 skinparam backgroundColor #FFFFFF
 skinparam defaultTextAlignment center
 skinparam shadowing false
 skinparam roundcorner 8
-skinparam nodesep 50
-skinparam ranksep 60
+skinparam nodesep 40
+skinparam ranksep 70
 skinparam rectangle {
   BorderColor #666666
 }
@@ -23,70 +23,108 @@ skinparam package {
   FontStyle bold
 }
 skinparam ArrowColor #444444
+left to right direction
 
-actor "User" as User
+actor "Analyst" as User
 
-package "Web UI — React 19 SPA" {
-  rectangle "Extract page\nupload · convert · embed" as EXTRACT
-  rectangle "Ask page\nquestion · streamed answer" as ASK
-  rectangle "Graph page\nD3 force canvas" as GRAPHUI
+package "Web UI — React SPA" {
+  rectangle "Pages\nExtract · Ask · Quality · Graph\nEvidence · InsightLens · Fit-Gap Copilot" as UI
 }
 
 package "FastAPI — app.py · :8000" {
-  rectangle "API routes\nupload · convert · embed\nask (SSE) · graph" as API
-  rectangle "preview.py\nLibreOffice · pdftoppm" as PREVIEW
-  rectangle "converter.py\nDocling → Markdown" as CONV
-  rectangle "Image toolchain\nTesseract · table_cv · flow_cv · Qwen3-VL (MLX)" as READ
+  rectangle "API routes\nREST · SSE streams" as API
+  rectangle "Guardrails\nscope check (Haiku)\ncontact redaction" as GUARD
 }
 
-package "Answering engines — one corpus, two paths" {
-  rectangle "rag.py\nchunk · hybrid search · answer" as RAG
-  rectangle "md_chunker.py\nheading-aware chunks" as CHUNK
-  rectangle "knowledge_graph.py\nregex extract · BFS · 2-hop" as KG
+package "Ingestion" {
+  rectangle "converter.py\nDocling · Tesseract · CV\n(optional vision model)" as CONV
+  database "Markdown corpus\nsolvay-spark/*/markdown\nknowledge_base" as FILES
 }
 
-database "Markdown corpus\npkg/markdown · knowledge_base" as FILES
-database "PostgreSQL · :5433\npgvector HNSW · tsvector GIN" as PG
-database "knowledge_graph.json\n720 nodes · 842 edges" as KGJSON
+package "RAG system" {
+  rectangle "rag.py · md_chunker\nindex · hybrid search · answer" as RAG
+  rectangle "Ragas evaluation\nnine judges · Quality view" as EVAL
+  rectangle "Ollama · :11434\nbge-m3 · 1024-d" as OLLAMA
+}
 
-rectangle "Ollama\nbge-m3 · :11434 · 1024-d" as OLLAMA
+package "Knowledge graph" {
+  rectangle "knowledge_graph.py\nregex + ontology\nBFS · 2-hop" as KG
+  database "knowledge_graph.json\nsource of truth" as KGJSON
+}
 
-cloud "Anthropic Claude\nclaude-opus-5" as CLAUDE
-cloud "GPT / Claude vision\noptional · Docling VLM" as VLM
+package "Neo4j" {
+  rectangle "kg_neo4j_load · kg_nl2cypher\nsync copy · NL → Cypher" as CYPHER
+  database "Neo4j 5 Community · APOC\nBolt :7687 · Browser :7474" as NEO4J
+}
 
-User -down-> EXTRACT : HTTPS
-User -down-> ASK : HTTPS
-User -down-> GRAPHUI : HTTPS
+package "Agents" {
+  rectangle "Evidence Agent\nany question · scored claims" as EVID
+  rectangle "InsightLens\nBPML scope → fit-gap register" as LENS
+  rectangle "Fit-Gap Copilot\ncountry As-Is vs Global Template" as COPILOT
+  rectangle "Agent runtime\ntools · verifier\nrun store · tracing" as TOOLS
+}
 
-EXTRACT -down-> API : REST/JSON
-ASK -down-> API : POST /api/ask
-API -up-> ASK : SSE stream
-GRAPHUI -down-> API : POST /api/graph/query
+package "Agent memory" {
+  rectangle "Hindsight · :8888\nrecall · retain · reflect" as HINDSIGHT
+}
 
-API -right-> PREVIEW : render pages
-API -right-> CONV : convert(src)
-CONV -right-> READ : embedded pictures
-READ -down-> VLM : HTTPS · API key
-API -down-> FILES : write output.md
+package "PostgreSQL + pgvector · :5433" {
+  database "docling\nrag_chunks · run history" as PG
+  database "docling_session\none schema per upload" as PGSESS
+}
 
-API -down-> RAG : embed_doc · ask_events
-API -down-> KG : query_graph()
+cloud "Anthropic Claude\nanswers · agents · Cypher\njudge · scope" as CLAUDE
+cloud "Langfuse Cloud\ntraces · scores" as LANGFUSE
 
-RAG -right-> CHUNK : chunk_file()
-RAG -down-> FILES : read .md
-RAG -down-> OLLAMA : HTTP · localhost
-RAG -down-> PG : SQL (psycopg)
-RAG -down-> CLAUDE : HTTPS stream · API key
+User --> UI : HTTPS
+UI --> API : REST · SSE
+API --> GUARD
+GUARD ..> UI
 
-KG -down-> FILES : read .md · regex
-KG -down-> KGJSON : cache · load
+API --> CONV : upload · convert
+CONV --> FILES : write .md
 
-note bottom of CLAUDE
-  Dark boxes = external systems this
-  app depends on but does not control.
-  They are also the only things data
-  leaves the machine for — Ollama
-  embeds on localhost.
+API --> RAG : embed · ask
+API --> EVAL : score answer
+RAG --> FILES : read .md
+RAG --> OLLAMA : HTTP
+RAG --> PG : SQL
+RAG --> CLAUDE : stream answer
+EVAL --> CLAUDE : judge
+EVAL --> LANGFUSE : scores
+
+API --> KG : rebuild · query
+KG --> FILES : read .md
+KG --> PG : passage layer
+KG --> KGJSON : cache
+
+KGJSON --> CYPHER : load whole
+API --> CYPHER : cypher/generate
+CYPHER --> CLAUDE : write Cypher
+CYPHER --> NEO4J : Bolt · read tx
+
+GUARD --> EVID : in scope
+GUARD --> LENS : in scope
+GUARD --> COPILOT : in scope
+EVID --> CLAUDE : tool-use loop
+LENS --> CLAUDE : tool-use loop
+COPILOT --> CLAUDE : tool-use loop
+EVID --> TOOLS
+LENS --> TOOLS
+COPILOT --> TOOLS
+TOOLS --> RAG : rag.search
+TOOLS --> KGJSON : traverse
+TOOLS --> PGSESS : attachments
+TOOLS --> PG : store run
+TOOLS --> LANGFUSE : trace · scores
+EVID --> HINDSIGHT : recall · retain
+HINDSIGHT --> CLAUDE : fact extraction
+
+note bottom of LANGFUSE
+  Dark boxes = external services, and the
+  only places data leaves the machine for.
+  Ollama, Neo4j, Hindsight and PostgreSQL
+  run locally on 127.0.0.1.
 end note
 
 @enduml

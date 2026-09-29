@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import "./DoclingDemoFlow.css";
+import "./SparkComponentsDemoFlow.css";
 
 // ============================================================================
 // ArchFlow DATA — regenerate this whole section per architecture.
@@ -10,8 +10,8 @@ import "./DoclingDemoFlow.css";
 
 // Canvas dimensions for the SVG stage. Compute from your node grid: take the
 // bounding box of all NODES (max x + NW + margin, max y + NH + margin).
-const STAGE_W = 1380;
-const STAGE_H = 890;
+const STAGE_W = 1820;
+const STAGE_H = 1660;
 
 // Node card size — keep these unless you have a strong reason to change them;
 // the layout math below (bubble placement, arrow clipping) assumes this size.
@@ -41,122 +41,214 @@ const NH = 76;
 //    nodes, plus ~20-40px margin.
 const NODES = {
   "USER": {
-    "x": 40,
-    "y": 340,
+    "x": 240,
+    "y": 130,
     "icon": "👤",
-    "title": "User",
-    "sub": "Browser",
+    "title": "Analyst",
+    "sub": "consultant · browser",
     "color": "#6366f1",
-    "desc": "A consultant with Solvay SPARK project documents (decks, specs, spreadsheets) who wants to ask questions about them — by meaning, or by structure."
+    "desc": "A SPARK programme analyst or consultant: adds documents, asks questions and runs the agents."
   },
   "UI": {
-    "x": 320,
-    "y": 340,
+    "x": 800,
+    "y": 130,
     "icon": "🖥️",
     "title": "Web UI",
-    "sub": "Extract · Ask · Graph",
+    "sub": "React · Vite",
     "color": "#0ea5e9",
-    "desc": "React 19 SPA served by FastAPI. Extract uploads/converts/embeds a document, Ask streams a cited answer, Graph draws the knowledge graph on a D3 force canvas."
+    "desc": "Layer 1 · Presentation. The React app, plus Demo Mode for client presentations."
+  },
+  "AUTH": {
+    "x": 520,
+    "y": 350,
+    "icon": "🔐",
+    "title": "Sign-in",
+    "sub": "session cookie",
+    "color": "#64748b",
+    "desc": "Layer 2 · Cross-cutting. A presentation lock on the pages (signed session cookie). /api stays open, so the app runs on localhost only."
   },
   "API": {
-    "x": 600,
-    "y": 340,
+    "x": 800,
+    "y": 350,
     "icon": "⚡",
-    "title": "FastAPI",
-    "sub": "app.py · :8000",
+    "title": "Backend API",
+    "sub": "FastAPI · :8000",
     "color": "#10b981",
-    "desc": "HTTP API: /api/upload, /api/convert/{id}, /api/docs/{id}/embed, the server-sent-events /api/ask, and /api/graph/data · rebuild · query."
+    "desc": "Layer 2 · The FastAPI backend on :8000: REST for commands, SSE to stream long runs to the browser."
   },
-  "FILES": {
-    "x": 880,
-    "y": 340,
-    "icon": "📁",
-    "title": "Markdown corpus",
-    "sub": "pkg/markdown · knowledge_base",
+  "GUARD": {
+    "x": 1080,
+    "y": 350,
+    "icon": "🛡️",
+    "title": "Guardrails",
+    "sub": "scope · redaction",
+    "color": "#64748b",
+    "desc": "Layer 2 · Cross-cutting. A scope check before any agent or RAG answer, and contact details removed from every response."
+  },
+  "EVID": {
+    "x": 520,
+    "y": 570,
+    "icon": "🔎",
+    "title": "Evidence Agent",
+    "sub": "cited, verified answers",
     "color": "#f59e0b",
-    "desc": "The 84 converted .md files. This is the shared substrate: rag.py embeds them into Postgres and knowledge_graph.py scans them with regex. Nothing else is shared between the two engines."
+    "desc": "Layer 3 · AI Agents. Investigates one question across RAG, the knowledge graph and memory; answers as claims with verified quotes."
   },
-  "CONV": {
-    "x": 880,
-    "y": 124,
-    "icon": "🔄",
-    "title": "Converter",
-    "sub": "converter.py · Docling",
-    "color": "#8b5cf6",
-    "desc": "Docling reads the native OOXML/PDF text; spreadsheets take their own openpyxl path; PowerPoint connector shapes are rebuilt as exact Mermaid flowcharts."
+  "LENS": {
+    "x": 800,
+    "y": 570,
+    "icon": "🔬",
+    "title": "InsightLens",
+    "sub": "per-process fit-gap",
+    "color": "#f59e0b",
+    "desc": "Layer 3 · AI Agents. Runs a fit-gap analysis for each BPML process step, then a verifier and a synthesis."
   },
-  "READ": {
-    "x": 1160,
-    "y": 124,
-    "icon": "👁️",
-    "title": "Image readers",
-    "sub": "Tesseract · table/flow CV",
+  "COPILOT": {
+    "x": 1080,
+    "y": 570,
+    "icon": "🧭",
+    "title": "Fit-Gap Copilot",
+    "sub": "rollout comparison",
+    "color": "#f59e0b",
+    "desc": "Layer 3 · AI Agents. Compares a country's As-Is documents with the Global Template; computed scores, quality gates, workshop export."
+  },
+  "RT": {
+    "x": 800,
+    "y": 790,
+    "icon": "🛠️",
+    "title": "Agent Runtime",
+    "sub": "tool loop · verifier",
+    "color": "#d97706",
+    "desc": "Layer 3 · Shared by every agent: the tool-use loop with Claude, the search / graph / memory / web tools, and the verifier that checks every quote."
+  },
+  "INGEST": {
+    "x": 240,
+    "y": 1010,
+    "icon": "📄",
+    "title": "Doc Ingestion",
+    "sub": "convert → Markdown",
     "color": "#a855f7",
-    "desc": "Every embedded picture is read: Tesseract OCR always, plus OpenCV table and flowchart detection, plus an optional vision model (local Qwen3-VL or cloud GPT/Claude)."
+    "desc": "Layer 4 · Application Services. Converts PDFs, decks, spreadsheets and e-mails to Markdown (OCR, tables, diagrams)."
   },
   "KG": {
-    "x": 320,
-    "y": 556,
+    "x": 520,
+    "y": 1010,
     "icon": "🕸️",
-    "title": "Graph engine",
-    "sub": "knowledge_graph.py",
-    "color": "#ec4899",
-    "desc": "Builds a 720-node / 842-edge enterprise graph from the same .md files using regex and a hand-written ontology, then answers by BFS shortest path and 2-hop bridge expansion. No LLM, no database."
-  },
-  "KGJSON": {
-    "x": 320,
-    "y": 772,
-    "icon": "🗂️",
-    "title": "Graph cache",
-    "sub": "knowledge_graph.json",
-    "color": "#f472b6",
-    "desc": "The extracted graph, cached on disk (~410 KB). Loaded on every query; rebuilt only when POST /api/graph/rebuild forces a re-scan of the corpus."
+    "title": "Knowledge Graph",
+    "sub": "build · traverse",
+    "color": "#a855f7",
+    "desc": "Layer 4 · Builds the graph of streams, systems, processes and specs from the Markdown; traverses it for the agents; turns questions into Cypher."
   },
   "RAG": {
-    "x": 880,
-    "y": 556,
-    "icon": "🧠",
-    "title": "RAG engine",
-    "sub": "rag.py",
-    "color": "#14b8a6",
-    "desc": "Indexes the Markdown into pgvector and answers a question by hybrid retrieval — vector plus BM25, fused with reciprocal rank fusion — then hands the top chunks to Claude."
+    "x": 1080,
+    "y": 1010,
+    "icon": "🔍",
+    "title": "RAG Engine",
+    "sub": "hybrid search · answer",
+    "color": "#a855f7",
+    "desc": "Layer 4 · Chunks and indexes the Markdown; hybrid search (vectors + keywords); a grounded, cited answer."
   },
-  "CHUNK": {
-    "x": 600,
-    "y": 772,
-    "icon": "✂️",
-    "title": "Chunker",
-    "sub": "md_chunker.py",
-    "color": "#06b6d4",
-    "desc": "Splits the Markdown on its headings into ~500-token sections (max 1000), repeating table headers across splits and prefixing every chunk with its document title and heading path."
+  "FILES": {
+    "x": 240,
+    "y": 1230,
+    "icon": "🗂️",
+    "title": "Document Corpus",
+    "sub": "source + Markdown",
+    "color": "#16a34a",
+    "desc": "Layer 5 · Data. The source documents and their Markdown — the one corpus both engines are built from."
   },
-  "OLLAMA": {
-    "x": 1160,
-    "y": 556,
-    "icon": "🦙",
-    "title": "Ollama bge-m3",
-    "sub": "local · :11434 · 1024-d",
-    "color": "#84cc16",
-    "desc": "Local embedding daemon. bge-m3 turns chunk text and questions into 1024-dimension vectors in batches of 32. This replaced Cohere embed-v4.0, so text no longer leaves the machine to be embedded."
+  "NEO": {
+    "x": 520,
+    "y": 1230,
+    "icon": "🔷",
+    "title": "Neo4j Community",
+    "sub": "graph explorer",
+    "color": "#16a34a",
+    "desc": "Layer 5 · Data. A read-only copy of the knowledge graph for Cypher queries and Neo4j Browser."
   },
   "PG": {
-    "x": 880,
-    "y": 772,
+    "x": 1080,
+    "y": 1230,
     "icon": "🐘",
     "title": "PostgreSQL",
-    "sub": "pgvector · tsvector",
-    "color": "#3b82f6",
-    "desc": "rag_documents and rag_chunks on :5433. Each chunk carries a vector(1024) indexed with HNSW for cosine search, and a tsvector indexed with GIN for BM25 keyword search."
+    "sub": "pgvector · runs",
+    "color": "#16a34a",
+    "desc": "Layer 5 · Data. Chunks and vectors (pgvector), the history of every run and every evaluation run."
+  },
+  "MEM": {
+    "x": 800,
+    "y": 1230,
+    "icon": "🧩",
+    "title": "Hindsight",
+    "sub": "agent memory",
+    "color": "#16a34a",
+    "desc": "Layer 5 · Memory. Long-term agent memory for all agents: recall before a run, retain verified findings after. Memory orients — it is never evidence."
+  },
+  "KGEVAL": {
+    "x": 520,
+    "y": 1450,
+    "icon": "🧪",
+    "title": "Graph Evaluation",
+    "sub": "structure · NL→Cypher",
+    "color": "#e11d48",
+    "desc": "Layer 6 · Evaluation (graph_eval.py). Structure checks with no model (accuracy, completeness, consistency, structure, freshness), and plain-English questions: Claude writes Cypher, Neo4j runs it, rows are compared with reference queries."
+  },
+  "AGEVAL": {
+    "x": 800,
+    "y": 1450,
+    "icon": "📋",
+    "title": "Agent Evaluation",
+    "sub": "code-only run scores",
+    "color": "#e11d48",
+    "desc": "Layer 6 · Evaluation (agent_eval.py). Scores every Evidence Agent and Fit-Gap Copilot run from what it already checked: groundedness, tool use, task, topic adherence, guardrails. No model call, no labelled data."
+  },
+  "RAGEVAL": {
+    "x": 1080,
+    "y": 1450,
+    "icon": "📏",
+    "title": "RAG Evaluation",
+    "sub": "Ragas · 12 judges",
+    "color": "#e11d48",
+    "desc": "Layer 6 · Evaluation (evaluation.py). Twelve Ragas LLM judges score every RAG answer in the background; experiments over 27 ground-truth questions compare retrieval settings."
+  },
+  "OLLAMA": {
+    "x": 1500,
+    "y": 1010,
+    "icon": "🦙",
+    "title": "Ollama",
+    "sub": "local · bge-m3",
+    "color": "#0d9488",
+    "desc": "Layer 7 · Model Serving (local). Runs the bge-m3 embedding model that turns text into vectors."
   },
   "CLAUDE": {
-    "x": 1160,
-    "y": 772,
-    "icon": "🤖",
-    "title": "Claude",
-    "sub": "claude-opus-5",
-    "color": "#f97316",
-    "external": true,
-    "desc": "Writes the final answer from the numbered excerpts only, citing them as [n], and flags when an answer rests on OCR'd or traced content. It never searches anything itself."
+    "x": 1500,
+    "y": 1230,
+    "icon": "🧠",
+    "title": "Anthropic Claude",
+    "sub": "LLM · cloud",
+    "color": "#333333",
+    "desc": "Layer 7 · Model Serving (cloud). Writes answers, drives the agents' tool loops, judges for Ragas and writes Cypher. It never searches on its own.",
+    "external": true
+  },
+  "LF": {
+    "x": 1500,
+    "y": 1450,
+    "icon": "📈",
+    "title": "Langfuse Cloud",
+    "sub": "traces · scores",
+    "color": "#333333",
+    "desc": "Layer 8 · External. One trace per run from the API, the agents and RAG, and every evaluation score.",
+    "external": true
+  },
+  "WEB": {
+    "x": 1500,
+    "y": 570,
+    "icon": "🌐",
+    "title": "Web",
+    "sub": "SAP · EU sites",
+    "color": "#333333",
+    "desc": "Layer 8 · External. Allow-listed web pages, searched only when the guardrails allow it — after the corpus, at most twice per run.",
+    "external": true
   }
 };
 
@@ -196,12 +288,16 @@ const STEPS = [
     "t": "UI",
     "ph": 0,
     "k": "call",
-    "route": "User → Web UI",
-    "m": "The user drops Workshop.pptx onto the Extract page.",
+    "route": "Analyst → Web UI",
+    "m": "The analyst opens the app and drops a new SPARK specification.",
     "chat": [
       [
         "USER",
-        "Here's Workshop.pptx — make it searchable."
+        "Here's the new O2C spec (.docx)."
+      ],
+      [
+        "UI",
+        "Uploading…"
       ]
     ]
   },
@@ -210,227 +306,123 @@ const STEPS = [
     "t": "API",
     "ph": 0,
     "k": "call",
-    "route": "Web UI → FastAPI",
-    "m": "The file is posted as multipart to /api/upload.",
+    "route": "Web UI → Backend API",
+    "m": "POST /api/upload — the request carries the session cookie.",
     "chat": [
       [
         "UI",
-        "POST /api/upload — 18 MB, 144 slides."
-      ],
-      [
-        "API",
-        "Got it. Allocating a doc_id."
+        "POST /api/upload"
       ]
     ]
   },
   {
+    "f": "AUTH",
+    "t": "API",
+    "ph": 0,
+    "k": "data",
+    "route": "Backend API ⇄ Sign-in",
+    "m": "The page is behind the sign-in; the session cookie is valid.",
+    "chat": [
+      [
+        "API",
+        "Signed in?"
+      ],
+      [
+        "AUTH",
+        "Yes — session valid."
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
     "f": "API",
+    "t": "INGEST",
+    "ph": 0,
+    "k": "call",
+    "route": "Backend API → Doc Ingestion",
+    "m": "The document goes to ingestion.",
+    "chat": [
+      [
+        "API",
+        "Convert this .docx"
+      ]
+    ]
+  },
+  {
+    "f": "INGEST",
+    "t": "INGEST",
+    "ph": 0,
+    "k": "work",
+    "route": "Doc Ingestion",
+    "m": "Structure, tables and the pictures inside (OCR) become Markdown.",
+    "chat": [
+      [
+        "INGEST",
+        "Headings, tables, OCR on diagrams → Markdown"
+      ]
+    ]
+  },
+  {
+    "f": "INGEST",
     "t": "FILES",
     "ph": 0,
-    "k": "call",
-    "route": "FastAPI → Markdown corpus",
-    "m": "Saved as workdir/<doc_id>/source.pptx with name.txt; LibreOffice renders page previews alongside.",
+    "k": "data",
+    "route": "Doc Ingestion → Document Corpus",
+    "m": "The Markdown is saved beside its source file.",
     "chat": [
       [
-        "API",
-        "Saving source.pptx + rendering previews."
+        "INGEST",
+        "Saved O2C-spec.md"
       ],
       [
         "FILES",
-        "Stored. 144 preview PNGs ready."
-      ]
-    ]
-  },
-  {
-    "f": "UI",
-    "t": "API",
-    "ph": 1,
-    "k": "call",
-    "route": "Web UI → FastAPI",
-    "m": "The user hits Convert: POST /api/convert/{doc_id}.",
-    "chat": [
-      [
-        "USER",
-        "Convert it — AI reading on."
-      ],
-      [
-        "UI",
-        "POST /api/convert/{doc_id}?vlm=true"
+        "Stored in the corpus."
       ]
     ]
   },
   {
     "f": "API",
-    "t": "CONV",
+    "t": "RAG",
     "ph": 1,
     "k": "call",
-    "route": "FastAPI → Converter",
-    "m": "app.py calls converter.convert() with a media folder for the extracted pictures.",
+    "route": "Backend API → RAG Engine",
+    "m": "Add to knowledge base: the RAG engine indexes the new Markdown.",
     "chat": [
       [
         "API",
-        "convert(src, use_vlm=True)"
+        "Index O2C-spec.md"
       ]
     ]
   },
   {
-    "f": "CONV",
-    "t": "CONV",
+    "f": "RAG",
+    "t": "RAG",
     "ph": 1,
     "k": "work",
-    "route": "Converter internal",
-    "m": "Docling exports the native OOXML text to Markdown; PowerPoint connector shapes become exact Mermaid flowcharts.",
-    "chat": [
-      [
-        "CONV",
-        "Docling export_to_markdown() — headings, lists, tables."
-      ],
-      [
-        "CONV",
-        "9 pictures left as <!-- image --> placeholders."
-      ]
-    ]
-  },
-  {
-    "f": "READ",
-    "t": "CONV",
-    "ph": 1,
-    "k": "data",
-    "route": "Converter ⇄ Image readers",
-    "m": "Each embedded picture is OCR'd; tables and flowcharts inside images are detected.",
-    "chat": [
-      [
-        "CONV",
-        "Read these 9 embedded pictures."
-      ],
-      [
-        "READ",
-        "OCR text, 2 ruled tables, 1 draft flow."
-      ]
-    ],
-    "roundTrip": true
-  },
-  {
-    "f": "CONV",
-    "t": "API",
-    "ph": 1,
-    "k": "data",
-    "route": "Converter → FastAPI",
-    "m": "Image text is spliced into the placeholders and the Markdown is returned with conversion stats.",
-    "chat": [
-      [
-        "CONV",
-        "Spliced into placeholders. Markdown ready."
-      ],
-      [
-        "API",
-        "42 sections, 9 pictures read."
-      ]
-    ]
-  },
-  {
-    "f": "API",
-    "t": "UI",
-    "ph": 1,
-    "k": "data",
-    "route": "FastAPI → Web UI",
-    "m": "The Markdown and conversion stats are shown next to the page previews, and written to output.md.",
-    "chat": [
-      [
-        "API",
-        "output.md written. Here's the Markdown."
-      ],
-      [
-        "UI",
-        "Rendering it beside the original."
-      ]
-    ]
-  },
-  {
-    "f": "UI",
-    "t": "API",
-    "ph": 2,
-    "k": "call",
-    "route": "Web UI → FastAPI",
-    "m": "The user hits Embed: POST /api/docs/{doc_id}/embed.",
-    "chat": [
-      [
-        "USER",
-        "Add it to the knowledge base."
-      ],
-      [
-        "UI",
-        "POST /api/docs/{doc_id}/embed"
-      ]
-    ]
-  },
-  {
-    "f": "API",
-    "t": "RAG",
-    "ph": 2,
-    "k": "call",
-    "route": "FastAPI → RAG engine",
-    "m": "output.md is copied to knowledge_base/Workshop_pptx.md and rag.index_file() is called on it.",
-    "chat": [
-      [
-        "API",
-        "index_file(knowledge_base/Workshop_pptx.md)"
-      ]
-    ]
-  },
-  {
-    "f": "FILES",
-    "t": "RAG",
-    "ph": 2,
-    "k": "data",
-    "route": "RAG engine ⇄ Markdown corpus",
-    "m": "The .md is read and fingerprinted (SHA-256 of the text plus the chunk and embed settings). An unchanged file costs no embedding call.",
+    "route": "RAG Engine",
+    "m": "Heading-aware chunks: each keeps its section path.",
     "chat": [
       [
         "RAG",
-        "Read the file — fingerprint unchanged?"
-      ],
-      [
-        "FILES",
-        "New file. Nothing indexed under this path yet."
+        "Split into 42 chunks, by heading"
       ]
-    ],
-    "roundTrip": true
-  },
-  {
-    "f": "CHUNK",
-    "t": "RAG",
-    "ph": 2,
-    "k": "data",
-    "route": "RAG engine ⇄ Chunker",
-    "m": "The Markdown is split into heading-aware chunks, each keeping its document title and heading path.",
-    "chat": [
-      [
-        "RAG",
-        "chunk_file() — cut it on the headings."
-      ],
-      [
-        "CHUNK",
-        "42 chunks, ~500 tokens each, no overlap."
-      ]
-    ],
-    "roundTrip": true
+    ]
   },
   {
     "f": "OLLAMA",
     "t": "RAG",
-    "ph": 2,
+    "ph": 1,
     "k": "data",
-    "route": "RAG engine ⇄ Ollama",
-    "m": "Title + heading path + content of each chunk is embedded by bge-m3 on localhost, in batches of 32.",
+    "route": "RAG Engine ⇄ Ollama",
+    "m": "Each chunk is embedded locally — no text leaves the machine for this.",
     "chat": [
       [
         "RAG",
-        "POST /api/embed — 42 chunks, bge-m3."
+        "Embed 42 chunks"
       ],
       [
         "OLLAMA",
-        "42 vectors, 1024-d. Nothing left the machine."
+        "42 × 1024-d vectors (bge-m3)"
       ]
     ],
     "roundTrip": true
@@ -438,36 +430,83 @@ const STEPS = [
   {
     "f": "RAG",
     "t": "PG",
-    "ph": 2,
-    "k": "call",
-    "route": "RAG engine → PostgreSQL",
-    "m": "In one transaction the document row is replaced and every chunk is inserted with its vector and its tsvector.",
+    "ph": 1,
+    "k": "data",
+    "route": "RAG Engine → PostgreSQL",
+    "m": "Chunks, vectors and a keyword index are stored in pgvector.",
     "chat": [
       [
         "RAG",
-        "INSERT chunks · embedding · tsvector"
+        "INSERT chunks + vectors"
       ],
       [
         "PG",
-        "Stored. HNSW + GIN indexes updated."
+        "Indexed — searchable now."
       ]
     ]
   },
   {
-    "f": "RAG",
-    "t": "API",
+    "f": "API",
+    "t": "KG",
     "ph": 2,
-    "k": "data",
-    "route": "RAG engine → FastAPI",
-    "m": "The index result (added, 42 chunks) goes back to the Extract page, with any duplicate sources flagged.",
+    "k": "call",
+    "route": "Backend API → Knowledge Graph",
+    "m": "Rebuild the knowledge graph from the corpus.",
     "chat": [
       [
-        "RAG",
-        "added — 42 chunks, 0 duplicates."
+        "API",
+        "Rebuild the graph"
+      ]
+    ]
+  },
+  {
+    "f": "FILES",
+    "t": "KG",
+    "ph": 2,
+    "k": "data",
+    "route": "Knowledge Graph ⇄ Document Corpus",
+    "m": "The graph is built from every Markdown file the analyst has added.",
+    "chat": [
+      [
+        "KG",
+        "Read all Markdown"
       ],
       [
-        "API",
-        "Index now holds 84 documents / 4,299 chunks."
+        "FILES",
+        "1,284 files"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "KG",
+    "t": "KG",
+    "ph": 2,
+    "k": "work",
+    "route": "Knowledge Graph",
+    "m": "Streams, systems, BPML processes and specs become nodes; mentions become links.",
+    "chat": [
+      [
+        "KG",
+        "O2C spec → mentions SD, EWM, BPML 1.2.3"
+      ]
+    ]
+  },
+  {
+    "f": "KG",
+    "t": "NEO",
+    "ph": 2,
+    "k": "call",
+    "route": "Knowledge Graph → Neo4j",
+    "m": "A read-only copy is loaded into Neo4j for Cypher.",
+    "chat": [
+      [
+        "KG",
+        "Sync the graph"
+      ],
+      [
+        "NEO",
+        "Loaded: nodes + relationships"
       ]
     ]
   },
@@ -476,12 +515,12 @@ const STEPS = [
     "t": "UI",
     "ph": 3,
     "k": "call",
-    "route": "User → Web UI",
-    "m": "On the Ask page the user types a question.",
+    "route": "Analyst → Web UI",
+    "m": "The analyst asks a question on Ask RAG.",
     "chat": [
       [
         "USER",
-        "Who validated 7.1.12.3?"
+        "How are credit blocks released in O2C?"
       ]
     ]
   },
@@ -490,30 +529,45 @@ const STEPS = [
     "t": "API",
     "ph": 3,
     "k": "call",
-    "route": "Web UI → FastAPI",
-    "m": "POST /api/ask opens a server-sent-events stream (k = 8, hybrid mode).",
+    "route": "Web UI → Backend API",
+    "m": "POST /api/ask — the answer will stream back over SSE.",
     "chat": [
       [
         "UI",
-        "POST /api/ask — k=8, mode=hybrid."
-      ],
-      [
-        "API",
-        "Opening an SSE stream."
+        "POST /api/ask (SSE)"
       ]
     ]
+  },
+  {
+    "f": "GUARD",
+    "t": "API",
+    "ph": 3,
+    "k": "data",
+    "route": "Backend API ⇄ Guardrails",
+    "m": "Scope check: the question is about the programme, so it goes through.",
+    "chat": [
+      [
+        "API",
+        "In scope?"
+      ],
+      [
+        "GUARD",
+        "Yes — O2C, credit management."
+      ]
+    ],
+    "roundTrip": true
   },
   {
     "f": "API",
     "t": "RAG",
     "ph": 3,
     "k": "call",
-    "route": "FastAPI → RAG engine",
-    "m": "rag.ask_events() runs the whole pipeline and yields stage events as each step starts and finishes.",
+    "route": "Backend API → RAG Engine",
+    "m": "The RAG engine takes the question.",
     "chat": [
       [
         "API",
-        "ask_events(question, k=8, hybrid)"
+        "Answer this, with sources"
       ]
     ]
   },
@@ -522,16 +576,16 @@ const STEPS = [
     "t": "RAG",
     "ph": 3,
     "k": "data",
-    "route": "RAG engine ⇄ Ollama",
-    "m": "The question is embedded by the same local bge-m3 model, so question and chunks live in the same 1024-d space.",
+    "route": "RAG Engine ⇄ Ollama",
+    "m": "The question is embedded with the same model as the chunks.",
     "chat": [
       [
         "RAG",
-        "Embed the question — same model as the chunks."
+        "Embed the question"
       ],
       [
         "OLLAMA",
-        "1024-d query vector."
+        "1024-d vector"
       ]
     ],
     "roundTrip": true
@@ -541,72 +595,35 @@ const STEPS = [
     "t": "RAG",
     "ph": 3,
     "k": "data",
-    "route": "RAG engine ⇄ PostgreSQL",
-    "m": "Nearest neighbours by cosine distance over the HNSW index: the top 40 chunks closest in meaning.",
+    "route": "RAG Engine ⇄ PostgreSQL",
+    "m": "Hybrid search: vector similarity and keywords, fused into one ranking.",
     "chat": [
       [
         "RAG",
-        "ORDER BY embedding <=> query LIMIT 40"
+        "Top chunks: vector + keyword"
       ],
       [
         "PG",
-        "40 candidates, best similarity 0.71."
+        "8 chunks, incl. O2C-spec §4.2"
       ]
     ],
     "roundTrip": true
-  },
-  {
-    "f": "PG",
-    "t": "RAG",
-    "ph": 3,
-    "k": "data",
-    "route": "RAG engine ⇄ PostgreSQL",
-    "m": "BM25 over the tsvector index finds exact terms such as the code 7.1.12.3, which the embedding treats as noise.",
-    "chat": [
-      [
-        "RAG",
-        "BM25 over the full-text index — keep codes whole."
-      ],
-      [
-        "PG",
-        "40 matches. '7.1.12.3' appears in 6 chunks."
-      ]
-    ],
-    "roundTrip": true
-  },
-  {
-    "f": "RAG",
-    "t": "RAG",
-    "ph": 3,
-    "k": "work",
-    "route": "RAG engine internal",
-    "m": "Reciprocal rank fusion (score = 1 / (60 + rank)) merges both rankings and keeps the best 8 chunks.",
-    "chat": [
-      [
-        "RAG",
-        "Fusing both rankings — 5 chunks found by both."
-      ],
-      [
-        "RAG",
-        "Top 8 excerpts from 3 documents."
-      ]
-    ]
   },
   {
     "f": "CLAUDE",
     "t": "RAG",
-    "ph": 4,
+    "ph": 3,
     "k": "data",
-    "route": "RAG engine ⇄ Claude",
-    "m": "Eight numbered <excerpt> blocks plus the question go to Claude, which is told to answer only from them and cite [n].",
+    "route": "RAG Engine ⇄ Claude",
+    "m": "Claude writes the answer from the retrieved chunks only, citing them.",
     "chat": [
       [
         "RAG",
-        "8 excerpts + the question. Answer only from these."
+        "Answer from these 8 chunks only"
       ],
       [
         "CLAUDE",
-        "Streaming. [3] names the validator."
+        "Blocks are released by… [1][3]"
       ]
     ],
     "roundTrip": true
@@ -614,14 +631,326 @@ const STEPS = [
   {
     "f": "RAG",
     "t": "API",
-    "ph": 4,
+    "ph": 3,
     "k": "data",
-    "route": "RAG engine → FastAPI",
-    "m": "Sources, stage updates and answer tokens are yielded as events while Claude is still writing.",
+    "route": "RAG Engine → Backend API",
+    "m": "The cited answer streams back; contact details are redacted on the way.",
     "chat": [
       [
         "RAG",
-        "sources · stage · token events"
+        "Answer + citations"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "UI",
+    "ph": 3,
+    "k": "data",
+    "route": "Backend API → Web UI",
+    "m": "Tokens stream to the page as they arrive.",
+    "chat": [
+      [
+        "API",
+        "SSE: answer, sources"
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "USER",
+    "ph": 3,
+    "k": "data",
+    "route": "Web UI → Analyst",
+    "m": "The analyst reads the answer with its sources.",
+    "chat": [
+      [
+        "UI",
+        "Answer with 3 cited sources"
+      ],
+      [
+        "USER",
+        "Clear — and I can check the sources."
+      ]
+    ]
+  },
+  {
+    "f": "RAG",
+    "t": "RAGEVAL",
+    "ph": 3,
+    "k": "call",
+    "route": "RAG Engine → RAG Evaluation",
+    "m": "In the background, after the answer has streamed, Ragas scores it.",
+    "chat": [
+      [
+        "RAG",
+        "Score this answer"
+      ]
+    ]
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RAGEVAL",
+    "ph": 3,
+    "k": "data",
+    "route": "RAG Evaluation ⇄ Claude",
+    "m": "Twelve LLM judges: faithfulness, relevancy, context metrics, safety…",
+    "chat": [
+      [
+        "RAGEVAL",
+        "Judge against the 8 excerpts"
+      ],
+      [
+        "CLAUDE",
+        "Faithfulness 0.94 · relevancy 0.91"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "RAGEVAL",
+    "t": "LF",
+    "ph": 3,
+    "k": "data",
+    "route": "RAG Evaluation → Langfuse",
+    "m": "Scores go onto the answer's trace; the scorecard appears on the Ask page.",
+    "chat": [
+      [
+        "RAGEVAL",
+        "12 scores on the trace"
+      ],
+      [
+        "LF",
+        "Recorded — on the quality dashboard."
+      ]
+    ]
+  },
+  {
+    "f": "USER",
+    "t": "UI",
+    "ph": 4,
+    "k": "call",
+    "route": "Analyst → Web UI",
+    "m": "A harder question for the Evidence Agent.",
+    "chat": [
+      [
+        "USER",
+        "Which systems touch credit release, and is it in scope?"
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "API",
+    "ph": 4,
+    "k": "call",
+    "route": "Web UI → Backend API",
+    "m": "POST /api/evidence; the scope check runs first.",
+    "chat": [
+      [
+        "UI",
+        "POST /api/evidence (SSE)"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "EVID",
+    "ph": 4,
+    "k": "call",
+    "route": "Backend API → Evidence Agent",
+    "m": "The Evidence Agent takes the question.",
+    "chat": [
+      [
+        "API",
+        "Investigate"
+      ]
+    ]
+  },
+  {
+    "f": "EVID",
+    "t": "RT",
+    "ph": 4,
+    "k": "call",
+    "route": "Evidence Agent → Agent Runtime",
+    "m": "It runs on the shared runtime: tool loop, tools, verifier.",
+    "chat": [
+      [
+        "EVID",
+        "Start the tool loop"
+      ]
+    ]
+  },
+  {
+    "f": "MEM",
+    "t": "RT",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Hindsight",
+    "m": "Memory first: what earlier runs learned points where to look.",
+    "chat": [
+      [
+        "RT",
+        "Recall: credit release"
+      ],
+      [
+        "MEM",
+        "Past run: see FSCM + BPML 1.2.3"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RT",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Claude",
+    "m": "Claude plans the investigation and picks tools.",
+    "chat": [
+      [
+        "RT",
+        "Question + tools"
+      ],
+      [
+        "CLAUDE",
+        "search_corpus, then graph_neighbours"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "RAG",
+    "t": "RT",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime ⇄ RAG Engine",
+    "m": "Tool call: search the corpus.",
+    "chat": [
+      [
+        "RT",
+        "search_corpus('credit release')"
+      ],
+      [
+        "RAG",
+        "12 chunks"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "KG",
+    "t": "RT",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Knowledge Graph",
+    "m": "Tool call: walk the graph from the process to its systems.",
+    "chat": [
+      [
+        "RT",
+        "Neighbours of BPML 1.2.3"
+      ],
+      [
+        "KG",
+        "SD, FSCM, EWM + 5 specs"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RT",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Claude",
+    "m": "Claude writes claims, each with verbatim quotes.",
+    "chat": [
+      [
+        "RT",
+        "Here's the evidence"
+      ],
+      [
+        "CLAUDE",
+        "4 claims, 9 quotes"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "RT",
+    "t": "RT",
+    "ph": 4,
+    "k": "work",
+    "route": "Agent Runtime",
+    "m": "Every quote is checked character by character against what was retrieved.",
+    "chat": [
+      [
+        "RT",
+        "9/9 quotes verified · scores computed"
+      ]
+    ]
+  },
+  {
+    "f": "RT",
+    "t": "MEM",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Runtime → Hindsight",
+    "m": "Only verified claims are retained for next time.",
+    "chat": [
+      [
+        "RT",
+        "Retain 4 verified claims"
+      ],
+      [
+        "MEM",
+        "Stored."
+      ]
+    ]
+  },
+  {
+    "f": "RT",
+    "t": "AGEVAL",
+    "ph": 4,
+    "k": "call",
+    "route": "Agent Runtime → Agent Evaluation",
+    "m": "The run's own checks become scores: no model call, no labelled data.",
+    "chat": [
+      [
+        "RT",
+        "Run results: quotes, tool calls, guardrails"
+      ]
+    ]
+  },
+  {
+    "f": "AGEVAL",
+    "t": "LF",
+    "ph": 4,
+    "k": "data",
+    "route": "Agent Evaluation → Langfuse",
+    "m": "Groundedness, tool use, task, topic adherence and guardrail scores on the trace.",
+    "chat": [
+      [
+        "AGEVAL",
+        "citation_validity 1.0 · tool_error_rate 0"
+      ],
+      [
+        "LF",
+        "Scores on the run's trace."
+      ]
+    ]
+  },
+  {
+    "f": "EVID",
+    "t": "API",
+    "ph": 4,
+    "k": "data",
+    "route": "Evidence Agent → Backend API",
+    "m": "The answer: claims, quotes and their scores.",
+    "chat": [
+      [
+        "EVID",
+        "4 claims, all sourced"
       ]
     ]
   },
@@ -630,16 +959,12 @@ const STEPS = [
     "t": "UI",
     "ph": 4,
     "k": "data",
-    "route": "FastAPI → Web UI",
-    "m": "Events are streamed to the browser as SSE, so the answer appears word by word.",
+    "route": "Backend API → Web UI",
+    "m": "Streamed to the page; the run is traced to Langfuse.",
     "chat": [
       [
         "API",
-        "event: token — streaming to the browser."
-      ],
-      [
-        "UI",
-        "Rendering as it arrives."
+        "Claims + evidence"
       ]
     ]
   },
@@ -648,16 +973,12 @@ const STEPS = [
     "t": "USER",
     "ph": 4,
     "k": "data",
-    "route": "Web UI → User",
-    "m": "The answer appears with [n] citations and a sources panel showing how each search ranked every chunk.",
+    "route": "Web UI → Analyst",
+    "m": "Each claim opens to the passages behind it.",
     "chat": [
       [
         "UI",
-        "Answer with [n] citations + 8 sources."
-      ],
-      [
-        "USER",
-        "And it flagged that [3] came from OCR. Good."
+        "4 claims · click to see quotes"
       ]
     ]
   },
@@ -666,12 +987,12 @@ const STEPS = [
     "t": "UI",
     "ph": 5,
     "k": "call",
-    "route": "User → Web UI",
-    "m": "The user switches to the Graph tab and asks a structural question instead.",
+    "route": "Analyst → Web UI",
+    "m": "The analyst attaches a country's As-Is SOP.",
     "chat": [
       [
         "USER",
-        "How does eCommerce connect to S/4HANA?"
+        "Compare Poland's As-Is O2C with the template"
       ]
     ]
   },
@@ -680,108 +1001,195 @@ const STEPS = [
     "t": "API",
     "ph": 5,
     "k": "call",
-    "route": "Web UI → FastAPI",
-    "m": "POST /api/graph/query — a different endpoint entirely; no vectors and no SSE are involved.",
+    "route": "Web UI → Backend API",
+    "m": "POST /api/rollout with the attachment.",
     "chat": [
       [
         "UI",
-        "POST /api/graph/query"
-      ],
-      [
-        "API",
-        "This one doesn't touch the index at all."
+        "POST /api/rollout + SOP.pdf"
       ]
     ]
   },
   {
     "f": "API",
-    "t": "KG",
+    "t": "INGEST",
     "ph": 5,
     "k": "call",
-    "route": "FastAPI → Graph engine",
-    "m": "knowledge_graph.query_graph() parses the intent: 'how does X connect to Y' is a path query.",
+    "route": "Backend API → Doc Ingestion",
+    "m": "The attachment is converted into a private session, not the corpus.",
     "chat": [
       [
         "API",
-        "query_graph('How does eCommerce connect to S/4HANA?')"
-      ],
-      [
-        "KG",
-        "Path intent. Resolving both ends to nodes."
+        "Convert the attachment (session only)"
       ]
     ]
   },
   {
-    "f": "KGJSON",
-    "t": "KG",
+    "f": "API",
+    "t": "COPILOT",
     "ph": 5,
-    "k": "data",
-    "route": "Graph engine ⇄ Graph cache",
-    "m": "The extracted graph is loaded from its JSON cache rather than rebuilt.",
+    "k": "call",
+    "route": "Backend API → Fit-Gap Copilot",
+    "m": "The Fit-Gap Copilot starts.",
     "chat": [
       [
-        "KG",
-        "Load the cached graph."
+        "API",
+        "Run fit-gap: PL As-Is vs template"
+      ]
+    ]
+  },
+  {
+    "f": "COPILOT",
+    "t": "RT",
+    "ph": 5,
+    "k": "call",
+    "route": "Fit-Gap Copilot → Agent Runtime",
+    "m": "Pass 1 reads the As-Is only; pass 2 compares.",
+    "chat": [
+      [
+        "COPILOT",
+        "Pass 1: read the As-Is"
+      ]
+    ]
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RT",
+    "ph": 5,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Claude",
+    "m": "Pass 1: the As-Is becomes a normalised process model.",
+    "chat": [
+      [
+        "RT",
+        "Read the SOP"
       ],
       [
-        "KGJSON",
-        "720 nodes, 842 edges — 4 streams, 6 systems, 83 docs."
+        "CLAUDE",
+        "18 atomic steps"
       ]
     ],
     "roundTrip": true
   },
   {
-    "f": "FILES",
-    "t": "KG",
+    "f": "RAG",
+    "t": "RT",
     "ph": 5,
     "k": "data",
-    "route": "Graph engine ⇄ Markdown corpus",
-    "m": "On a rebuild the engine re-scans the SAME .md files with regex: streams, systems, BPML codes and SPARK tickets. This is the only thing the two engines share.",
+    "route": "Agent Runtime ⇄ RAG Engine",
+    "m": "Pass 2: find the Global Template for the same process.",
     "chat": [
       [
-        "KG",
-        "On rebuild: re-scan every .md with regex."
+        "RT",
+        "search: template O2C credit"
       ],
       [
-        "FILES",
-        "Same 84 files rag.py embedded. One corpus, two readings."
+        "RAG",
+        "Template §3–§5"
       ]
     ],
     "roundTrip": true
   },
   {
     "f": "KG",
-    "t": "KG",
+    "t": "RT",
+    "ph": 5,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Knowledge Graph",
+    "m": "The BPML hierarchy anchors the comparison.",
+    "chat": [
+      [
+        "RT",
+        "BPML scope for O2C"
+      ],
+      [
+        "KG",
+        "1.2.x · 7 process steps"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "WEB",
+    "t": "RT",
+    "ph": 5,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Web",
+    "m": "Gated web search: allowed SAP pages, only after the corpus.",
+    "chat": [
+      [
+        "RT",
+        "SAP standard: credit release"
+      ],
+      [
+        "WEB",
+        "help.sap.com passage"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RT",
+    "ph": 5,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Claude",
+    "m": "Pass 2: the deviation register and dimension ratings.",
+    "chat": [
+      [
+        "RT",
+        "Compare As-Is vs template"
+      ],
+      [
+        "CLAUDE",
+        "6 deviations, 2 localization"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "COPILOT",
+    "t": "COPILOT",
     "ph": 5,
     "k": "work",
-    "route": "Graph engine internal",
-    "m": "Breadth-first search over an undirected adjacency list finds the shortest path; a 2-hop bridge expansion pulls in the specs behind it.",
+    "route": "Fit-Gap Copilot",
+    "m": "Scores are computed, not generated; quality gates repair the output.",
     "chat": [
       [
-        "KG",
-        "BFS over the adjacency list — no Cypher, no SQL."
-      ],
-      [
-        "KG",
-        "3 hops via an interface spec document."
+        "COPILOT",
+        "Alignment 72% · gates QG1–QG7 passed"
       ]
     ]
   },
   {
-    "f": "KG",
+    "f": "RT",
+    "t": "AGEVAL",
+    "ph": 5,
+    "k": "call",
+    "route": "Agent Runtime → Agent Evaluation",
+    "m": "The same scores for the Copilot, plus the quality-gate counts.",
+    "chat": [
+      [
+        "RT",
+        "Run results + gate findings"
+      ],
+      [
+        "AGEVAL",
+        "task_completed · 0 hard gate issues"
+      ]
+    ]
+  },
+  {
+    "f": "COPILOT",
     "t": "API",
     "ph": 5,
     "k": "data",
-    "route": "Graph engine → FastAPI",
-    "m": "A templated Markdown answer plus the matched node and edge ids come back. Nothing was generated by a model.",
+    "route": "Fit-Gap Copilot → Backend API",
+    "m": "The workshop pack: register, agenda, backlog.",
     "chat": [
       [
-        "KG",
-        "Path + templated answer. No LLM in this path."
-      ],
-      [
-        "API",
-        "node_ids, edge_ids, hop-by-hop steps."
+        "COPILOT",
+        "Workshop pack ready"
       ]
     ]
   },
@@ -790,16 +1198,12 @@ const STEPS = [
     "t": "UI",
     "ph": 5,
     "k": "data",
-    "route": "FastAPI → Web UI",
-    "m": "The subgraph payload reaches the D3 canvas, which glows the matched nodes and dims everything else to 0.12.",
+    "route": "Backend API → Web UI",
+    "m": "Exportable as PDF, Word or Excel.",
     "chat": [
       [
         "API",
-        "Subgraph payload — 11 nodes, 10 edges."
-      ],
-      [
-        "UI",
-        "Framing it: pan and zoom onto the match."
+        "Register + scores"
       ]
     ]
   },
@@ -808,32 +1212,375 @@ const STEPS = [
     "t": "USER",
     "ph": 5,
     "k": "data",
-    "route": "Web UI → User",
-    "m": "The integration path is shown hop by hop, cited to the source documents it was extracted from.",
+    "route": "Web UI → Analyst",
+    "m": "Ready for the country workshop.",
     "chat": [
       [
         "UI",
-        "eCommerce → spec doc → S/4HANA, 3 hops."
+        "6 deviations · export PDF / Word / Excel"
       ],
       [
         "USER",
-        "Two questions, two engines, one set of files."
+        "Exactly what I need for Warsaw."
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "API",
+    "ph": 6,
+    "k": "call",
+    "route": "Web UI → Backend API",
+    "m": "An InsightLens run over one BPML process.",
+    "chat": [
+      [
+        "UI",
+        "POST /api/fitgap: BPML 1.2"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "LENS",
+    "ph": 6,
+    "k": "call",
+    "route": "Backend API → InsightLens",
+    "m": "InsightLens runs once per process step.",
+    "chat": [
+      [
+        "API",
+        "Analyse process 1.2"
+      ]
+    ]
+  },
+  {
+    "f": "LENS",
+    "t": "RT",
+    "ph": 6,
+    "k": "call",
+    "route": "InsightLens → Agent Runtime",
+    "m": "Same runtime, same tools, same verifier.",
+    "chat": [
+      [
+        "LENS",
+        "Step 1.2.3 of 7"
+      ]
+    ]
+  },
+  {
+    "f": "KG",
+    "t": "RT",
+    "ph": 6,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Knowledge Graph",
+    "m": "What the graph links to this step.",
+    "chat": [
+      [
+        "RT",
+        "Specs for 1.2.3"
+      ],
+      [
+        "KG",
+        "3 specs, 2 tickets"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "CLAUDE",
+    "t": "RT",
+    "ph": 6,
+    "k": "data",
+    "route": "Agent Runtime ⇄ Claude",
+    "m": "Findings, then a verifier pass and a synthesis.",
+    "chat": [
+      [
+        "RT",
+        "Fit or gap?"
+      ],
+      [
+        "CLAUDE",
+        "Gap: manual release in PL"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "LENS",
+    "t": "API",
+    "ph": 6,
+    "k": "data",
+    "route": "InsightLens → Backend API",
+    "m": "A fit-gap register for the whole process.",
+    "chat": [
+      [
+        "LENS",
+        "7 steps: 5 fit · 2 gap"
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "API",
+    "ph": 7,
+    "k": "call",
+    "route": "Web UI → Backend API",
+    "m": "On the graph's Quality view, the analyst runs the checks.",
+    "chat": [
+      [
+        "UI",
+        "Run the graph checks"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "KG",
+    "ph": 7,
+    "k": "call",
+    "route": "Backend API → Knowledge Graph",
+    "m": "Check the graph as it is now.",
+    "chat": [
+      [
+        "API",
+        "Check the current graph"
+      ]
+    ]
+  },
+  {
+    "f": "KG",
+    "t": "KGEVAL",
+    "ph": 7,
+    "k": "call",
+    "route": "Knowledge Graph → Graph Evaluation",
+    "m": "The graph and its evidence passages go to the checks.",
+    "chat": [
+      [
+        "KG",
+        "Nodes, edges, cited passages"
+      ]
+    ]
+  },
+  {
+    "f": "KGEVAL",
+    "t": "KGEVAL",
+    "ph": 7,
+    "k": "work",
+    "route": "Graph Evaluation",
+    "m": "Structure checks, free and in seconds: accuracy, completeness, consistency, freshness.",
+    "chat": [
+      [
+        "KGEVAL",
+        "Cited passages name their target: 99%"
+      ]
+    ]
+  },
+  {
+    "f": "CLAUDE",
+    "t": "KG",
+    "ph": 7,
+    "k": "data",
+    "route": "Knowledge Graph ⇄ Claude",
+    "m": "Plain-English test questions go through the same NL → Cypher step; Claude writes a query for each.",
+    "chat": [
+      [
+        "KG",
+        "Cypher for the 20 test questions"
+      ],
+      [
+        "CLAUDE",
+        "20 queries"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "NEO",
+    "t": "KGEVAL",
+    "ph": 7,
+    "k": "data",
+    "route": "Graph Evaluation ⇄ Neo4j",
+    "m": "Each query runs; its rows are compared with the reference query's.",
+    "chat": [
+      [
+        "KGEVAL",
+        "Run both, compare rows"
+      ],
+      [
+        "NEO",
+        "18 of 20 match"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "KGEVAL",
+    "t": "LF",
+    "ph": 7,
+    "k": "data",
+    "route": "Graph Evaluation → Langfuse",
+    "m": "graph_ and cypher_ scores; the run is kept for the Quality view.",
+    "chat": [
+      [
+        "KGEVAL",
+        "Execution accuracy 0.90"
+      ],
+      [
+        "LF",
+        "Recorded."
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "API",
+    "ph": 8,
+    "k": "call",
+    "route": "Web UI → Backend API",
+    "m": "The Knowledge Graph page takes a plain-English question.",
+    "chat": [
+      [
+        "UI",
+        "Which specs mention EWM and O2C?"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "KG",
+    "ph": 8,
+    "k": "call",
+    "route": "Backend API → Knowledge Graph",
+    "m": "Natural language to Cypher.",
+    "chat": [
+      [
+        "API",
+        "NL → Cypher"
+      ]
+    ]
+  },
+  {
+    "f": "CLAUDE",
+    "t": "KG",
+    "ph": 8,
+    "k": "data",
+    "route": "Knowledge Graph ⇄ Claude",
+    "m": "Claude writes the Cypher; it is checked read-only before running.",
+    "chat": [
+      [
+        "KG",
+        "Write Cypher for this"
+      ],
+      [
+        "CLAUDE",
+        "MATCH (s:Spec)-[:MENTIONS]->…"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "NEO",
+    "t": "KG",
+    "ph": 8,
+    "k": "data",
+    "route": "Knowledge Graph ⇄ Neo4j",
+    "m": "Neo4j runs the query on its read-only copy.",
+    "chat": [
+      [
+        "KG",
+        "Run (read transaction)"
+      ],
+      [
+        "NEO",
+        "11 specs"
+      ]
+    ],
+    "roundTrip": true
+  },
+  {
+    "f": "KG",
+    "t": "API",
+    "ph": 8,
+    "k": "data",
+    "route": "Knowledge Graph → Backend API",
+    "m": "Results and the Cypher that produced them.",
+    "chat": [
+      [
+        "KG",
+        "11 rows + the query"
+      ]
+    ]
+  },
+  {
+    "f": "API",
+    "t": "UI",
+    "ph": 8,
+    "k": "data",
+    "route": "Backend API → Web UI",
+    "m": "Shown as a table and on the graph canvas.",
+    "chat": [
+      [
+        "API",
+        "Results"
+      ]
+    ]
+  },
+  {
+    "f": "UI",
+    "t": "USER",
+    "ph": 8,
+    "k": "data",
+    "route": "Web UI → Analyst",
+    "m": "The whole system, from one corpus.",
+    "chat": [
+      [
+        "UI",
+        "11 specs, highlighted on the graph"
+      ],
+      [
+        "USER",
+        "One corpus, every view."
       ]
     ]
   }
 ];
 
 // One label per phase index used in STEPS. Shown in the toolbar's phase tag.
-const PHASES = [
-  "1 · Upload the document",
-  "2 · Convert to Markdown",
-  "3 · Chunk, embed & store",
-  "4 · Retrieve the top-k chunks",
-  "5 · Generate the cited answer",
-  "6 · Traverse the knowledge graph"
-];
+const PHASES = ["1 · Sign in & upload", "2 · Index for search", "3 · Build the knowledge graph", "4 · Ask RAG + Ragas", "5 · Evidence Agent", "6 · Fit-Gap Copilot", "7 · InsightLens", "8 · Evaluate the graph", "9 · Cypher in Neo4j"];
+
+// Authored right-angle routes, one per connection (drawn from the first node to
+// the second). They apply only while both cards sit where they were authored;
+// drag either card and that link falls back to the default curve so it stays
+// attached.
+const ROUTES = {"USER>UI": [[330, 168], [890, 168]], "UI>API": [[890, 168], [890, 388]], "API>AUTH": [[890, 388], [610, 388]], "API>GUARD": [[890, 388], [1170, 388]], "API>EVID": [[890, 400], [890, 505], [610, 505], [610, 608]], "API>LENS": [[890, 400], [890, 608]], "API>COPILOT": [[890, 400], [890, 505], [1170, 505], [1170, 608]], "API>INGEST": [[840, 400], [840, 465], [170, 465], [170, 1048], [330, 1048]], "API>KG": [[840, 400], [840, 465], [170, 465], [170, 950], [580, 950], [580, 1048]], "API>RAG": [[890, 400], [890, 505], [1330, 505], [1330, 1025], [1170, 1025]], "EVID>RT": [[610, 608], [610, 725], [850, 725], [850, 828]], "LENS>RT": [[890, 608], [890, 828]], "COPILOT>RT": [[1170, 608], [1170, 725], [930, 725], [930, 828]], "RT>KG": [[890, 845], [660, 845], [660, 1048]], "RT>RAG": [[890, 845], [1150, 845], [1150, 1048]], "RT>MEM": [[890, 828], [890, 1268]], "RT>AGEVAL": [[930, 860], [1030, 860], [1030, 1488], [890, 1488]], "RT>WEB": [[890, 800], [1380, 800], [1380, 608], [1590, 608]], "RT>CLAUDE": [[890, 815], [1730, 815], [1730, 1250], [1590, 1250]], "INGEST>FILES": [[330, 1048], [330, 1268]], "KG>FILES": [[610, 1030], [450, 1030], [450, 1268], [330, 1268]], "KG>NEO": [[610, 1048], [610, 1268]], "KG>KGEVAL": [[610, 1070], [495, 1070], [495, 1488], [610, 1488]], "KG>CLAUDE": [[610, 1050], [475, 1050], [475, 1620], [1760, 1620], [1760, 1285], [1590, 1285]], "KGEVAL>NEO": [[610, 1488], [610, 1268]], "RAG>PG": [[1170, 1048], [1170, 1268]], "RAG>OLLAMA": [[1170, 1043], [1590, 1043]], "RAG>CLAUDE": [[1170, 1060], [1440, 1060], [1440, 1255], [1590, 1255]], "RAG>RAGEVAL": [[1170, 1078], [1290, 1078], [1290, 1470], [1170, 1470]], "RAGEVAL>CLAUDE": [[1170, 1490], [1470, 1490], [1470, 1275], [1590, 1275]], "RAGEVAL>LF": [[1170, 1510], [1590, 1510]], "AGEVAL>LF": [[890, 1488], [890, 1580], [1590, 1580], [1590, 1488]], "KGEVAL>LF": [[610, 1488], [610, 1580], [1590, 1580], [1590, 1488]]};
+const AUTHORED_POS = {};
+Object.keys(NODES).forEach((id) => { AUTHORED_POS[id] = { x: NODES[id].x, y: NODES[id].y }; });
+function routeFor(f, t) {
+  const moved = (n) => NODES[n].x !== AUTHORED_POS[n].x || NODES[n].y !== AUTHORED_POS[n].y;
+  if (moved(f) || moved(t)) return null;
+  let pts = ROUTES[f + '>' + t];
+  if (!pts) {
+    pts = ROUTES[t + '>' + f];
+    if (!pts) return null;
+    pts = pts.slice().reverse();
+  }
+  const r = 12;
+  let d = 'M ' + pts[0][0] + ' ' + pts[0][1];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+    const la = Math.hypot(x1 - x0, y1 - y0) || 1, lb = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const ra = Math.min(r, la / 2), rb = Math.min(r, lb / 2);
+    const ax = x1 - (x1 - x0) / la * ra, ay = y1 - (y1 - y0) / la * ra;
+    const bx = x1 + (x2 - x1) / lb * rb, by = y1 + (y2 - y1) / lb * rb;
+    d += ' L ' + ax + ' ' + ay + ' Q ' + x1 + ' ' + y1 + ' ' + bx + ' ' + by;
+  }
+  const last = pts[pts.length - 1];
+  return d + ' L ' + last[0] + ' ' + last[1];
+}
 
 function buildPath(f, t) {
+  const routed = routeFor(f, t);
+  if (routed) return routed;
   const a = center(f);
   const b = center(t);
   const dx = b.x - a.x;
@@ -889,7 +1636,7 @@ function linkInfo(key) {
 // Pairs that need arrowheads on BOTH ends because the flow is a
 // request/response round-trip along one edge, not two distinct steps.
 // Must exactly match every pairKey(f, t) used with roundTrip: true above.
-const BIDIRECTIONAL = new Set(["CONV|READ", "FILES|RAG", "CHUNK|RAG", "OLLAMA|RAG", "PG|RAG", "CLAUDE|RAG", "KG|KGJSON", "FILES|KG"]);
+const BIDIRECTIONAL = new Set(["API|AUTH", "API|GUARD", "CLAUDE|KG", "CLAUDE|RAG", "CLAUDE|RAGEVAL", "CLAUDE|RT", "FILES|KG", "KGEVAL|NEO", "KG|NEO", "KG|RT", "MEM|RT", "OLLAMA|RAG", "PG|RAG", "RAG|RT", "RT|WEB"]);
 
 // Short text drawn on each connection — the protocol or payload that crosses
 // it ("HTTP POST /orders", "publishes OrderPaid"). Keyed by pairKey; every key
@@ -898,28 +1645,28 @@ const BIDIRECTIONAL = new Set(["CONV|READ", "FILES|RAG", "CHUNK|RAG", "OLLAMA|RA
 // nothing is worth labelling.
 const LINK_LABELS = {
   "UI|USER": "HTTPS",
-  "API|UI": "REST · SSE",
-  "API|FILES": "writes .md",
-  "API|CONV": "convert()",
-  "CONV|READ": "pictures → text",
-  "API|RAG": "index · ask_events",
-  "FILES|RAG": "read .md",
-  "CHUNK|RAG": "chunk_file()",
-  "OLLAMA|RAG": "HTTP · :11434",
-  "PG|RAG": "SQL · pgvector",
-  "CLAUDE|RAG": "HTTPS stream",
-  "API|KG": "query_graph()",
-  "FILES|KG": "read .md · regex",
-  "KG|KGJSON": "cached graph"
+  "API|UI": "REST / SSE",
+  "FILES|INGEST": "Markdown",
+  "PG|RAG": "vector + keyword",
+  "OLLAMA|RAG": "embed",
+  "RAG|RAGEVAL": "score answer",
+  "KG|KGEVAL": "check graph",
+  "AGEVAL|RT": "run results",
+  "KGEVAL|NEO": "run Cypher",
+  "KG|NEO": "sync · Cypher",
+  "FILES|KG": "reads",
+  "MEM|RT": "recall · retain",
+  "RAG|RT": "search",
+  "KG|RT": "traverse",
+  "RT|WEB": "gated search",
+  "CLAUDE|RT": "reason · tools"
 };
 
 // Free-text notes pinned under a card — the caveats a diagram can't hold
 // ("p95 220ms", "owned by Payments", "rewrite planned Q3"). Usually {} at
 // generation time: this is the viewer's own margin, and the per-node `desc`
 // already carries the description the inspector shows. Keyed by node id.
-const NODE_NOTES = {
-  "OLLAMA": "replaced Cohere embed-v4.0 · 1536-d"
-};
+const NODE_NOTES = {};
 
 // Named boxes drawn around a set of cards — the deployment or ownership
 // boundaries the diagram has but the arrows can't show ("AWS VPC", "Payments
@@ -928,12 +1675,59 @@ const NODE_NOTES = {
 // boundary worth boxing.
 const GROUPS = [
   {
-    "name": "Graph engine — no LLM, no SQL",
+    "name": "2 · API & Cross-cutting",
     "members": [
-      "KG",
-      "KGJSON"
+      "AUTH",
+      "API",
+      "GUARD"
     ],
     "tone": 0
+  },
+  {
+    "name": "3 · AI Agents",
+    "members": [
+      "EVID",
+      "LENS",
+      "COPILOT",
+      "RT"
+    ],
+    "tone": 1
+  },
+  {
+    "name": "4 · Application Services",
+    "members": [
+      "INGEST",
+      "KG",
+      "RAG"
+    ],
+    "tone": 2
+  },
+  {
+    "name": "5 · Data & Memory",
+    "members": [
+      "FILES",
+      "NEO",
+      "PG",
+      "MEM"
+    ],
+    "tone": 3
+  },
+  {
+    "name": "6 · Evaluation",
+    "members": [
+      "KGEVAL",
+      "AGEVAL",
+      "RAGEVAL"
+    ],
+    "tone": 4
+  },
+  {
+    "name": "7 · Model Serving",
+    "members": [
+      "OLLAMA",
+      "CLAUDE"
+    ],
+    "tone": 5
   }
 ];
 
@@ -943,26 +1737,26 @@ const GROUPS = [
 // right default unless your scenario has one obvious "everything lands
 // here" step. When enabled, DB_INGEST_FROM/TO must match the f/t of exactly
 // one non-roundTrip STEPS entry.
-const DB_INGEST_FROM = "RAG"; // node id, e.g. 'API', or null
-const DB_INGEST_TO = "PG"; // node id, e.g. 'DB', or null
-const DB_INGEST_ICON = "🧠 ➔ 🐘"; // e.g. '🖥️ ➔ 🗄️'
-const DB_INGEST_TITLE = "Storing chunks in pgvector..."; // e.g. 'Saving run to PostgreSQL...'
-const DB_INGEST_FILES = [{ name: "rag_documents: Workshop_pptx.md", size: "1 row" }, { name: "rag_chunks: content + heading_path", size: "42 rows" }, { name: "embedding vector(1024) — bge-m3", size: "42 \u00d7 4 KB" }, { name: "tsv tsvector (BM25)", size: "42 rows" }]; // [{name,size}, ...] cosmetic file list
+const DB_INGEST_FROM = null; // node id, e.g. 'API', or null
+const DB_INGEST_TO = null; // node id, e.g. 'DB', or null
+const DB_INGEST_ICON = ""; // e.g. '🖥️ ➔ 🗄️'
+const DB_INGEST_TITLE = ""; // e.g. 'Saving run to PostgreSQL...'
+const DB_INGEST_FILES = []; // [{name,size}, ...] cosmetic file list
 // Place the console in genuinely empty canvas space near DB_INGEST_TO — check
 // your NODES layout for a gap, don't just guess.
-const DB_INGEST_CONSOLE_X = 60;
-const DB_INGEST_CONSOLE_Y = 50;
+const DB_INGEST_CONSOLE_X = 0;
+const DB_INGEST_CONSOLE_Y = 0;
 // Particle path: start near the bottom/edge of DB_INGEST_FROM's card, end
 // near the top/edge of DB_INGEST_TO's card.
 const DB_INGEST_PARTICLE_PATH = {
-  startX: 970,
-  startY: 645,
-  endX: 970,
-  endY: 760,
+  startX: 0,
+  startY: 0,
+  endX: 0,
+  endY: 0,
 };
 
-const TITLE = "Docling Studio — Two Engines, One Corpus";
-const SUBTITLE = "One upload, indexed and answered two ways: hybrid RAG with Claude, and knowledge-graph traversal with neither.";
+const TITLE = "Solvay Spark Spine AI — Components in action";
+const SUBTITLE = "The component architecture, layer by layer — watch each flow travel through it";
 
 // ============================================================================
 // ArchFlow ENGINE — do not modify below this line.
@@ -983,7 +1777,7 @@ const SUBTITLE = "One upload, indexed and answered two ways: hybrid RAG with Cla
 // default. LAYOUT_STAMP is bumped whenever that happens, which retires every
 // previously saved layout in every profile — otherwise a stale localStorage
 // entry would keep overriding the freshly baked one.
-const LAYOUT_STAMP = "v2";
+const LAYOUT_STAMP = "v1";
 const LAYOUT_KEY = "archflow-layout:" + TITLE;
 (function loadLayout() {
   try {
@@ -1310,7 +2104,7 @@ function invalidateStatuses() {
   STATUS_CACHE = null;
 }
 
-export function DoclingDemoFlow() {
+export function SparkComponentsDemoFlow() {
   const [theme, setTheme] = useState("light");
   const [speed, setSpeed] = useState(0.5);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -3482,10 +4276,10 @@ export function DoclingDemoFlow() {
             link to remove it
           </span>
         </div>
-        One upload, two ways to ask. <b>rag.py</b> chunks the Markdown, embeds it with <b>Ollama bge-m3 on localhost</b> (1024-d, replacing Cohere embed-v4.0 — chunk text no longer leaves the machine), and answers by fusing a vector search and a BM25 keyword search over the same Postgres table, handing Claude only the top 8 excerpts to cite. <b>knowledge_graph.py</b> reads the <b>same .md files</b> with regex, builds a 720-node graph, and answers by traversing it — no embedding, no database, no model. The two engines share nothing but the corpus on disk.
+        <b>Eight layers, one corpus.</b> Every document becomes Markdown; the <b>RAG engine</b> indexes it in <b>PostgreSQL + pgvector</b> (embedded locally by <b>Ollama</b>) and the <b>knowledge graph</b> maps what it connects, with a copy in <b>Neo4j</b>. All three agents share one <b>Agent Runtime</b> — the tool loop, the tools, <b>Hindsight</b> memory and the quote verifier. <b>Claude</b> reasons and writes but never searches. An <b>Evaluation</b> layer scores all three: <b>Ragas</b> judges every RAG answer, the agents’ runs are scored from their own checks, and the graph is checked for structure and Cypher accuracy — all into <b>Langfuse</b>.
       </footer>
     </div>
   );
 }
 
-export default DoclingDemoFlow;
+export default SparkComponentsDemoFlow;

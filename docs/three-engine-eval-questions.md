@@ -1,7 +1,7 @@
 # Questions that separate the three engines
 
 A discriminating evaluation set for the Solvay SPARK L2C corpus, aimed at the
-three query systems in Docling Studio. The corpus is one Postgres table with a
+three query systems in Solvay Spark Spine AI. The corpus is one Postgres table with a
 category on every row, and a run can be scoped to some of them:
 
 | Category | Folder | Size |

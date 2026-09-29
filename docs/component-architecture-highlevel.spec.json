@@ -1,0 +1,763 @@
+{
+ "title": "Solvay Spark Spine AI — High-Level Architecture",
+ "canvas": {
+  "width": 1810,
+  "height": 1240
+ },
+ "box": {
+  "w": 220,
+  "h": 70
+ },
+ "kinds": {
+  "cons": {
+   "fill": "#FFFFFF",
+   "stroke": "#7FA7C0"
+  },
+  "retr": {
+   "fill": "#F3FAFA",
+   "stroke": "#5FA3AB"
+  },
+  "mem": {
+   "fill": "#F5F7FA",
+   "stroke": "#8EA2BA"
+  },
+  "ing": {
+   "fill": "#FFFFFF",
+   "stroke": "#AAB6C5"
+  },
+  "src": {
+   "fill": "#FFFFFF",
+   "stroke": "#B9C3CF"
+  }
+ },
+ "bands": [
+  {
+   "name": "Consumption",
+   "x": 20,
+   "y": 150,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#22303F",
+   "stroke": "#22303F",
+   "title_color": "#A9D6E5",
+   "desc_color": "#E4ECF2",
+   "rx": 6
+  },
+  {
+   "name": "Retrieval & grounding",
+   "x": 20,
+   "y": 354,
+   "w": 1320,
+   "h": 246,
+   "caps": true,
+   "fill": "#4A8C96",
+   "stroke": "#4A8C96",
+   "title_color": "#FFFFFF",
+   "desc_color": "#F0F8F9",
+   "rx": 6
+  },
+  {
+   "name": "Memory layer",
+   "x": 20,
+   "y": 644,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#3B4A5E",
+   "stroke": "#3B4A5E",
+   "title_color": "#CFE3EC",
+   "desc_color": "#E8EEF4",
+   "rx": 6
+  },
+  {
+   "name": "Ingestion & curation",
+   "x": 20,
+   "y": 848,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#F4F6F9",
+   "stroke": "#CED6E0",
+   "title_color": "#22303F",
+   "desc_color": "#3B4A5E",
+   "rx": 6
+  },
+  {
+   "name": "Sources",
+   "x": 20,
+   "y": 1052,
+   "w": 1320,
+   "h": 160,
+   "caps": true,
+   "fill": "#F7F9FB",
+   "stroke": "#D5DCE4",
+   "title_color": "#22303F",
+   "desc_color": "#3B4A5E",
+   "rx": 6,
+   "desc": "Programme documents, country As-Is attachments and existing corpus folders"
+  }
+ ],
+ "groups": [
+  {
+   "n": "",
+   "name": "Models",
+   "x": 1380,
+   "y": 150,
+   "w": 410,
+   "h": 180
+  },
+  {
+   "n": "",
+   "name": "Evaluation",
+   "x": 1380,
+   "y": 354,
+   "w": 410,
+   "h": 246
+  },
+  {
+   "n": "",
+   "name": "External services",
+   "x": 1380,
+   "y": 644,
+   "w": 410,
+   "h": 180
+  },
+  {
+   "n": "",
+   "name": "Security & guardrails",
+   "x": 1380,
+   "y": 848,
+   "w": 410,
+   "h": 180
+  }
+ ],
+ "actors": [
+  {
+   "label": "",
+   "cx": 679,
+   "cy": 100,
+   "style": "bust"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "Ask RAG",
+   "title": "Ask RAG",
+   "sub": "cited answers · streamed",
+   "kind": "cons",
+   "cx": 155,
+   "cy": 259
+  },
+  {
+   "id": "Evidence Agent",
+   "title": "Evidence Agent",
+   "sub": "claims with verified quotes",
+   "kind": "cons",
+   "cx": 417,
+   "cy": 259
+  },
+  {
+   "id": "Fit-Gap Copilot",
+   "title": "Fit-Gap Copilot",
+   "sub": "country As-Is vs template",
+   "kind": "cons",
+   "cx": 679,
+   "cy": 259
+  },
+  {
+   "id": "InsightLens",
+   "title": "InsightLens",
+   "sub": "per-process fit-gap",
+   "kind": "cons",
+   "cx": 941,
+   "cy": 259
+  },
+  {
+   "id": "Graph Explorer",
+   "title": "Graph Explorer",
+   "sub": "canvas · graph queries",
+   "kind": "cons",
+   "cx": 1203,
+   "cy": 259
+  },
+  {
+   "id": "ground",
+   "title": "Grounding & verification",
+   "sub": "The system answers only from retrieved passages · citation on every answer · every quote verified · confidence computed, not generated",
+   "kind": "retr",
+   "cx": 679,
+   "cy": 456,
+   "w": 1270,
+   "h": 56
+  },
+  {
+   "id": "Upload search",
+   "title": "Upload search",
+   "sub": "session attachments",
+   "kind": "retr",
+   "cx": 155,
+   "cy": 549
+  },
+  {
+   "id": "Gated web search",
+   "title": "Gated web search",
+   "sub": "SAP · EU sites, after the corpus",
+   "kind": "retr",
+   "cx": 417,
+   "cy": 549
+  },
+  {
+   "id": "Hybrid search",
+   "title": "Hybrid search",
+   "sub": "vector + keyword",
+   "kind": "retr",
+   "cx": 679,
+   "cy": 549
+  },
+  {
+   "id": "Graph traversal",
+   "title": "Graph traversal",
+   "sub": "neighbours · paths · NL → Cypher",
+   "kind": "retr",
+   "cx": 941,
+   "cy": 549
+  },
+  {
+   "id": "Memory recall",
+   "title": "Memory recall",
+   "sub": "past runs",
+   "kind": "retr",
+   "cx": 1203,
+   "cy": 549
+  },
+  {
+   "id": "Upload sessions",
+   "title": "Upload sessions",
+   "sub": "Postgres schema",
+   "kind": "mem",
+   "cx": 155,
+   "cy": 753,
+   "shape": "cyl"
+  },
+  {
+   "id": "Document corpus",
+   "title": "Document corpus",
+   "sub": "Markdown · source of truth",
+   "kind": "mem",
+   "cx": 417,
+   "cy": 753,
+   "shape": "folder"
+  },
+  {
+   "id": "Vector & keyword index",
+   "title": "Vector & keyword index",
+   "sub": "PostgreSQL · vector search",
+   "kind": "mem",
+   "cx": 679,
+   "cy": 753,
+   "shape": "cyl"
+  },
+  {
+   "id": "Process knowledge graph",
+   "title": "Process knowledge graph",
+   "sub": "graph file + graph database",
+   "kind": "mem",
+   "cx": 941,
+   "cy": 753,
+   "shape": "cyl"
+  },
+  {
+   "id": "Agent memory",
+   "title": "Agent memory",
+   "sub": "verified findings from past runs",
+   "kind": "mem",
+   "cx": 1203,
+   "cy": 753,
+   "shape": "rect"
+  },
+  {
+   "id": "Convert to Markdown",
+   "title": "Convert to Markdown",
+   "sub": "layout · OCR · tables · diagrams",
+   "kind": "ing",
+   "cx": 155,
+   "cy": 957
+  },
+  {
+   "id": "Curate & publish",
+   "title": "Curate & publish",
+   "sub": "analyst adds to KB · category",
+   "kind": "ing",
+   "cx": 417,
+   "cy": 957
+  },
+  {
+   "id": "Chunk & embed",
+   "title": "Chunk & embed",
+   "sub": "heading-aware · local embeddings",
+   "kind": "ing",
+   "cx": 679,
+   "cy": 957
+  },
+  {
+   "id": "Build knowledge graph",
+   "title": "Build knowledge graph",
+   "sub": "entities · links · evidence",
+   "kind": "ing",
+   "cx": 941,
+   "cy": 957
+  },
+  {
+   "id": "Documents",
+   "title": "Documents",
+   "sub": "programme docs · decks · e-mails\ncountry As-Is attachments",
+   "kind": "src",
+   "cx": 155,
+   "cy": 1161,
+   "h": 78
+  },
+  {
+   "id": "Existing corpus folders",
+   "title": "Existing corpus folders",
+   "sub": "PKG · DR Markdown",
+   "kind": "src",
+   "cx": 679,
+   "cy": 1161,
+   "h": 78
+  },
+  {
+   "id": "side-llm",
+   "title": "Large language model",
+   "sub": "cloud · answers · agent loops · judges",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 212,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-embedding",
+   "title": "Embedding model",
+   "sub": "local · text → vectors",
+   "kind": "model",
+   "cx": 1585,
+   "cy": 282,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-RAG Evaluation",
+   "title": "RAG Evaluation",
+   "sub": "",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 418,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Agent Evaluation",
+   "title": "Agent Evaluation",
+   "sub": "",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 480,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Graph Evaluation",
+   "title": "Graph Evaluation",
+   "sub": "",
+   "kind": "eval",
+   "cx": 1585,
+   "cy": 542,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-observability",
+   "title": "Observability",
+   "sub": "traces · every quality score",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 706,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-Web (allow-listed)",
+   "title": "Web (allow-listed)",
+   "sub": "SAP · EU regulation sites",
+   "kind": "ext",
+   "cx": 1585,
+   "cy": 776,
+   "w": 330,
+   "h": 52,
+   "shape": "cloud"
+  },
+  {
+   "id": "side-Sign-in",
+   "title": "Sign-in",
+   "sub": "presentation lock · /api stays open",
+   "kind": "api",
+   "cx": 1585,
+   "cy": 910,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  },
+  {
+   "id": "side-Guardrails",
+   "title": "Guardrails",
+   "sub": "scope check · contact redaction",
+   "kind": "api",
+   "cx": 1585,
+   "cy": 980,
+   "w": 330,
+   "h": 52,
+   "shape": "rect"
+  }
+ ],
+ "links": [
+  {
+   "pts": [
+    [
+     679,
+     124
+    ],
+    [
+     679,
+     148
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     354
+    ],
+    [
+     155,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     354
+    ],
+    [
+     417,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     354
+    ],
+    [
+     679,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     354
+    ],
+    [
+     941,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     354
+    ],
+    [
+     1203,
+     312
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     644
+    ],
+    [
+     155,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     644
+    ],
+    [
+     679,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     644
+    ],
+    [
+     941,
+     602
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     600
+    ],
+    [
+     1203,
+     642
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     848
+    ],
+    [
+     155,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     848
+    ],
+    [
+     417,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     848
+    ],
+    [
+     679,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     941,
+     848
+    ],
+    [
+     941,
+     806
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     1052
+    ],
+    [
+     155,
+     1010
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     679,
+     1052
+    ],
+    [
+     679,
+     1010
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     155,
+     514.0
+    ],
+    [
+     155,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     417,
+     514.0
+    ],
+    [
+     417,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     679,
+     514.0
+    ],
+    [
+     679,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     941,
+     514.0
+    ],
+    [
+     941,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     1203,
+     514.0
+    ],
+    [
+     1203,
+     486.0
+    ]
+   ],
+   "color": "#E4F1F3"
+  },
+  {
+   "pts": [
+    [
+     265,
+     957
+    ],
+    [
+     305,
+     957
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     527,
+     957
+    ],
+    [
+     567,
+     957
+    ]
+   ],
+   "color": "#6B8599"
+  },
+  {
+   "pts": [
+    [
+     417,
+     992.0
+    ],
+    [
+     417,
+     1000
+    ],
+    [
+     901,
+     1000
+    ],
+    [
+     901,
+     994.0
+    ]
+   ],
+   "color": "#6B8599"
+  }
+ ],
+ "labels": [],
+ "legend": {
+  "box": {
+   "x": 1380,
+   "y": 1052,
+   "w": 410
+  },
+  "lines": [
+   "Arrows = data / request flow, sources → consumption",
+   "Dark boxes = cloud services · side panel = cross-cutting"
+  ]
+ }
+}

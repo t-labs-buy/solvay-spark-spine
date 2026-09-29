@@ -1,5 +1,5 @@
 @startuml system-workflow
-title Docling Studio — Workflow (upload a deck, index it, ask RAG, then ask the graph)
+title Solvay Spark Spine AI — Workflow (every flow, from a new document to answers, analyses and Cypher)
 
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
@@ -11,112 +11,124 @@ skinparam responseMessageBelowArrow true
 skinparam NoteBackgroundColor #FFF7E0
 skinparam NoteBorderColor #E0C46C
 
-actor "User" as User
+actor "Analyst" as User
 participant "Web UI" as UI #E8F5E9
-participant "FastAPI\n(app.py)" as API #E3F2FD
-participant "converter.py\n+ Docling" as Conv #FFF3E0
-participant "Image readers\n(Tesseract · CV)" as Read #F3E5F5
-database "Markdown corpus\n(pkg/markdown · knowledge_base)" as Files #ECEFF1
-participant "rag.py" as RAG #E8F5E9
-participant "md_chunker.py" as Chunk #E3F2FD
-boundary "Ollama bge-m3\n(local · :11434)" as Ollama #ECEFF1
-database "PostgreSQL\n(pgvector)" as PG #ECEFF1
-boundary "Anthropic Claude\n(claude-opus-5)" as Claude #ECEFF1
-participant "knowledge_graph.py" as KG #FFF3E0
-database "knowledge_graph\n.json" as KGJson #ECEFF1
+participant "FastAPI\n+ Guardrails" as API #E3F2FD
+participant "Ingestion\n(Docling · OCR · CV)" as Ing #FFF3E0
+participant "RAG system\n(rag.py · Ollama bge-m3)" as RAG #F3E5F5
+database "PostgreSQL\n+ pgvector" as PG #ECEFF1
+participant "Knowledge graph\n(knowledge_graph.py\n· kg_nl2cypher)" as KG #E8F5E9
+database "Neo4j 5\nCommunity" as Neo #ECEFF1
+participant "Ragas\nevaluation" as Ragas #E3F2FD
+participant "Agents\n(Evidence · InsightLens\n· Fit-Gap Copilot)" as Agent #FFF3E0
+participant "Hindsight\n(agent memory)" as Mem #F3E5F5
+boundary "Anthropic Claude" as Claude #ECEFF1
+boundary "Langfuse Cloud" as LF #ECEFF1
 
-User -> UI : 1. drops **Workshop.pptx**
+== 1 — Upload and convert ==
+User -> UI : drop a document (deck · spec · sheet · PDF · e-mail)
+UI -> API : POST /api/upload, /api/convert/{id}
+API -> Ing : convert(source)
+Ing -> Ing : Docling → Markdown; OCR / CV read the pictures
+Ing --> API : **Markdown**
+API --> UI : Markdown beside the page preview
 
-== Step 1 — Upload the document ==
-UI -> API : POST /api/upload
-activate API
-API -> Files : save **source.pptx** + name.txt
-API -> API : render page previews
-API --> UI : doc_id, pages
-deactivate API
+== 2 — Chunk, embed, store ==
+User -> UI : Add to knowledge base
+UI -> API : POST /api/docs/{id}/embed
+API -> RAG : index_path(knowledge_base/<name>.md)
+RAG -> RAG : heading-aware **chunks**;\nembed with bge-m3 on localhost
+RAG -> PG : rag_chunks — vectors (HNSW) + full text (GIN)
 
-== Step 2 — Convert it to Markdown ==
-UI -> API : POST /api/convert/{doc_id}
-activate API
-API -> Conv : convert(src)
-activate Conv
-Conv -> Conv : Docling export_to_markdown()\n+ connector flows → Mermaid
-Conv -> Read : embedded pictures
-activate Read
-Read --> Conv : OCR text · tables · draft flows
-deactivate Read
-Conv -> Conv : splice into placeholders → **Markdown**
-Conv --> API : Result
-deactivate Conv
-API -> Files : write **output.md**
-API --> UI : Markdown + stats
-deactivate API
+== 3 — Build the knowledge graph, load Neo4j ==
+User -> UI : Rescan graph
+UI -> API : POST /api/graph/rebuild
+API -> KG : extract_graph(force=True)
+KG -> KG : regex + ontology over **every Markdown file**
+KG -> PG : read rag_chunks (passage layer)
+KG -> KG : write **knowledge_graph.json**
+KG -> Neo : load the build whole (background)
 
-== Step 3 — Chunk, embed and store ==
-UI -> API : POST /api/docs/{doc_id}/embed
-activate API
-API -> Files : copy to knowledge_base/Workshop_pptx.md
-API -> RAG : index_file()
-activate RAG
-RAG -> Files : read .md + SHA-256 fingerprint
-Files --> RAG : changed → re-embed
-RAG -> Chunk : chunk_file()
-Chunk --> RAG : **chunks** (~500 tokens, heading path)
-RAG -> Ollama : embed chunks (batches of 32)
-Ollama --> RAG : 1024-d **vectors** (never leave the machine)
-RAG -> PG : INSERT chunks · vectors · tsvector
-deactivate RAG
-API --> UI : 42 chunks indexed
-deactivate API
-
-== Step 4 — Retrieve the top-k chunks ==
-User -> UI : 2. "Who validated 7.1.12.3?"
+== 4 — Ask RAG, then Ragas scores the answer ==
+User -> UI : question on the Ask page
 UI -> API : POST /api/ask (SSE)
-activate API
-API -> RAG : ask_events(question, k=8)
-activate RAG
-RAG -> Ollama : embed question
-Ollama --> RAG : query vector
-RAG -> PG : vector search (cosine, top 40)
-PG --> RAG : nearest chunks
-RAG -> PG : BM25 keyword search (top 40)
-PG --> RAG : keyword matches (codes kept whole)
-RAG -> RAG : reciprocal rank fusion → **top 8 excerpts**
+API -> RAG : ask_events — scope check first
+RAG -> PG : vector kNN + BM25 → RRF → top-k chunks
+PG --> RAG : **retrieved chunks**
+RAG -> Claude : numbered excerpts + question
+Claude --> RAG : cited answer, streamed
+RAG --> UI : SSE tokens + sources
+RAG -> LF : trace answer-question
+API -> Ragas : judge in the background
+Ragas -> Claude : nine judges (faithfulness, relevance, …)
+Ragas -> PG : scores on the Ask run
+Ragas -> LF : scores on the answer's trace
 
-== Step 5 — Generate the cited answer ==
-RAG -> Claude : excerpts + question (stream)
-activate Claude
-Claude --> RAG : answer tokens
-deactivate Claude
-RAG --> API : stage · sources · token events
-deactivate RAG
-API --> UI : SSE stream
-deactivate API
-UI --> User : 💬 answer with [n] citations + sources
+== 5 — Evidence Agent: RAG + graph + memory ==
+User -> UI : question on the Evidence Agent page
+UI -> API : POST /api/evidence/ask (SSE)
+API -> Agent : scope check passed → investigate
+Agent -> Mem : recall (orient, **not evidence**)
+Agent -> Claude : question + tools + memory note
+Claude --> Agent : tool calls
+Agent -> RAG : search_corpus
+Agent -> KG : graph_enumerate · graph_path (in-process)
+Claude --> Agent : claims + verbatim quotes
+Agent -> Agent : verify quotes · compute **scores**
+Agent -> PG : store run
+Agent -> Mem : retain **verified claims only**
+Mem -> Claude : fact extraction
+Agent -> LF : trace + agent scores
+Agent --> UI : **claims** with sources and scores
 
-== Step 6 — Ask the knowledge graph instead ==
-User -> UI : 3. "How does eCommerce connect to S/4HANA?"
-UI -> API : POST /api/graph/query
-activate API
-API -> KG : query_graph()
-activate KG
-KG -> KGJson : load cached graph
-KGJson --> KG : 720 nodes · 842 edges
-KG -> Files : (on rebuild) re-scan the **same** .md corpus
-Files --> KG : streams · systems · BPML codes · SPARK tickets
-KG -> KG : resolve entities → BFS shortest path\n+ 2-hop bridge expansion
-KG --> API : **templated answer** + node_ids / edge_ids\n(no LLM, no SQL)
-deactivate KG
-API --> UI : subgraph payload
-deactivate API
-UI --> User : 🕸️ hop-by-hop path, highlighted on the D3 canvas
+== 6 — InsightLens: a BPML scope into a fit-gap register ==
+User -> UI : pick a BPML scope
+UI -> API : POST /api/fitgap/run (SSE)
+API -> Agent : one bounded run per BPML step
+Agent -> Claude : classify the step (tool-use loop)
+Agent -> RAG : search_corpus
+Agent -> KG : graph tools · BPML hierarchy
+Agent -> Agent : verifier; synthesis → **reuse %, gap register,**\n**decision pack, workshop agenda**
+Agent -> PG : store run
+Agent -> LF : trace
+Agent --> UI : register fills in, step by step
+
+== 7 — Fit-Gap Copilot: a country As-Is vs the Global Template ==
+User -> UI : attach the country As-Is (role-tagged)
+UI -> API : POST /api/uploads
+API -> Ing : convert
+API -> RAG : index into **docling_session** (isolated)
+RAG -> PG : session schema u_<id>
+User -> UI : run the analysis
+UI -> API : POST /api/rollout/run (SSE)
+API -> Agent : pass 1 — read the As-Is only
+Agent -> Claude : read_sources → **As-Is model**
+Agent -> RAG : search the attachment
+API -> Agent : pass 2 — compare
+Agent -> KG : compare_entities · BPML scope
+Agent -> RAG : Global Template + SAP Best Practice
+Agent -> Claude : **deviation register** + 0-4 ratings
+Agent -> Agent : quality gates repair · **scores computed**
+Agent -> PG : store run
+Agent -> LF : trace + gate counts
+Agent --> UI : register · scores · workshop pack (PDF · Word · Excel)
+
+== 8 — Explore the graph in Neo4j ==
+User -> UI : plain-English question in the Cypher view
+UI -> API : POST /api/graph/cypher/generate
+API -> KG : kg_nl2cypher.generate
+KG -> Claude : real schema + values + question
+Claude --> KG : **Cypher**
+KG -> Neo : EXPLAIN in a read transaction, then run read-only
+Neo --> KG : rows with graph ids
+KG -> LF : trace graph-nl-to-cypher
+KG --> UI : table + highlighted nodes (and Neo4j Browser on :7474)
 
 note across
-  Two engines, one corpus. rag.py embeds with Ollama **on localhost**, runs vector
-  AND BM25 search on the same Postgres table, fuses the rankings, and sends Claude
-  only the top-k chunks to cite. knowledge_graph.py reads the same .md files with
-  regex and answers by **traversing** its graph — no embedding, no database, no LLM.
-  The two never call each other.
+  Build order: Markdown → RAG index → knowledge graph (which reads the index's chunks) → Neo4j (a copy, loaded whole).
+  Claude writes every answer but never searches; retrieval and traversal are the tools' job. The agents traverse
+  knowledge_graph.json, not Neo4j. Hindsight orients the Evidence Agent but is never evidence. Every run is kept in
+  PostgreSQL and traced in Langfuse; Ragas grades every RAG answer.
 end note
 
 @enduml

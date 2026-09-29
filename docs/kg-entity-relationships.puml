@@ -43,7 +43,7 @@ DOC -up-> STREAM : <b>belongs_to</b> · 237
 DOC -right-> SYSTEM : <b>mentions_system</b> · 556\n<i>method · mentions · chunk_count · chunks</i>
 DOC -down-> PROC : <b>specifies_process</b> · 1,947
 DOC -left-> SPEC : <b>implements_ticket</b> · 13\n<b>references_ticket</b> · 190
-PROC -down-> PROC : <b>subprocess_of</b> · 1,846\n<i>derived from the BPML workbook</i>
+PROC -down-> PROC : <b>subprocess_of</b> · 1,846\n<i>derived from the BPML hierarchy</i>
 DOC -down-> CHUNK : <b>has_chunk</b> · 8,867
 CHUNK ..> SYSTEM : <b>mentions</b> · 3,998
 CHUNK ..> PROC : <b>mentions</b> · 2,695
@@ -56,7 +56,7 @@ legend bottom
   <b>stream</b> and <b>system</b> are a fixed vocabulary, hard-coded in the extractor —
   a platform absent from that list gets no node, however often documents name it.
   Solid arrows start at a document; <b>subprocess_of</b> is the only relation between
-  two nodes of the same type, and alone is derived, looked up in the BPML workbook.
+  two nodes of the same type, and alone is derived, looked up in the BPML hierarchy.
   Every document relationship carries its evidence: the rule that made it, how often
   the target is named, and the chunks that name it.
   Dashed arrows are the passage layer: <b>(:Chunk)-[:MENTIONS]->(entity)</b>.

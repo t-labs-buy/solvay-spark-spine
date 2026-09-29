@@ -1,0 +1,1319 @@
+.archflow-container {
+  --bg: #080b11;
+  --panel: #0f131c;
+  --panel-glass: rgba(15, 19, 28, 0.85);
+  --ink: #f3f4f6;
+  --muted: #9ca3af;
+  --line: #1e293b;
+  --line-active: #3b82f6;
+  --accent: #6366f1;
+  --grid: #131924;
+  --node-fill: #0f131c;
+  --node-stroke: #2e3b52;
+  --edge-stroke: #1e293b;
+  --bubble-bg: #f3f4f6;
+  --bubble-border: #cbd5e1;
+  --bubble-text: #1f2937;
+  --bubble-who-color: #4b5563;
+  --button-bg: #151c2c;
+  --button-border: #2e3b52;
+  --button-hover-bg: #1f293d;
+  --button-hover-border: #3b4e6f;
+  --scrollbar-thumb: #1e293b;
+  --header-gradient: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  --done-fill: #121e1a;
+  --done-stroke: rgba(34, 197, 94, 0.4);
+  --shadow: rgba(0, 0, 0, 0.5);
+  --accent-glow: rgba(99, 102, 241, 0.06);
+  --node-active-stroke: #5a6578;
+  --external-stroke: #6b7280;
+  --external-fill: #11151f;
+
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    "Plus Jakarta Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 20px var(--shadow);
+}
+
+.archflow-container.light {
+  --bg: #f4f4f8;
+  --panel: #ffffff;
+  --panel-glass: rgba(255, 255, 255, 0.85);
+  --ink: #1f2433;
+  --muted: #6b7280;
+  --line: #cbd5e1;
+  --line-active: #2563eb;
+  --accent: #4f46e5;
+  --grid: #dfe2ea;
+  --node-fill: #ffffff;
+  --node-stroke: #cbd5e1;
+  --edge-stroke: #cbd5e1;
+  --bubble-bg: #f3f4f6;
+  --bubble-border: #cbd5e1;
+  --button-bg: #ffffff;
+  --button-border: #cbd5e1;
+  --button-hover-bg: #f3f4f6;
+  --button-hover-border: #94a3b8;
+  --scrollbar-thumb: #cbd5e1;
+  --header-gradient: linear-gradient(135deg, #1f2433 0%, #4b5563 100%);
+  --done-fill: #e8f5e9;
+  --done-stroke: rgba(34, 197, 94, 0.6);
+  --shadow: rgba(0, 0, 0, 0.1);
+  --accent-glow: rgba(99, 102, 241, 0.04);
+  --node-active-stroke: #a5b4fc;
+  --external-stroke: #94a3b8;
+  --external-fill: #eef0f4;
+}
+
+.archflow-container * {
+  box-sizing: border-box;
+}
+
+.archflow-container header {
+  padding: 20px 24px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition:
+    background 0.3s,
+    border-color 0.3s;
+}
+
+.archflow-container header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  background: var(--header-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.archflow-container header p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.archflow-container .toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 24px;
+  background: var(--panel-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.archflow-container button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--ink);
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.archflow-container button:hover {
+  background: var(--button-hover-bg);
+  border-color: var(--button-hover-border);
+  transform: translateY(-1px);
+}
+
+.archflow-container button:active {
+  transform: translateY(1px);
+}
+
+.archflow-container button.primary {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  border-color: #6366f1;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+}
+
+.archflow-container button.primary:hover {
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4);
+}
+
+.archflow-container button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.archflow-container .toolbar .spacer {
+  flex: 1;
+}
+
+.archflow-container .speed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.archflow-container .speed-btn {
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 24px;
+  height: 24px;
+  line-height: 1;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.archflow-container #speedVal {
+  font-family: "JetBrains Mono", monospace;
+  min-width: 38px;
+  text-align: center;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.archflow-container .phase-tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.archflow-container.light .phase-tag {
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.08);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.archflow-container .phase-tag::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+  animation: statusPulse 1.8s infinite;
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.archflow-container .wrap {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.archflow-container .stage-area {
+  flex: 1;
+  min-width: 0;
+  background: radial-gradient(circle, var(--grid) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+  background-color: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.archflow-container svg.stage {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Rubber-band selection drags across node labels — never let that turn into
+     a text selection. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.archflow-container .side {
+  width: 380px;
+  flex: none;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+
+.archflow-container .side h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.archflow-container .log {
+  padding: 12px 18px 20px;
+  overflow-y: auto;
+  max-height: 65vh;
+}
+
+.archflow-container .log::-webkit-scrollbar {
+  width: 6px;
+}
+.archflow-container .log::-webkit-scrollbar-track {
+  background: transparent;
+}
+.archflow-container .log::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+}
+.archflow-container .log::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.archflow-container .log-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pop {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.archflow-container .log-item.cur {
+  background: rgba(99, 102, 241, 0.04);
+  border-color: rgba(99, 102, 241, 0.12);
+}
+
+.archflow-container .log-num {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+  color: #fff;
+  background: var(--accent);
+}
+
+.archflow-container .log-item.data .log-num {
+  background: #0ea5a4;
+}
+.archflow-container .log-item.work .log-num {
+  background: #f59e0b;
+}
+
+.archflow-container .log-body {
+  color: var(--ink);
+  transition: color 0.3s;
+}
+
+.archflow-container .log-route {
+  display: block;
+  font-size: 11px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--muted);
+  margin-bottom: 2px;
+  font-weight: 600;
+  transition: color 0.3s;
+}
+
+.archflow-container .edge {
+  fill: none;
+  stroke: var(--edge-stroke);
+  stroke-width: 2.2;
+  transition:
+    stroke 0.25s,
+    stroke-width 0.25s;
+}
+
+.archflow-container .edge.dashed {
+  stroke-dasharray: 6 5;
+}
+
+.archflow-container .edge.active {
+  stroke: var(--line-active);
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5));
+  transition:
+    stroke 0.25s,
+    filter 0.25s;
+}
+
+.archflow-container .edge.active.call {
+  stroke: #6366f1;
+  filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.5));
+}
+
+.archflow-container.light .edge.active.call {
+  stroke: #4f46e5;
+  filter: drop-shadow(0 0 5px rgba(79, 70, 229, 0.4));
+}
+
+.archflow-container .edge.active.data {
+  stroke: #0ea5a4;
+  filter: drop-shadow(0 0 5px rgba(14, 165, 164, 0.5));
+}
+
+.archflow-container .edge.active.flow {
+  stroke-dasharray: 8 6;
+  animation: dash 0.5s linear infinite;
+}
+
+.archflow-container .edge.active.flow.flow-reverse {
+  animation: dash-reverse 0.5s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+@keyframes dash-reverse {
+  to {
+    stroke-dashoffset: 28;
+  }
+}
+
+.archflow-container .arrow {
+  fill: #475569;
+  transition: fill 0.25s;
+}
+
+.archflow-container.light .arrow {
+  fill: #94a3b8;
+}
+
+.archflow-container .arrow.blink {
+  animation: arrowBlink 0.8s ease-in-out;
+}
+
+@keyframes arrowBlink {
+  0%,
+  100% {
+    fill: #475569;
+    filter: none;
+  }
+  20%,
+  60% {
+    fill: var(--line-active);
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.95));
+  }
+  40%,
+  80% {
+    fill: #93c5fd;
+  }
+}
+
+/* Nodes are draggable (links stay attached and re-route live) — the drag
+   offset lives in --drag-x/--drag-y so the hover scale can compose with it
+   instead of resetting a dragged node back to its original spot. */
+.archflow-container .node {
+  cursor: grab;
+  touch-action: none;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.archflow-container .node:hover {
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px)) scale(1.02)
+    translateY(-2px);
+}
+
+.archflow-container .node.dragging,
+.archflow-container .node.dragging:hover {
+  cursor: grabbing;
+  transition: none;
+  transform: translate(var(--drag-x, 0px), var(--drag-y, 0px));
+}
+
+/* Multi-select: shift-click, rubber-band, or ⬚ Select all. Dragging any
+   member moves the whole selection, so the diagram can be shifted around the
+   stage in one piece. */
+.archflow-container .node.selected .node-card {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.55));
+}
+
+.archflow-container .marquee {
+  fill: rgba(99, 102, 241, 0.12);
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+
+.archflow-container .node-card {
+  fill: var(--node-fill);
+  stroke: var(--node-stroke);
+  stroke-width: 1.5;
+  transition:
+    stroke 0.25s,
+    fill 0.25s,
+    filter 0.25s;
+}
+
+/* External systems get a dashed, visually distinct card — matches the "dark
+   cloud" convention from the Mermaid/PlantUML system diagrams: things this
+   system depends on but doesn't own. */
+.archflow-container .node.external .node-card {
+  fill: var(--external-fill);
+  stroke: var(--external-stroke);
+  stroke-dasharray: 5 4;
+}
+
+.archflow-container .node.active .node-card {
+  stroke: var(--node-active-stroke);
+  stroke-width: 1.8;
+  fill: var(--node-fill);
+  filter: drop-shadow(0 2px 8px var(--accent-glow));
+}
+
+.archflow-container .node.external.active .node-card {
+  stroke: var(--line-active);
+  fill: var(--external-fill);
+}
+
+.archflow-container .node.working .node-card {
+  animation: workpulse 1.2s ease-in-out infinite;
+}
+
+@keyframes workpulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(245, 158, 11, 0));
+    stroke: var(--node-stroke);
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.5));
+    stroke: #f59e0b;
+  }
+}
+
+.archflow-container .node.done .node-card {
+  stroke: var(--done-stroke);
+  fill: var(--done-fill);
+}
+
+.archflow-container .node-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  fill: var(--ink);
+  transition: fill 0.3s;
+}
+
+.archflow-container .node-sub {
+  font-size: 10px;
+  fill: var(--muted);
+  transition: fill 0.3s;
+}
+
+.archflow-container .node-icon {
+  font-size: 19px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.archflow-container .pulse {
+  fill: var(--line-active);
+  stroke: var(--bg);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--line-active));
+}
+
+.archflow-container .pulse.data {
+  fill: #0ea5a4;
+  filter: drop-shadow(0 0 6px #0ea5a4);
+}
+
+.archflow-container .pulse.call {
+  fill: #6366f1;
+  filter: drop-shadow(0 0 6px #6366f1);
+}
+
+.archflow-container .bubble-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.archflow-container .bubble-wrap.above {
+  align-items: flex-end;
+}
+.archflow-container .bubble-wrap.below {
+  align-items: flex-start;
+}
+
+.archflow-container .bubble {
+  position: relative;
+  max-width: 190px;
+  background: var(--bubble-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid var(--bubble-border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--bubble-text);
+  box-shadow: 0 8px 24px var(--shadow);
+  animation: bubbleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    color 0.3s,
+    box-shadow 0.3s;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.archflow-container .bubble-who {
+  display: block;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  color: var(--bubble-who-color);
+}
+
+.archflow-container .bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+}
+
+.archflow-container .bubble.tail-down::after {
+  top: 100%;
+  border-top-color: var(--bubble-bg);
+  margin-top: -1px;
+  transition: border-top-color 0.3s;
+}
+
+.archflow-container .bubble.tail-up::after {
+  bottom: 100%;
+  border-bottom-color: var(--bubble-bg);
+  margin-bottom: -1px;
+  transition: border-bottom-color 0.3s;
+}
+
+.archflow-container footer {
+  padding: 16px 24px 24px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  line-height: 1.6;
+}
+
+.archflow-container footer b {
+  color: var(--ink);
+}
+
+.archflow-container .legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.archflow-container .legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.archflow-container .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 6px currentColor;
+}
+
+@media (max-width: 980px) {
+  .archflow-container .wrap {
+    flex-direction: column;
+  }
+  .archflow-container .side {
+    width: auto;
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+  .archflow-container .log {
+    max-height: 32vh;
+  }
+}
+
+.archflow-container .node.db-ingesting .node-card {
+  stroke: #336791 !important;
+  stroke-width: 2.2px !important;
+  animation: dbIngestGlow 0.4s infinite alternate;
+}
+
+@keyframes dbIngestGlow {
+  from {
+    filter: drop-shadow(0 0 3px rgba(51, 103, 145, 0.4));
+  }
+  to {
+    filter: drop-shadow(0 0 14px rgba(51, 103, 145, 0.8));
+  }
+}
+
+.archflow-container .transfer-modal {
+  font-family: "JetBrains Mono", monospace;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1.5px solid #336791;
+  border-radius: 8px;
+  width: 100%;
+  height: 100%;
+  box-shadow: 0 10px 25px rgba(51, 103, 145, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #e2e8f0;
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+
+.archflow-container .transfer-modal.show {
+  opacity: 1;
+  transform: none;
+}
+
+.archflow-container .transfer-header {
+  background: #1e293b;
+  padding: 6px 10px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.archflow-container .transfer-icon {
+  font-size: 10px;
+}
+.archflow-container .transfer-title {
+  color: #cbd5e1;
+}
+.archflow-container .transfer-pct {
+  margin-left: auto;
+  color: #38bdf8;
+  font-weight: 800;
+}
+
+.archflow-container .transfer-progress-container {
+  background: #0f172a;
+  height: 6px;
+  width: calc(100% - 20px);
+  margin: 8px 10px 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+}
+
+.archflow-container .transfer-progress-bar {
+  background: linear-gradient(90deg, #336791 0%, #38bdf8 100%);
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+}
+
+.archflow-container .transfer-stats {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 8px;
+  color: #94a3b8;
+}
+
+.archflow-container .transfer-log {
+  flex: 1;
+  background: #090d16;
+  margin: 6px 10px 8px;
+  border-radius: 4px;
+  border: 1px solid #1e293b;
+  padding: 4px 6px;
+  font-size: 8px;
+  line-height: 1.35;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.archflow-container .log-line {
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.archflow-container .log-line.active {
+  color: #38bdf8;
+}
+.archflow-container .log-line.success {
+  color: #4ade80;
+}
+.archflow-container .log-line.finish {
+  color: #a78bfa;
+  font-weight: bold;
+}
+
+.archflow-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
+}
+
+/* Outside fullscreen the page can grow/scroll, so the SVG's own aspect-ratio
+   (width: 100%; height: auto) is enough to show it fully. In fullscreen the
+   container is pinned to a fixed 100vh with overflow: hidden, so .wrap must
+   actively fill the remaining space and the SVG must fit *within* it
+   (height: 100%, letterboxed by preserveAspectRatio) — otherwise the bottom
+   row of nodes silently gets clipped instead of shown or scrolled to.
+   (Discovered the hard way — do not remove these three rules.) */
+.archflow-container:fullscreen .wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.archflow-container:fullscreen .stage-area {
+  min-height: 0;
+}
+
+.archflow-container:fullscreen svg.stage {
+  width: 100%;
+  height: 100%;
+}
+
+.archflow-container:fullscreen .log {
+  max-height: calc(100vh - 160px);
+}
+
+.archflow-container:fullscreen .side {
+  overflow-y: auto;
+}
+
+/* ---- Timeline scrubber (one segment per step; click/drag to jump) ---- */
+.archflow-container .scrubber {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.archflow-container .scrub-count {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 64px;
+  white-space: nowrap;
+}
+
+.archflow-container .scrub-track {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.archflow-container .scrub-seg {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  transition:
+    background 0.15s,
+    height 0.15s;
+  pointer-events: none;
+}
+
+/* a wider gap marks the start of each phase */
+.archflow-container .scrub-seg.phase-start {
+  margin-left: 7px;
+}
+
+.archflow-container .scrub-seg.filled {
+  background: var(--accent);
+}
+
+.archflow-container .scrub-track:hover .scrub-seg {
+  height: 10px;
+}
+
+/* ---- Clickable activity log ---- */
+.archflow-container .log-item {
+  cursor: pointer;
+}
+
+.archflow-container .log-item:hover {
+  border-color: var(--button-hover-border);
+}
+
+/* ---- Node inspector (click a node card to open) ---- */
+.archflow-container .node.inspected .node-card {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+
+.archflow-container .inspector {
+  margin: 12px 14px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 12.5px;
+}
+
+.archflow-container .inspector-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.archflow-container .inspector-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  flex: none;
+}
+
+.archflow-container .inspector-name {
+  min-width: 0;
+}
+
+.archflow-container .inspector-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.archflow-container .inspector-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.archflow-container .inspector-close {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+  flex: none;
+}
+
+.archflow-container .inspector-badge {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--external-stroke);
+  color: var(--muted);
+}
+
+.archflow-container .inspector-desc {
+  margin: 10px 0 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.archflow-container .inspector-section {
+  margin-top: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.archflow-container .inspector-routes {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--ink);
+}
+
+.archflow-container .inspector-routes li {
+  margin-bottom: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+
+.archflow-container .inspector-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.archflow-container .inspector-step-chip {
+  min-width: 26px;
+  height: 22px;
+  padding: 2px 6px;
+  justify-content: center;
+  font-size: 11px;
+  font-family: "JetBrains Mono", monospace;
+  border-radius: 6px;
+}
+
+/* ---- Removable connections (click a link to inspect / remove it) ---- */
+
+/* A 2.2px path is nearly impossible to click. This invisible fat twin sits
+   under the node cards and gives every link a comfortable hit area. */
+.archflow-container .edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.archflow-container .edge.selected {
+  stroke: var(--accent);
+  stroke-width: 3.2;
+  opacity: 1;
+}
+
+/* Removed links stay visible but severed — the point of the feature is to
+   SEE what was cut, so they fade to a red hairline with an ✕ at midpoint. */
+.archflow-container .edge.removed {
+  stroke: #ef4444;
+  stroke-width: 1.6;
+  stroke-dasharray: 2 9;
+  opacity: 0.5;
+}
+
+.archflow-container .arrow.removed {
+  opacity: 0;
+}
+
+.archflow-container .edge-cut {
+  font-size: 15px;
+  font-weight: 700;
+  fill: #ef4444;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+/* ---- Node notes (the viewer's own text, pinned under a card) ---- */
+.archflow-container .node-note-bg {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 1;
+  opacity: 0.96;
+}
+
+.archflow-container .node-note {
+  font-size: 10.5px;
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+/* ---- Group boxes (a named boundary around a set of cards) ----
+   Deliberately quiet: a wash of colour and a dashed edge that reads as "these
+   belong together" without competing with the cards or the animated links
+   running over it. One hue per group so two boxes side by side stay tellable
+   apart. */
+.archflow-container .group.tone-0 {
+  --tone: 99, 102, 241;
+}
+.archflow-container .group.tone-1 {
+  --tone: 14, 165, 164;
+}
+.archflow-container .group.tone-2 {
+  --tone: 245, 158, 11;
+}
+.archflow-container .group.tone-3 {
+  --tone: 244, 63, 94;
+}
+.archflow-container .group.tone-4 {
+  --tone: 139, 92, 246;
+}
+.archflow-container .group.tone-5 {
+  --tone: 2, 132, 199;
+}
+
+.archflow-container .group-box {
+  fill: rgba(var(--tone), 0.13);
+  stroke: rgba(var(--tone), 0.5);
+  stroke-width: 1.4;
+  stroke-dasharray: 7 5;
+  pointer-events: none; /* a backdrop must never eat a click */
+}
+
+.archflow-container.light .group-box {
+  fill: rgba(var(--tone), 0.07);
+  stroke: rgba(var(--tone), 0.42);
+}
+
+.archflow-container .group-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  fill: rgb(var(--tone));
+  cursor: pointer;
+}
+
+.archflow-container .group-name:hover {
+  text-decoration: underline;
+}
+
+/* ---- Link labels (what the connection carries) ---- */
+.archflow-container .edge-label-g {
+  cursor: pointer;
+}
+
+/* Opaque pill, so the dashed line doesn't run through the letters. */
+.archflow-container .edge-label-bg {
+  fill: var(--bg);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.archflow-container .edge-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.archflow-container .edge-label-g:hover .edge-label-bg {
+  stroke: var(--accent);
+}
+
+.archflow-container .edge-label-input {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1.5px solid var(--accent);
+  background: var(--panel);
+  color: var(--ink);
+  outline: none;
+}
+
+.archflow-container .edge.blocked-flash {
+  stroke: #ef4444;
+  stroke-width: 3.2;
+  opacity: 1;
+  animation: linkBlocked 0.45s ease-in-out 3;
+}
+
+@keyframes linkBlocked {
+  50% {
+    opacity: 0.12;
+  }
+}
+
+.archflow-container .node.blocked .node-card {
+  stroke: #ef4444;
+  stroke-width: 2.4;
+  filter: drop-shadow(0 2px 8px rgba(239, 68, 68, 0.35));
+}
+
+.archflow-container .log-item.blocked .log-num {
+  background: #ef4444;
+}
+
+.archflow-container .log-item.blocked .log-body {
+  color: var(--muted);
+}
+
+.archflow-container .log-blocked {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ef4444;
+  margin-bottom: 2px;
+}
+
+/* Steps downstream of a cut: never ran, but not the cause either — grey,
+   not red. (Dimming via opacity would lose to the log-item pop animation's
+   fill-mode, so the colours are set directly.) */
+.archflow-container .log-item.unreachable .log-num {
+  background: var(--line);
+  color: var(--muted);
+}
+
+.archflow-container .log-item.unreachable .log-body {
+  color: var(--muted);
+}
+
+.archflow-container .log-skipped {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.archflow-container .inspector-impact {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.archflow-container .inspector-icon.link-icon {
+  background: var(--line);
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.archflow-container .inspector-badge.danger {
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+.archflow-container .inspector-action {
+  margin-top: 12px;
+  width: 100%;
+  justify-content: center;
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.archflow-container .inspector-action.danger {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #ef4444;
+}
+
+.archflow-container .inspector-action.danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.archflow-container .inspector-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.archflow-container .inspector-label-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archflow-container .inspector-label-value.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.archflow-container .inspector-label-edit {
+  flex: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}

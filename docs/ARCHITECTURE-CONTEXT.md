@@ -1,4 +1,4 @@
-# Docling Studio — Architecture Context Prompt
+# Solvay Spark Spine AI — Architecture Context Prompt
 
 **Purpose of this file.** Paste or `@`-mention this file at the start of a new Claude Code
 session to give it the full picture of what we are building before it touches any code.
@@ -6,13 +6,13 @@ It describes the *current, verified* state of the repo (read from source on 2026
 not the aspirational design. Where the older docs in `docs/` disagree with the code, this
 file says so explicitly.
 
-Repo root: `/Users/senthilpalanivelu/Programme/docling-studio` (git, branch `main`).
+Repo root: `/Users/senthilpalanivelu/Programme/solvay-spark-spine` (git, branch `main`).
 
 ---
 
 ## 1. What the system is, in one paragraph
 
-Docling Studio is a **local, single-user document-intelligence workbench for the Solvay
+Solvay Spark Spine AI is a **local, single-user document-intelligence workbench for the Solvay
 SPARK programme** (an SAP ECC → S/4HANA transformation). Heterogeneous project artefacts
 (PPTX workshop decks, DOCX functional specs, XLSX master-data sheets, PDFs, screenshots)
 are converted to Markdown by a document-extraction pipeline, and that Markdown corpus then
@@ -324,13 +324,16 @@ External runtime dependencies: PostgreSQL 5433 with the `vector` extension, Olla
 
 ## 9. Known gaps, drift and open opportunities
 
-1. **The diagrams in `docs/` now predate the two agents.** `system-diagram.md`,
-   `pipeline.md`, `solvay-kb-pipeline.md`, `solvay-kb-pipeline-ad.md`, all four
-   `.puml`/`.png` pairs and the `demo/` ArchFlow demo were regenerated on 2026-09-21 for
-   the knowledge-graph subsystem and the Ollama `bge-m3` (1024-d) embedding change. They
-   are correct about the two engines and the ingest pipeline, and **silent about
-   `fitgap/` and `evidence/`**, which were added afterwards. Re-run the `archflow` skill
-   from `system-diagram.md` to bring them forward. Also still there: **`docs/system-workflow-ad.png`**,
+1. **The ArchFlow diagrams are current; the pipeline docs are not.** `system-diagram.md`,
+   all four `.puml`/`.png` pairs and the `demo/` ArchFlow demo (`SparkDemoFlow`) were
+   regenerated on 2026-09-28 with every subsystem drawn separately — ingestion, the RAG
+   system, Ragas, the knowledge graph, Neo4j Community, the three agents, Hindsight,
+   PostgreSQL and Langfuse. The workflow diagrams walk all eight flows: upload →
+   chunk/embed/store → graph + Neo4j → Ask RAG + Ragas → Evidence Agent → InsightLens →
+   Fit-Gap Copilot → Cypher in Neo4j; the client demo walks the same flows without
+   InsightLens. `pipeline.md`,
+   `solvay-kb-pipeline.md` and `solvay-kb-pipeline-ad.md` still describe only the two
+   engines and the ingest pipeline. Also still there: **`docs/system-workflow-ad.png`**,
    an orphan from an earlier run with no `.puml` source — it shows Cohere and no graph,
    and nothing links to it.
 2. **RAG and the knowledge graph do not talk to each other.** They read the same files and

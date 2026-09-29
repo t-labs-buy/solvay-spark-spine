@@ -1,0 +1,22 @@
+# Only backend/, docs/, data/, frontend/ and requirements.txt go into the
+# image. Everything else is local state, secrets or client data.
+.git/
+.env
+.env.*
+!.env.example
+.venv/
+hindsight-venv/
+.workdir/
+knowledge_base/
+solvay-spark/
+backup/
+out/
+tmp/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+frontend/node_modules/
+frontend/test/quote-highlight.fixture.json
+# Rebuilt in the image's ui stage.
+static/dist/

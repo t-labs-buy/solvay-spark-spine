@@ -4276,39 +4276,82 @@ docker compose up -d postgres</pre>
                 text: text,
                 folded: fold(text),
               });
+              index[index.length - 1].packed = pack(index[index.length - 1].folded);
             });
           });
         }
 
         // --- Matching ---
+        // Two views of every text: folded (case and accents ignored), and
+        // packed — letters and digits only, with a map back to the original
+        // positions. The packed view is what lets "login" find "Log in",
+        // "setup" find "set up", "email" find "e-mail" and "ivolve-network"
+        // find "ivolve network": spaces, hyphens and punctuation stop
+        // mattering, while the map keeps every mark on the real characters.
+        var LETTER = /[\p{L}\p{N}]/u;
+        function pack(folded) {
+          var s = "";
+          var map = [];
+          for (var i = 0; i < folded.length; i++) {
+            if (LETTER.test(folded.charAt(i))) {
+              s += folded.charAt(i);
+              map.push(i);
+            }
+          }
+          return { s: s, map: map };
+        }
         function termsOf(q) {
           var t = fold(q).split(/\s+/).filter(Boolean);
           // Single letters match everywhere and say nothing; keep them only
           // when they are all the reader typed.
           var long = t.filter(function (w) { return w.length > 1; });
-          return long.length ? long : t;
+          return (long.length ? long : t).map(function (w) {
+            return { t: w, p: pack(w).s };
+          });
+        }
+        // Every place a term occurs, as [start, end) in the original text.
+        // The packed view is used only for terms of three or more letters:
+        // shorter ones would join across words and match almost anything.
+        function ranges(folded, packed, term) {
+          var out = [];
+          var at = folded.indexOf(term.t);
+          while (at >= 0) {
+            out.push([at, at + term.t.length]);
+            at = folded.indexOf(term.t, at + term.t.length);
+          }
+          if (term.p.length >= 3) {
+            at = packed.s.indexOf(term.p);
+            while (at >= 0) {
+              out.push([packed.map[at], packed.map[at + term.p.length - 1] + 1]);
+              at = packed.s.indexOf(term.p, at + term.p.length);
+            }
+          }
+          return out;
+        }
+        function has(e, term) {
+          return e.folded.indexOf(term.t) >= 0 ||
+            (term.p.length >= 3 && e.packed.s.indexOf(term.p) >= 0);
         }
         function score(entry, terms, phrase) {
           var s = 0;
-          terms.forEach(function (t) {
-            if (entry.folded.indexOf(t) >= 0) s += entry.heading ? 4 : 1;
+          terms.forEach(function (term) {
+            if (has(entry, term)) s += entry.heading ? 4 : 1;
           });
-          if (phrase && entry.folded.indexOf(phrase) >= 0) s += 3;
+          if (phrase && entry.packed.s.indexOf(phrase) >= 0) s += 3;
           return s;
         }
         function search(q) {
           var terms = termsOf(q);
           if (!terms.length) return { hits: [], terms: [], partial: false };
-          var phrase = terms.length > 1 ? fold(q.trim()).replace(/\s+/g, " ") : "";
-          function has(e, t) { return e.folded.indexOf(t) >= 0; }
+          var phrase = terms.length > 1 ? pack(fold(q)).s : "";
           var hits = index.filter(function (e) {
-            return terms.every(function (t) { return has(e, t); });
+            return terms.every(function (term) { return has(e, term); });
           });
           var partial = false;
           if (!hits.length && terms.length > 1) {
             partial = true;
             hits = index.filter(function (e) {
-              return terms.some(function (t) { return has(e, t); });
+              return terms.some(function (term) { return has(e, term); });
             });
           }
           hits = hits.map(function (e, i) {
@@ -4319,31 +4362,26 @@ docker compose up -d postgres</pre>
         }
 
         // --- Snippets: the text around the first match, matches marked ---
-        function spans(folded, terms, from, to) {
-          var out = [];
-          terms.forEach(function (t) {
-            var at = folded.indexOf(t, from);
-            while (at >= 0 && at < to) {
-              out.push([at, Math.min(at + t.length, to)]);
-              at = folded.indexOf(t, at + t.length);
-            }
-          });
-          out.sort(function (a, b) { return a[0] - b[0]; });
+        function merge(list) {
+          list.sort(function (a, b) { return a[0] - b[0]; });
           var merged = [];
-          out.forEach(function (r) {
+          list.forEach(function (r) {
             var last = merged[merged.length - 1];
             if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
             else merged.push(r.slice());
           });
           return merged;
         }
-        function snippet(entry, terms) {
-          var first = entry.folded.length;
-          terms.forEach(function (t) {
-            var at = entry.folded.indexOf(t);
-            if (at >= 0 && at < first) first = at;
+        function allRanges(entry, terms) {
+          var out = [];
+          terms.forEach(function (term) {
+            out = out.concat(ranges(entry.folded, entry.packed, term));
           });
-          if (first === entry.folded.length) first = 0;
+          return merge(out);
+        }
+        function snippet(entry, terms) {
+          var found = allRanges(entry, terms);
+          var first = found.length ? found[0][0] : 0;
           var from = Math.max(0, first - 60);
           var to = Math.min(entry.text.length, first + 140);
           // Start and end on a word, not halfway through one.
@@ -4358,13 +4396,15 @@ docker compose up -d postgres</pre>
           var frag = document.createDocumentFragment();
           if (from > 0) frag.appendChild(document.createTextNode("… "));
           var at = from;
-          spans(entry.folded, terms, from, to).forEach(function (r) {
-            if (r[0] > at)
-              frag.appendChild(document.createTextNode(entry.text.slice(at, r[0])));
+          found.forEach(function (r) {
+            var s = Math.max(r[0], from);
+            var e = Math.min(r[1], to);
+            if (e <= s || s < at) return;
+            if (s > at) frag.appendChild(document.createTextNode(entry.text.slice(at, s)));
             var m = document.createElement("mark");
-            m.textContent = entry.text.slice(r[0], r[1]);
+            m.textContent = entry.text.slice(s, e);
             frag.appendChild(m);
-            at = r[1];
+            at = e;
           });
           if (at < to) frag.appendChild(document.createTextNode(entry.text.slice(at, to)));
           if (to < entry.text.length) frag.appendChild(document.createTextNode(" …"));
@@ -4448,25 +4488,27 @@ docker compose up -d postgres</pre>
             CSS.highlights.delete("doc-search");
             return;
           }
-          var ranges = [];
+          var list = [];
           var walker = document.createTreeWalker(scope || content, NodeFilter.SHOW_TEXT);
-          for (var n = walker.nextNode(); n && ranges.length < 2000; n = walker.nextNode()) {
+          for (var n = walker.nextNode(); n && list.length < 2000; n = walker.nextNode()) {
             if (skip(n)) continue;
             var f = fold(n.nodeValue);
-            terms.forEach(function (t) {
-              var at = f.indexOf(t);
-              while (at >= 0) {
-                var r = document.createRange();
-                r.setStart(n, at);
-                r.setEnd(n, at + t.length);
-                ranges.push(r);
-                at = f.indexOf(t, at + t.length);
-              }
+            var p = pack(f);
+            var node = n;
+            var found = [];
+            terms.forEach(function (term) {
+              found = found.concat(ranges(f, p, term));
+            });
+            merge(found).forEach(function (x) {
+              var r = document.createRange();
+              r.setStart(node, x[0]);
+              r.setEnd(node, x[1]);
+              list.push(r);
             });
           }
           // Highlight takes ranges as separate arguments, not a list.
           var hl = new Highlight();
-          ranges.forEach(function (r) { hl.add(r); });
+          list.forEach(function (r) { hl.add(r); });
           CSS.highlights.set("doc-search", hl);
         }
 

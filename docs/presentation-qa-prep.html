@@ -12,6 +12,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Spark AI Spine — presentation Q&amp;A prep</title>
+    <meta name="description" content="Twenty questions a Spark AI Spine audience will ask, with a short answer to say first and the detail behind it, checked against the code and the running system on 30 September 2026." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -1567,7 +1568,7 @@
       <p class="lede">
         Twenty realistic questions from architects, developers, tech leads, product owners and
         business stakeholders, each with a short answer to say first and the detail to back it up.
-        Every figure below was taken from the running system or the code on 24 September 2026.
+        Every figure below was re-checked against the running system and the code on 30 September 2026.
       </p>
 
       <div class="meta-strip">
@@ -1601,32 +1602,38 @@
               <table>
                 <thead><tr><th>What</th><th>Figure</th><th>Where it comes from</th></tr></thead>
                 <tbody>
-                  <tr><td>Corpus</td><td>217 documents, ~8,850 chunks in four categories (DR 132 docs, PKG 81, SAP 3, UNFILED 1)</td><td><code>rag_chunks</code> in Postgres</td></tr>
-                  <tr><td>Embeddings</td><td>BGE-M3, 1,024 dimensions, run locally on Ollama</td><td><code>rag.py</code></td></tr>
+                  <tr><td>Corpus</td><td>217 documents, ~8,400 chunks in four categories (DR 132 docs, PKG 80, SAP 3, UNFILED 2)</td><td><code>rag_chunks</code> in Postgres</td></tr>
+                  <tr><td>Embeddings</td><td>BGE-M3, 1,024 dimensions, run locally on Ollama</td><td><code>backend/rag/rag.py</code></td></tr>
                   <tr><td>Retrieval</td><td>Hybrid: pgvector cosine + Postgres BM25, merged by reciprocal rank fusion</td><td><code>rag.py</code></td></tr>
-                  <tr><td>Retrieval sanity check</td><td>Hybrid finds the right chunk in the top 8 for 14 of 14 questions; MRR 0.88 (vector-only 0.78, keyword-only 0.84)</td><td>README, 14 checked questions</td></tr>
-                  <tr><td>Vector index recall</td><td>0.98 of an exact scan, with <code>ef_search</code> at 800; costs ~0.7 ms on a ~180 ms search</td><td>README</td></tr>
-                  <tr><td>Knowledge graph</td><td>2,389 nodes, 4,780 edges, 5 node types, 11 relationship types</td><td><code>knowledge_graph.json</code></td></tr>
-                  <tr><td>Models</td><td>Answers and agents on <code>claude-opus-5</code>; the evaluation judge and the web search on <code>claude-sonnet-5</code>; the scope filter on <code>claude-haiku-4-5</code></td><td>environment defaults</td></tr>
-                  <tr><td>Guardrails</td><td>Scope check on all four surfaces (Ask RAG and the three agents): an off-topic question gets "I don't have the information." in ~2 s, with nothing searched. Web search at most 2 per run, only sap.com and europa.eu. Contact details removed from all outputs: the corpus holds 116 e-mail addresses and 21 phone numbers</td><td><code>guardrails/</code>, <code>test_guardrails.py</code> (27 tests)</td></tr>
-                  <tr><td>Agent limits</td><td>Evidence Agent 14 tool calls / 60k input tokens per turn; InsightLens 12 calls / 40k; each capped at 4× cumulatively</td><td><code>backend/agents/evidence/agent.py</code>, <code>backend/agents/fitgap/agent.py</code></td></tr>
-                  <tr><td>Evaluation</td><td>12 Ragas judges per answer; 27 ground-truthed questions for offline runs; 12 live answers scored so far, mean overall 0.75</td><td><code>evaluation.py</code>, <code>ask_evaluations</code></td></tr>
-                  <tr><td>Judge stability</td><td>Same answer scored twice moves ±0.01–0.04</td><td>re-score history</td></tr>
+                  <tr><td>Retrieval sanity check</td><td>Hybrid finds the right chunk in the top 8 for 14 of 14 questions; MRR 0.88 (vector-only 0.78, keyword-only 0.84)</td><td><code>docs/rag.md</code>, 14 checked questions</td></tr>
+                  <tr><td>Vector index recall</td><td>0.98 of an exact scan, with <code>ef_search</code> at 800; costs ~0.7 ms on a ~180 ms search</td><td><code>docs/rag.md</code></td></tr>
+                  <tr><td>Knowledge graph</td><td>~2,380 entities, ~4,770 relationships, 5 node types, 6 relationship types. The Neo4j copy adds the ~8,400 chunks as passage nodes: 10,749 nodes, 20,321 relationships</td><td><code>data/knowledge_graph.json</code>, Neo4j</td></tr>
+                  <tr><td>Models</td><td>Answers and agents on <code>claude-opus-5</code>; the evaluation judge and the web search on <code>claude-sonnet-5</code>; the scope filter on <code>claude-haiku-4-5</code>. Check <code>.env</code> before a demo: this machine sets Ask RAG and the Fit-Gap Copilot to <code>claude-sonnet-5</code></td><td>code defaults; <code>RAG_ANSWER_MODEL</code>, <code>EVIDENCE_MODEL</code>, <code>FITGAP_MODEL</code>, <code>FITGAP_COPILOT_MODEL</code></td></tr>
+                  <tr><td>Guardrails</td><td>Scope check on all four surfaces (Ask RAG and the three agents): an off-topic question gets "I don't have the information." in ~2 s, with nothing searched. Web search at most 2 per run, only sap.com and europa.eu. Contact details removed from all outputs: the corpus holds 116 e-mail addresses and 21 phone numbers</td><td><code>backend/agents/guardrails/</code>, <code>test_guardrails.py</code> (27 tests)</td></tr>
+                  <tr><td>Agent limits</td><td>Evidence Agent 14 tool calls / 60k input tokens per turn; InsightLens 12 calls / 40k; each capped at 4× cumulatively. Fit-Gap Copilot 20 calls to read, 30 to compare, 150k per turn, 220k per run</td><td><code>backend/agents/{evidence,fitgap,rollout}/agent.py</code></td></tr>
+                  <tr><td>RAG evaluation</td><td>9 Ragas judges per live answer (7 quality + 2 safety); 27 ground-truthed questions for offline runs; 21 live answers scored so far, mean overall 0.69</td><td><code>backend/rag/evaluation.py</code>, <code>ask_evaluations</code></td></tr>
+                  <tr><td>Agent evaluation</td><td>Every Evidence Agent and Fit-Gap Copilot run scored from its own checks, with no judge model: citation validity, tool errors, budget, topic adherence, guardrail events</td><td><code>backend/agents/agent_eval.py</code>, Evaluation tab, Langfuse</td></tr>
+                  <tr><td>Graph quality</td><td>Structural check: 11 of 14 pass. Plain-English → Cypher: 0.92 (23 of 25 answerable questions correct)</td><td><code>backend/graph/graph_eval.py</code>, <code>graph_quality_runs</code></td></tr>
+                  <tr><td>Judge stability</td><td>Same answer scored twice moves ±0.01–0.03</td><td>re-score history</td></tr>
                   <tr><td>Human calibration</td><td>0 of the 20 reviewed answers needed before judge–human agreement is reported</td><td><code>ask_reviews</code></td></tr>
                 </tbody>
               </table>
             </div>
             <div class="warn">
-              <span class="label">Three things in the repo that will contradict you if someone checks</span>
+              <span class="label">Four things in the repo that will contradict you if someone checks</span>
               <ul>
-                <li>The README says the knowledge graph has <strong>354 nodes and 560 edges</strong>. That was
-                  an early build. Quote <strong>2,389 / 4,780</strong>.</li>
-                <li>A settings table near the end of the README's RAG section names <strong>Cohere
+                <li><code>docs/knowledge-graph-entity-relationships.html</code> still says <strong>354 nodes and 560 edges</strong>
+                  (an early build), and the Markdown graph docs say 2,390 / 4,789. Quote the live
+                  <strong>~2,380 / ~4,770</strong>.</li>
+                <li>The settings table in <code>docs/rag.md</code> names <strong>Cohere
                   <code>embed-v4.0</code></strong> and says chunk text goes to Cohere. That is out of date.
                   Embeddings are <strong>BGE-M3, local</strong>, and chunk text never leaves the machine at
                   indexing time.</li>
-                <li>The platform is <strong>localhost only: no authentication, no upload limits</strong>. The
-                  README says so. Don't let a demo imply otherwise (see Q16).</li>
+                <li><code>docs/tracing-and-evaluation.md</code> says <strong>twelve</strong> judges. The code runs
+                  <strong>nine</strong> on a live answer; twelve counts optional and offline-only metrics.</li>
+                <li>There is now a <strong>sign-in page</strong> and a server deployment, but the sign-in is a
+                  presentation lock: every <code>/api/*</code> endpoint is still open. Don't let a demo imply
+                  real access control (see Q17).</li>
               </ul>
             </div>
           </section>
@@ -1649,15 +1656,17 @@
                 <table>
                   <thead><tr><th>Component</th><th>Pattern</th><th>Code</th></tr></thead>
                   <tbody>
-                    <tr><td>Ask RAG</td><td>Retrieve → generate with citations (no agent loop)</td><td><code>rag.py</code></td></tr>
-                    <tr><td>Evidence Agent</td><td>Single ReAct-style tool loop over the corpus and the graph, then a deterministic verifier and scorer</td><td><code>evidence/</code></td></tr>
+                    <tr><td>Ask RAG</td><td>Retrieve → generate with citations (no agent loop)</td><td><code>backend/rag/rag.py</code></td></tr>
+                    <tr><td>Evidence Agent</td><td>Single ReAct-style tool loop over the corpus and the graph, then a deterministic verifier and scorer</td><td><code>backend/agents/evidence/</code></td></tr>
                     <tr><td>InsightLens</td><td><strong>Map-reduce</strong>: one bounded agent run per BPML step, several in parallel on a thread pool, then one synthesis pass</td><td><code>backend/agents/fitgap/orchestrator.py</code></td></tr>
                     <tr><td>Fit-Gap Copilot</td><td><strong>Two-pass pipeline</strong>: Read (attachments only) → Compare (corpus + graph + BPML), then deterministic gates and scoring</td><td><code>backend/agents/rollout/orchestrator.py</code></td></tr>
                   </tbody>
                 </table>
               </div>
-              <p>The agent submits its result through a tool (<code>submit_entry</code>) whose input schema
-                is the Pydantic model, so malformed output is rejected at the boundary instead of being parsed afterwards.</p>
+              <p>Each agent submits its result through a tool whose input schema is the Pydantic model
+                (<code>submit_answer</code> for the Evidence Agent, <code>submit_entry</code> for InsightLens,
+                <code>submit_asis</code> and <code>submit_analysis</code> for the Fit-Gap Copilot), so malformed
+                output is rejected at the boundary instead of being parsed afterwards.</p>
             </div>
             <div class="why">
               <span class="label">If they push on "why no framework"</span>
@@ -1682,15 +1691,19 @@
                     <tr><td><code>get_scope</code></td><td>Resolve a BPML code to its process and ancestry</td><td>BPML hierarchy</td></tr>
                     <tr><td><code>graph_entity</code></td><td>Resolve a name or code to a graph node</td><td>In-memory knowledge graph</td></tr>
                     <tr><td><code>graph_neighbors</code></td><td>What a node connects to, 1–2 hops</td><td>In-memory knowledge graph</td></tr>
-                    <tr><td><code>graph_path</code></td><td>Shortest path between two entities (BFS)</td><td>In-memory knowledge graph</td></tr>
-                    <tr><td><code>search_uploads</code> / <code>read_sources</code></td><td>Search documents attached to this session only</td><td>Per-session Postgres schema</td></tr>
+                    <tr><td><code>graph_path</code></td><td>Shortest path between two entities (BFS), with a verdict on whether the path is meaningful</td><td>In-memory knowledge graph</td></tr>
+                    <tr><td><code>graph_enumerate</code></td><td>Exact count or list of the nodes next to one, for "how many" questions</td><td>In-memory knowledge graph</td></tr>
+                    <tr><td><code>compare_entities</code></td><td>What two entities share and where they differ</td><td>In-memory knowledge graph</td></tr>
+                    <tr><td><code>search_sap_best_practice</code></td><td>Search the SAP Best Practice documents only (Fit-Gap Copilot)</td><td>pgvector + Postgres full text</td></tr>
+                    <tr><td><code>search_uploads</code> / <code>read_sources</code> / <code>list_sources</code></td><td>List and search documents attached to this session only; <code>read_sources</code> filters by role</td><td>Per-session Postgres schema</td></tr>
                     <tr><td><code>upload_entities</code></td><td>Systems, BPML codes and tickets in an attachment, each marked "known to corpus" or "new"</td><td>Per-session graph</td></tr>
                     <tr><td><code>web_search</code></td><td>An outside fact the corpus can't hold, such as SAP standard behaviour or a statutory rule. <strong>Gated:</strong> only after a corpus search, at most twice per run, on an allow-list of sites</td><td>Anthropic server-side web search, citations only</td></tr>
                   </tbody>
                 </table>
               </div>
               <p>Every call is logged to <code>session.retrieved</code>. That record is what the verifier
-                later checks quotes against (Q4), which is why routing everything through tools matters.</p>
+                later checks quotes against (Q4), which is why routing everything through tools matters.
+                The agents read the in-memory graph, not Neo4j. Neo4j is for people querying the graph (Q12).</p>
             </div>
 
             <div class="qa">
@@ -1737,7 +1750,7 @@
                   <thead><tr><th>Layer</th><th>Guardrail</th><th>How it is enforced</th></tr></thead>
                   <tbody>
                     <tr><td>Before the run</td><td><strong>Topic scope.</strong> Only questions about the programme: processes, SAP, systems, specs, rollouts. Nothing a general chatbot would answer.</td><td>Checked before any search, on Ask RAG and all three agents. Programme terms (a BPML code, ticket, system name) pass instantly; anything else goes to a small classifier model. Out of scope: <em>"I don't have the information."</em>, with nothing searched and nothing scored.</td></tr>
-                    <tr><td>During the run</td><td><strong>Evidence only from tools.</strong> "Never output a ticket, BPML code or system name no tool returned." "Prefer UNKNOWN over a low-evidence guess."</td><td>Quote verification (below). A rubric hash is stored on every run so results can be reproduced.</td></tr>
+                    <tr><td>During the run</td><td><strong>Evidence only from tools.</strong> "Never output a ticket, BPML code or system name no tool returned." "Prefer UNKNOWN over a low-evidence guess."</td><td>Quote verification (below). The prompt hash and a fingerprint of the corpus are stored on every run, so a result can be reproduced.</td></tr>
                     <tr><td>During the run</td><td><strong>Web search only when needed.</strong> Corpus first; the web only for SAP standard or regulation.</td><td>The code, not the model, decides. The corpus must already have been searched in this run; at most 2 searches; only sap.com and europa.eu; the query must be on-topic, with no ticket numbers, BPML codes or contact details. Web quotes are verified like any other, and a claim resting on web pages alone is capped at 0.35.</td></tr>
                     <tr><td>During the run</td><td><strong>Budgets.</strong></td><td>Hard caps on tool calls and input tokens per run, so a runaway loop can't run up cost.</td></tr>
                     <tr><td>During the run</td><td><strong>Isolation.</strong></td><td>Session uploads live in their own database and are deleted after 12 h. Memory can orient an agent but can never be cited (Q13).</td></tr>
@@ -1760,7 +1773,7 @@
               <ul>
                 <li><strong>"What if the scope classifier is down?"</strong> The question goes through, and the run log records
                   that the filter was unavailable. The agents' own instructions still tell them to refuse. We chose this over
-                  blocking every question during an outage; it can be switched to refuse instead.</li>
+                  blocking every question during an outage. Failing closed instead is a small code change; today the only switch is on or off.</li>
                 <li><strong>"Can it be tricked?"</strong> A borderline question can get past a classifier; that's why it is one
                   layer, not the only one. Whatever gets through still has to be answered from verified quotes in the
                   programme's own documents, or it isn't shown.</li>
@@ -1794,10 +1807,11 @@
               <p><strong>Say first:</strong> Yes, by design. <em>AI proposes, humans decide.</em> Every
                 InsightLens entry is created with <code>status = "proposed"</code> and waits for a named
                 reviewer. Fit-Gap deviations are framed as decision questions for a workshop, not as recommendations.</p>
-              <p>The rubric forbids the model to recommend what the client should decide: it must frame the
-                choice as a DecisionPoint. Reviews and decisions are stored in their own tables
-                (<code>fitgap_reviews</code>, <code>rollout_decisions</code>), so the audit trail shows who
-                accepted what, and when.</p>
+              <p>The rubric forbids the model to recommend what the client should decide. InsightLens must frame
+                the choice as a DecisionPoint; in the Fit-Gap Copilot, a Must Discuss item needs a decision question
+                with two to four options. Reviews and workshop decisions are stored in their own tables
+                (<code>fitgap_reviews</code>, <code>rollout_decisions</code>, <code>workshop_decisions</code>), so the
+                audit trail shows who accepted or decided what, and when.</p>
             </div>
           </section>
 
@@ -1831,8 +1845,8 @@
               <ul>
                 <li><strong>Why hybrid:</strong> embeddings treat identifiers like <code>7.1.12.3</code> or
                   <code>M-090-030-010</code> as noise. Keyword search catches them, and codes are indexed with their
-                  parent codes as well. On the one code question in the demo set, vector search ranked the right
-                  row 8th and hybrid ranked it 2nd.</li>
+                  parent codes as well. On the 14 checked questions, hybrid scores MRR 0.88 against 0.78 for vector
+                  search alone.</li>
                 <li><strong>Category is metadata, not embedded text.</strong> Re-filing a document is one SQL
                   <code>UPDATE</code>, not a re-embedding.</li>
               </ul>
@@ -1843,7 +1857,7 @@
               <p><strong>Say first:</strong> Because the text, the vectors, the full-text index, the categories
                 and the agent run history all live in one transactional database. Hybrid search is a single query,
                 and deleting a document deletes its chunks through a foreign key.</p>
-              <p>At ~9k chunks, pgvector's HNSW index answers in milliseconds with 0.98 recall. A dedicated
+              <p>At ~8,400 chunks, pgvector's HNSW index answers in milliseconds with 0.98 recall. A dedicated
                 vector store would add a second system to secure, back up and keep in sync, with no gain at
                 this scale. It becomes worth revisiting in the tens of millions of vectors, or if many tenants
                 each need their own index.</p>
@@ -1861,8 +1875,9 @@
             <div class="qa">
               <p class="q">9. What evaluation framework and metrics do you use for the RAG system?</p>
               <p><strong>Say first:</strong> Ragas, with Claude Sonnet as the judge. Every live answer is
-                scored automatically in the background on twelve metrics. The scores are stored with the
-                answer, sent to Langfuse, and shown on the page and in a Quality workspace.</p>
+                scored automatically in the background by nine judges: seven quality metrics and two safety checks.
+                The scores are stored with the answer, sent to Langfuse, and shown on the page and in the
+                RAG Metrics workspace.</p>
               <div class="tablewrap">
                 <table>
                   <thead><tr><th>Group</th><th>Metrics</th><th>Weight in overall</th></tr></thead>
@@ -1880,6 +1895,15 @@
                 never counted as zero. Clicking any metric shows the judge's reasoning, for example each claim
                 with its verdict, or each excerpt with its relevance.</p>
             </div>
+            <div class="why">
+              <span class="label">If they ask "and the agents?"</span>
+              <p>The agents are scored differently: every Evidence Agent and Fit-Gap Copilot run is scored from
+                checks it already makes, with no judge model, so the scores cost nothing. They cover citation validity,
+                unsupported claims, tool errors and redundant calls, budget exhaustion, topic adherence, and guardrail
+                events such as refusals and blocked web searches. They go to Langfuse and to the run's Evaluation tab
+                (<code>backend/agents/agent_eval.py</code>). What they don't cover yet is goal accuracy, which needs
+                a labelled dataset or a judge.</p>
+            </div>
 
             <div class="qa">
               <p class="q">10. <em>(Skeptical)</em> You're using an LLM to grade an LLM. Why should I believe the scores?</p>
@@ -1888,9 +1912,9 @@
               <ul>
                 <li><strong>Against people:</strong> reviewers mark answers Grounded / Partly / Not grounded. Cohen's
                   kappa is reported once 20 reviews exist. Today there are 0, and the UI shows a banner saying the scores are unverified.</li>
-                <li><strong>Against itself:</strong> re-scoring the same answer moves it ±0.01–0.04, so differences
+                <li><strong>Against itself:</strong> re-scoring the same answer moved it by 0.008–0.026 in the three re-scored answers, so differences
                   under ~0.05 are treated as noise.</li>
-                <li><strong>A known bias we found:</strong> 18 of 76 "unsupported claims" were the answer describing its
+                <li><strong>A known bias we found:</strong> some "unsupported claims" were the answer describing its
                   own sources, which the prompt asks for. Faithfulness is therefore slightly understated, and we can
                   explain exactly why.</li>
               </ul>
@@ -1912,14 +1936,14 @@
             </div>
 
             <div class="qa">
-              <p class="q">11. How is the knowledge graph built from the Markdown files, including entity and relationship extraction?</p>
+              <p class="q">11. How is the knowledge graph built from the Markdown files, including entity and relationship extraction, and how do you know it's right?</p>
               <p><strong>Say first:</strong> Without a language model. Extraction is deterministic: patterns and
                 structure-aware parsing over the Markdown. The same input always produces the same graph, which a test checks.</p>
               <div class="tablewrap">
                 <table>
                   <thead><tr><th>Entity</th><th>How it is recognised</th><th>Count</th></tr></thead>
                   <tbody>
-                    <tr><td>Process (BPML)</td><td>Code patterns such as <code>O-020-090</code>, plus the BPML hierarchy parsed from the workbook</td><td>1,985</td></tr>
+                    <tr><td>Process (BPML)</td><td>Code patterns such as <code>O-020-090</code>, plus the BPML hierarchy read from the process house document in the corpus</td><td>1,976</td></tr>
                     <tr><td>Document</td><td>Every indexed Markdown file, carrying its category</td><td>217</td></tr>
                     <tr><td>Spec / ticket</td><td><code>SPARK-\d{4,6}</code>, and rows of the specification register</td><td>165</td></tr>
                     <tr><td>System</td><td>A curated dictionary: S/4HANA, ECC, Salesforce, SOVOS, Fiori, CPI, EWM, GTS, MDG, …</td><td>18</td></tr>
@@ -1928,11 +1952,15 @@
                 </table>
               </div>
               <p>Relationships come from co-occurrence within a document and from structure:
-                <code>specifies_process</code> (1,947), <code>subprocess_of</code> (1,846), <code>mentions_system</code> (556),
-                <code>belongs_to</code>, <code>references_ticket</code> and <code>implements_ticket</code> — six types, each
-                carrying the rule that made it and the chunks it came from. A passage layer links 8,867 chunks to the
+                <code>specifies_process</code> (1,947), <code>subprocess_of</code> (1,838), <code>mentions_system</code> (549),
+                <code>belongs_to</code> (236), <code>references_ticket</code> (189) and <code>implements_ticket</code> (13) — six types, each
+                carrying the rule that made it and the chunks it came from. A passage layer links 8,368 chunks to the
                 entities they name. Queries use in-memory breadth-first
                 search for paths and a 2-hop "bridge" expansion to get from a platform, through an interface spec, to its tickets.</p>
+              <p><strong>How we know it's right:</strong> a Graph Quality view checks the graph on accuracy, completeness,
+                consistency, structure and freshness (latest run: 11 of 14 checks pass; every one of 4,537 cited passages
+                names its target). It also scores the plain-English → Cypher feature on 28 questions: 0.92, with 23 of 25
+                answerable questions correct. The reference queries are not yet human-reviewed, so treat that as indicative.</p>
             </div>
             <div class="why">
               <span class="label">If asked "why not let an LLM extract the graph?"</span>
@@ -1944,14 +1972,24 @@
             </div>
 
             <div class="qa">
-              <p class="q">12. How is the graph kept current, and why not Neo4j?</p>
-              <p><strong>Say first:</strong> It rebuilds automatically from the same folders the vector index reads. The
-                cache is keyed by a SHA-256 hash of each file's content, so adding a document is enough. Neo4j
-                would add a server with no benefit at 2–5k nodes, but the graph already exports to Neo4j.</p>
-              <p>Adding a category means creating a folder, with no code change. <code>kg_neo4j_export.py</code> writes
-                the graph in Neo4j's model (PascalCase labels, SCREAMING_SNAKE relationship types) together with
-                a Cypher schema, so migrating is an export, not a rewrite. Move to Neo4j when the graph reaches
-                hundreds of thousands of nodes, needs concurrent writes, or has to be shared with other systems.</p>
+              <p class="q">12. How is the graph kept current, and where does Neo4j fit?</p>
+              <p><strong>Say first:</strong> The graph is built into <code>data/knowledge_graph.json</code>, which is the
+                source of truth, and rebuilds itself when its inputs change. Neo4j holds a read-only copy for querying,
+                in Cypher or in plain English, and that copy is replaced whole on every load, so it can't drift.</p>
+              <ul>
+                <li><strong>Kept current:</strong> the build is fingerprinted from every corpus file, the content of the
+                  process house document and the retrieval index. Change any of them and the graph rebuilds. Adding a
+                  category means creating a folder, with no code change.</li>
+                <li><strong>Neo4j's role:</strong> after a rebuild, or on app start when its copy is stale, the graph is
+                  reloaded into Neo4j in about 3 s (<code>backend/graph/kg_neo4j_load.py</code>). It is modelled the
+                  Neo4j way (PascalCase labels, SCREAMING_SNAKE relationship types) and includes the chunks, so passage-level
+                  evidence can be queried: <code>Document → HAS_CHUNK → Chunk → MENTIONS</code>.</li>
+                <li><strong>Plain English to Cypher:</strong> Claude receives the schema and its values, not the documents.
+                  Each generated query is checked with <code>EXPLAIN</code> and shown before it runs, and it runs read-only.</li>
+                <li><strong>Why not make Neo4j the primary store yet:</strong> the agents' traversals run in memory in under
+                  2 ms, and a JSON file built deterministically is easy to diff and rebuild. Make Neo4j the system of record
+                  when the graph needs concurrent writes, must be shared with other systems, or outgrows memory.</li>
+              </ul>
             </div>
           </section>
 
@@ -1983,13 +2021,15 @@
                 <li><strong>On screen:</strong> recalled notes appear in a separate panel labelled <em>not evidence</em>.</li>
               </ul>
               <p>It is optional and fails safe. If the server is down, every memory call returns empty and the
-                agent runs as before.</p>
+                agent runs as before. In the server deployment Hindsight runs in its own container and keeps its
+                data in a <code>hindsight</code> database on the stack's Postgres, backed up with everything else.</p>
             </div>
             <div class="warn">
               <span class="label">Be ready for the data-residency follow-up</span>
-              <p>Hindsight uses an LLM (Claude, via LiteLLM) to turn an investigation note into facts, so those notes
-                leave the machine on every retain. Its launcher can use a local Ollama model instead if that is
-                a requirement.</p>
+              <p>Hindsight uses Claude via LiteLLM (Opus to turn an investigation note into facts, Sonnet to answer
+                "Ask memory"), so those notes leave the machine on every retain. Its embeddings run locally. It can be
+                pointed at a local Ollama model by overriding its model settings; both the Mac setup and the server stack
+                default to Anthropic.</p>
             </div>
           </section>
 
@@ -2018,6 +2058,11 @@
                 Practice, Localization source, Reference), which is what makes a three-way comparison possible.
                 A localization only raises the adjusted score when it is <em>confirmed</em> with a source. A
                 suspected one does not.</p>
+              <p>A run can have one of two <strong>subjects</strong>: the Country As-Is (how far is the country from the
+                template?) or SAP Best Practice (how far has the template drifted from SAP standard?). In a Best Practice
+                run, localization and the SAP score are switched off by the code, because there is no country in it.
+                The four scores are template alignment, SAP alignment, localization-adjusted, and harmonization
+                potential, and the working behind each is shown on hover.</p>
             </div>
 
             <div class="qa">
@@ -2025,9 +2070,12 @@
               <p><strong>Say first:</strong> No. It replaces the first draft, not the judgement. The consultant starts from a
                 sourced register in which every item carries a quote, instead of a blank workbook, and spends
                 the workshop on decisions rather than on finding the documents.</p>
-              <p>On accuracy, be precise: there is a golden set (<code>docs/spark-fitgap-eval-golden-set.xlsx</code>)
-                and a holdout mode that hides the fit registers to measure the agent honestly. Present results from
-                those, not impressions. Semantic accuracy is left to a human on purpose (QG3). One real safeguard
+              <p>On accuracy, be precise. Every Fit-Gap Copilot run is scored in Langfuse and on its Evaluation tab from
+                its own checks: quality gates passed, citation validity, tool use and guardrails
+                (<code>backend/agents/agent_eval.py</code>). Those measure whether the evidence holds up, not whether the
+                conclusion is right. The golden set (<code>docs/spark-fitgap-eval-golden-set.xlsx</code>) and holdout mode
+                belong to InsightLens, not the Copilot, so don't quote them as the Copilot's accuracy. Semantic accuracy
+                is left to a human on purpose (QG3). One real safeguard
                 came from a failure: the first real run gave a measured-looking score over a register that said
                 everything matched. Now a dimension rated 2 or lower must name at least one deviation.</p>
             </div>
@@ -2050,12 +2098,12 @@
                     <tr><td>Original files</td><td>File system: beside the source <code>markdown/</code> folder for bulk conversions; <code>.workdir/&lt;id&gt;/</code> for browser uploads</td><td>The database stores the Markdown path. The original is found by folder convention</td></tr>
                     <tr><td>Converted Markdown</td><td><code>solvay-spark/&lt;category&gt;/markdown/</code> and <code>knowledge_base/</code></td><td>Plain files, easy to diff and review</td></tr>
                     <tr><td>Embeddings and vector records</td><td>Postgres + pgvector: <code>rag_documents</code>, <code>rag_chunks</code> (text, <code>vector(1024)</code>, full-text index)</td><td>HNSW index; chunks are deleted with their document through a foreign key</td></tr>
-                    <tr><td>Session attachments</td><td>Separate database <code>docling_session</code>, one schema per session</td><td>Never mixed into the corpus; deleted after 12 h unused</td></tr>
-                    <tr><td>Knowledge graph</td><td><code>knowledge_graph.json</code> (cache), loaded into memory</td><td>Rebuilt from content hashes; Neo4j export in <code>docs/</code></td></tr>
-                    <tr><td>Agent outputs</td><td>Postgres: <code>evidence_runs</code>, <code>fitgap_runs/entries/reviews</code>, <code>rollout_runs/decisions</code>, <code>ask_runs</code></td><td>Written as the run happens, with every tool call</td></tr>
-                    <tr><td>Execution traces</td><td>Langfuse: one trace per run, spans for retrieval, tools and model calls</td><td>Optional; secrets and emails masked</td></tr>
-                    <tr><td>Evaluation results</td><td>Postgres: <code>ask_evaluations</code>, <code>ask_evaluation_history</code>, <code>ask_reviews</code>, <code>eval_experiments</code>(+<code>_items</code>); also Langfuse scores and the <code>spark-l2c-eval</code> dataset</td><td>The judge's reasoning is stored locally; the scores go to Langfuse</td></tr>
-                    <tr><td>Agent memory</td><td>The Hindsight server's own store, bank <code>spark-evidence</code></td><td>Verified claims only</td></tr>
+                    <tr><td>Session attachments</td><td>Separate database (<code>docling_session</code> locally, <code>solvay_session</code> on the server), one schema per session</td><td>Never mixed into the corpus; deleted after 12 h unused</td></tr>
+                    <tr><td>Knowledge graph</td><td><code>data/knowledge_graph.json</code> (source of truth), loaded into memory; a full copy in Neo4j for querying</td><td>Rebuilt when its inputs change; the Neo4j copy is replaced whole on each load</td></tr>
+                    <tr><td>Agent outputs</td><td>Postgres: <code>evidence_runs</code>, <code>fitgap_runs/entries/reviews</code>, <code>rollout_runs/decisions</code>, <code>workshop_sessions/decisions</code>, <code>ask_runs</code></td><td>Written as the run happens, with every tool call, the evidence it returned and the step-by-step log. This is what the screens show</td></tr>
+                    <tr><td>Execution traces</td><td>Langfuse: one trace per run, spans for retrieval, tools and model calls</td><td>Optional, and a parallel copy: the screens don't read it. Secrets and e-mails masked; phone numbers are not</td></tr>
+                    <tr><td>Evaluation results</td><td>Postgres: <code>ask_evaluations</code>, <code>ask_evaluation_history</code>, <code>ask_reviews</code>, <code>eval_experiments</code>(+<code>_items</code>), <code>graph_quality_runs</code>, and each agent run's own evaluation column; also Langfuse scores and the <code>spark-l2c-eval</code> dataset</td><td>The judge's reasoning is stored locally; the scores go to Langfuse</td></tr>
+                    <tr><td>Agent memory</td><td>Hindsight, bank <code>spark-evidence</code>; on the server, a <code>hindsight</code> database on the stack's Postgres</td><td>Verified claims only</td></tr>
                     <tr><td>Web search results</td><td>Inside the run's own record, as <code>WEB:</code> sources with their URL and cited passage</td><td>Only the passages cited, not whole pages; no separate web cache</td></tr>
                   </tbody>
                 </table>
@@ -2066,7 +2114,8 @@
               <p class="q">17. What data leaves our environment, and is this production-ready from a security standpoint?</p>
               <p><strong>Say first:</strong> Embeddings, search and the graph run locally. The question and the
                 retrieved excerpts go to Anthropic to write the answer, and traces go to Langfuse if it is
-                enabled. It is a <em>local workbench today, not a hardened service.</em></p>
+                enabled. It now ships as a container stack with a sign-in page, but it is <em>not yet a hardened
+                service</em>: the API behind the sign-in is open.</p>
               <ul>
                 <li><strong>Stays local:</strong> document conversion, OCR, embeddings (BGE-M3 on Ollama), vector and
                   keyword search, knowledge graph, and optionally the vision model (Qwen3-VL on MLX).</li>
@@ -2075,12 +2124,17 @@
                   an agent's gated search runs, stripped of ticket numbers, BPML codes and contact details, and only to sap.com and
                   europa.eu; trace content to Langfuse,
                   where document text is <em>not</em> masked on purpose, so point it at a project you're allowed to show the corpus to;
-                  memory notes to Claude for fact extraction; images, if a cloud vision provider is chosen.</li>
-                <li><strong>Never shown to users:</strong> e-mail addresses and phone numbers. They are removed from every answer, excerpt,
-                  history view and export, whatever the source document says.</li>
-                <li><strong>Missing before a network deployment:</strong> authentication and role-based access control,
-                  upload size limits, sandboxing of the document parsers, and per-user data separation. The README lists
-                  these as the conditions for leaving localhost.</li>
+                  memory notes to Claude Opus for fact extraction (and Sonnet for "Ask memory"); the graph schema, not documents, for plain-English Cypher; images, if a cloud vision provider is chosen.</li>
+                <li><strong>Never shown by the agents or Ask RAG:</strong> e-mail addresses and phone numbers. They are removed from every
+                  answer, excerpt, history view and export under the agent and Ask APIs, whatever the source document says.
+                  Fit-Gap Copilot records are also masked before they are stored.</li>
+                <li><strong>What exists now:</strong> a Docker image and compose stack (app, Postgres, Ollama, Neo4j, Hindsight).
+                  Only the app port is published and the other services sit on a private network. There is a page sign-in
+                  with one shared username and password, and uploads are capped at 12 files per session.</li>
+                <li><strong>Missing before exposing it on a network:</strong> real authentication on the API (the sign-in is a
+                  presentation lock, and <code>/api/*</code> stays open), role-based access control, a TLS proxy or VPN, upload
+                  size limits, sandboxing of the document parsers, and per-user data separation. Set
+                  <code>APP_SECRET</code>/<code>DEMO_SECRET</code> and change the default passwords.</li>
               </ul>
             </div>
             <div class="warn">
@@ -2106,16 +2160,28 @@
                 produced it. It can be reopened with nothing re-run and nothing re-billed.</p>
               <ul>
                 <li><strong>In the product:</strong> a history panel on every page. Answers link to the exact chunks, and
-                  claims show the arithmetic behind their score.</li>
-                <li><strong>In Langfuse:</strong> one trace per run, grouped into sessions per upload. Retrieval, tool,
+                  claims show the arithmetic behind their score. The investigation log and trace panels show every tool
+                  call with the passages, graph nodes or process slice it returned, and each finding links back to the
+                  call that found its evidence (lineage).</li>
+                <li><strong>In Langfuse:</strong> one trace per run; Fit-Gap and InsightLens runs are grouped into one
+                  session per upload. Retrieval, tool,
                   generation and evaluator spans, with cost per model call. Evaluation scores are attached to the trace,
                   so "all answers with faithfulness below 0.7" is a filter.</li>
-                <li><strong>Reproducibility:</strong> prompt and rubric hashes are stored on each run, so two runs on either side of
-                  a prompt change can't be compared by accident.</li>
-                <li><strong>Quality monitoring:</strong> the Quality tab shows score trends, failures grouped by cause and
+                <li><strong>Reproducibility:</strong> the prompt hash and corpus fingerprint are stored on each run, and the judge
+                  model and Ragas version on each evaluation, so two runs on either side of a change can't be compared by accident.</li>
+                <li><strong>Agent scores:</strong> every Evidence Agent and Fit-Gap Copilot run is scored from its own checks,
+                  on its Evaluation tab and in Langfuse (see Q9).</li>
+                <li><strong>Quality monitoring:</strong> the RAG Metrics tab shows score trends, failures grouped by cause and
                   subject, noisy source documents, experiment comparisons, and judge trust. A Langfuse dashboard is
                   also kept as code in the repo.</li>
               </ul>
+            </div>
+            <div class="why">
+              <span class="label">If they ask "are the logs on screen coming from Langfuse?"</span>
+              <p>No. The logs you see come straight from the application's own records in our database. Langfuse holds a
+                parallel copy for engineering monitoring, and the screen links to it. The app streams each step to the page
+                as it happens and saves it to Postgres; a reopened run is read back from there. The screens would still
+                show their logs with Langfuse switched off. More detail: <a href="question_answer.html">Where the agent logs come from</a>.</p>
             </div>
           </section>
 
@@ -2139,19 +2205,19 @@
                   re-embedding. Embedding is local, so indexing costs nothing per token.</div>
                 <div class="choice-box b"><span class="ct">What would need work at enterprise scale</span>
                   A single FastAPI process with a thread per run; Ollama embedding throughput for bulk loads;
-                  an in-memory graph (fine to ~10⁵ nodes, then Neo4j); multiple users would need a job queue
-                  and horizontal workers.</div>
+                  an in-memory graph for the agents (fine to ~10⁵ nodes; Neo4j already holds a copy); multiple users would need a
+                  job queue and horizontal workers.</div>
               </div>
               <p><strong>Cost levers already in place:</strong></p>
               <ul>
                 <li>Opus writes the answers, Sonnet judges them. Judging on Opus would cost more than answering.</li>
-                <li><code>RAG_EVAL_SAMPLE</code> judges a fraction of traffic; the Ragas disk cache makes re-running experiments cheap.</li>
+                <li><code>RAG_EVAL_SAMPLE</code> can judge a fraction of traffic (the default judges every answer).</li>
                 <li>Hard caps on tool calls and tokens per run, and an estimate shown before a Fit-Gap run starts.</li>
                 <li>The scope guardrail refuses an off-topic question for the cost of one small-model call (~2 s), with no search, no
                   answer and no scoring. Before, "Write a poem" went through the whole pipeline and all nine judges.</li>
-                <li>Web search is capped at 2 per run; one search is about 19k input tokens on Sonnet, around 17 s.</li>
-                <li>Memory reduces repeat investigations. Measured: raising retrieval from 8 to 12 excerpts cost 40% more
-                  tokens for +0.02 overall, which is within noise, so we kept 8.</li>
+                <li>Web search is capped at 2 per run and runs on Sonnet, not Opus.</li>
+                <li>Agent scores are computed from checks the run already makes, so scoring an agent run costs no model calls.</li>
+                <li>Memory reduces repeat investigations.</li>
               </ul>
             </div>
             <div class="why">
@@ -2178,17 +2244,18 @@
                 <table>
                   <thead><tr><th>Limitation today</th><th>Next step</th></tr></thead>
                   <tbody>
-                    <tr><td>Localhost only: no auth, RBAC or upload limits</td><td>SSO + roles, containerised deployment, sandboxed parsers</td></tr>
+                    <tr><td>Containerised, with a shared page sign-in, but the API is unauthenticated, with no roles and no upload size limit</td><td>SSO and roles in front of the API, a TLS proxy, upload size limits, sandboxed parsers</td></tr>
                     <tr><td>Evaluation judge not yet calibrated against people (0 / 20 reviews)</td><td>Collect 20+ reviews and publish the kappa; fix the faithfulness self-description bias</td></tr>
                     <tr><td>Offline experiments are run by hand</td><td>Turn the 27-question set into a CI regression gate on prompt or retrieval changes</td></tr>
                     <tr><td>Knowledge graph misses relationships stated only in prose</td><td>LLM-assisted relation extraction, with each edge checked against its source sentence</td></tr>
                     <tr><td>Image reading: dashed or crossing connectors, borderless tables</td><td>Better vision models; human review of DRAFT flows</td></tr>
-                    <tr><td>Single process, in-memory graph</td><td>Job queue and workers; Neo4j when the graph outgrows memory</td></tr>
-                    <tr><td>The Fit-Gap semantic check is human-only</td><td>Measure against the golden set and holdout, then decide where a model check is safe</td></tr>
+                    <tr><td>Single process; agents traverse an in-memory graph, with Neo4j as a read-only copy</td><td>Job queue and workers; make Neo4j the primary store when the graph needs concurrent writes or outgrows memory</td></tr>
+                    <tr><td>The Fit-Gap semantic check is human-only, and agent scores don't yet measure goal accuracy</td><td>Build a labelled set for the Copilot (InsightLens already has a golden set and holdout), then decide where a model check is safe</td></tr>
                     <tr><td>The scope filter lets questions through when it can't be reached</td><td>Decide per deployment; a production setup may prefer to refuse</td></tr>
                     <tr><td>One web allow-list for every country</td><td>Add each rollout country's tax authority, e.g. <code>gov.pl</code></td></tr>
                     <tr><td>Langfuse traces still hold document text, including phone numbers</td><td>Mask phone numbers in traces too, or restrict the Langfuse project</td></tr>
-                    <tr><td>Contact details are hidden, not deleted, in stored data</td><td>Scrub stored runs if the data-protection policy requires it</td></tr>
+                    <tr><td>Fit-Gap Copilot records store no contact details, but InsightLens, Evidence Agent and Ask records may still hold them (hidden on output)</td><td>Extend masking-before-storage to every store if the data-protection policy requires it</td></tr>
+                    <tr><td>Graph plain-English → Cypher reference queries are not yet human-reviewed</td><td>Review the 28 reference queries so the 0.92 score can be quoted as measured</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -2203,12 +2270,14 @@
 
           <footer>
             <p><strong>Reusing this document:</strong> figures were read from the running system and the code on
-              24 September 2026: 217 documents, 2,389 graph nodes, 12 scored answers, 0 human reviews, and the guardrails
-              as built that day (scope check, gated web search, contact removal). Re-check the
+              30 September 2026: 217 documents, ~8,400 chunks, ~2,380 graph entities, 21 scored answers (mean 0.69), 0 human
+              reviews, and the system as built that day (scope check, gated web search, contact removal, agent scoring,
+              graph quality view, Neo4j copy, container deployment with a page sign-in). Re-check the
               cheat-sheet numbers before a later presentation. The review count and scored-answer average change with use.</p>
             <p>Related: <a href="hindsight-agent-memory.html">Hindsight agent memory</a> ·
               <a href="knowledge-graph-entity-relationships.html">Knowledge graph entities &amp; relationships</a> ·
-              <a href="rag-evaluation.md">RAG evaluation</a>.</p>
+              <a href="rag-evaluation.md">RAG evaluation</a> ·
+              <a href="question_answer.html">Where the agent logs come from</a>.</p>
           </footer>
         </div>
       </div>

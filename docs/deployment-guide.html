@@ -77,6 +77,7 @@
            collapsible block is never mistaken for a callout. */
         --disclose-bg: #eceafb;
         --disclose-ink: #4f46b8;
+        --search-where: #a8420a; /* search result titles: burnt orange */
         --win-bg: #e8f3ea;
         --win-border: #2e7d4f;
         --warn-bg: #faf3e0;
@@ -109,6 +110,7 @@
           --accent-soft: #51576d; /* Surface 1 */
           --disclose-bg: #454063;
           --disclose-ink: #babbf1; /* Lavender */
+          --search-where: #f7c4a3; /* search result titles: light peach */
           --win-bg: #292c3c; /* Mantle */
           --win-border: #a6d189; /* Green */
           --warn-bg: #292c3c; /* Mantle */
@@ -140,6 +142,7 @@
         --accent-soft: #51576d; /* Surface 1 */
         --disclose-bg: #454063;
         --disclose-ink: #babbf1; /* Lavender */
+        --search-where: #f7c4a3; /* search result titles: light peach */
         --win-bg: #292c3c; /* Mantle */
         --win-border: #a6d189; /* Green */
         --warn-bg: #292c3c; /* Mantle */
@@ -169,6 +172,7 @@
         --accent-soft: #e2efed;
         --disclose-bg: #eceafb;
         --disclose-ink: #4f46b8;
+        --search-where: #a8420a; /* search result titles: burnt orange */
         --win-bg: #e8f3ea;
         --win-border: #2e7d4f;
         --warn-bg: #faf3e0;
@@ -202,6 +206,7 @@
         --accent-soft: #e3ece8;
         --disclose-bg: #ece7f5;
         --disclose-ink: #4a41ad;
+        --search-where: #9c3d0b; /* search result titles: burnt orange, deepened for paper */
         --win-bg: #ebf1e5;
         --win-border: #44712f;
         --warn-bg: #f8f0de;
@@ -238,6 +243,7 @@
           --accent-soft: #e2efed;
           --disclose-bg: #eceafb;
           --disclose-ink: #4f46b8;
+          --search-where: #a8420a; /* search result titles: burnt orange */
           --win-bg: #e8f3ea;
           --win-border: #2e7d4f;
           --warn-bg: #faf3e0;
@@ -467,6 +473,180 @@
       .meta-strip strong {
         color: var(--ink);
         font-weight: 600;
+      }
+
+      /* --- Search ------------------------------------------------------------
+         Built by the script at load, in a header bar pinned to the top right
+         beside the theme toggle (the script moves the toggle into the bar), so
+         it can be reached from anywhere in a long page. Authors write no markup
+         for it, and with scripting off it does not exist. <html
+         data-search="off"> leaves it out of a page. Colours are tokens only;
+         the shadows match the toggle's. Below 900px the bar drops into the
+         page flow above the title, so it never covers the heading. */
+      .doc-topbar {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+      }
+      .doc-topbar .theme-toggle {
+        position: static;
+        flex: none;
+      }
+      .doc-search {
+        position: relative;
+        width: 22rem;
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .doc-search-field {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.3rem 0.85rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .doc-search-field:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .doc-search-icon {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1;
+      }
+      .doc-search input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.8rem;
+      }
+      .doc-search input::placeholder {
+        color: var(--muted);
+      }
+      .doc-search kbd {
+        font-family: inherit;
+        font-size: 0.72rem;
+        color: var(--muted);
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.4rem;
+        white-space: nowrap;
+      }
+      /* The dropdown under the box: the status line, then the hits. */
+      .doc-search-panel {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        width: min(40rem, calc(100vw - 2rem));
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+        padding: 0.35rem;
+      }
+      .doc-search-panel[hidden] {
+        display: none;
+      }
+      .doc-search-status {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.35rem 0.6rem 0.4rem;
+      }
+      .doc-search-results {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: min(65vh, 32rem);
+        overflow: auto;
+      }
+      .doc-search-results:empty {
+        display: none;
+      }
+      .doc-search-results li {
+        margin: 0;
+      }
+      .doc-search-hit {
+        display: block;
+        padding: 0.55rem 0.7rem;
+        border-radius: 7px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .doc-search-hit:hover,
+      .doc-search-results li[aria-selected="true"] .doc-search-hit {
+        background: var(--accent-soft);
+      }
+      /* The result's section and subsection, in its own dark-orange token so
+         it reads apart from the teal matched words below it. The second
+         sanctioned exception to the single accent, after the disclosure pair;
+         --search-where is set in all six theme blocks, at 4.5:1 or better on
+         both the dropdown and the highlighted row. */
+      .doc-search-where {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--search-where);
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+      }
+      .doc-search-snippet {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--muted);
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+      .doc-search-snippet mark {
+        background: none;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      /* Every occurrence in the page, painted without touching the DOM
+         (CSS Custom Highlight API). Browsers without it skip this rule and
+         still scroll to the match. */
+      ::highlight(doc-search) {
+        background-color: var(--accent-soft);
+        color: var(--ink);
+      }
+      .doc-search-target {
+        outline: 2px solid var(--accent);
+        outline-offset: 4px;
+        border-radius: 4px;
+        transition: outline-color 0.8s ease;
+      }
+      .doc-search-target.doc-search-fade {
+        outline-color: transparent;
+      }
+      @media (max-width: 900px) {
+        .doc-topbar {
+          position: static;
+          margin: 0.75rem clamp(1rem, 3vw, 3rem) 0;
+        }
+        .doc-search {
+          flex: 1;
+          width: auto;
+        }
+        .doc-search-panel {
+          left: 0;
+          width: auto;
+        }
+      }
+      @media print {
+        .doc-topbar .doc-search {
+          display: none;
+        }
       }
 
       .layout {
@@ -2437,15 +2617,51 @@ docker compose logs --tail 50 app</pre>
             </div>
             <h3>From any folder</h3>
             <pre class="language-bash">
-docker ps --filter name=solvay-spark-spine
+docker ps --filter name=solvay-spark-spine --format '{{.Names}}\t{{.Status}}'
 docker compose -p solvay-spark-spine ps
 docker logs --tail 50 solvay-spark-spine-app-1
 docker stats --no-stream</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker ps --filter name=solvay-spark-spine --format '{{.Names}}\t{{.Status}}'</code></td><td>Every running container in the stack, one per line, with its name and status. <code>--filter</code> keeps only names containing <code>solvay-spark-spine</code>, which hides other teams' containers; <code>--format</code> prints just the two columns. Add <code>-a</code> to include stopped ones such as <code>ollama-pull</code> and <code>hindsight-db</code>.</td></tr>
+                  <tr><td><code>docker compose -p solvay-spark-spine ps</code></td><td>The same, through Compose. <code>-p</code> names the project, so it works outside the folder.</td></tr>
+                  <tr><td><code>docker logs --tail 50 solvay-spark-spine-app-1</code></td><td>The app's last 50 log lines.</td></tr>
+                  <tr><td><code>docker stats --no-stream</code></td><td>Each container's CPU and memory use, once.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>A healthy stack looks like this:</p>
+            <pre>
+solvay-spark-spine-app-1         Up 2 hours (healthy)
+solvay-spark-spine-postgres-1    Up 2 hours (healthy)
+solvay-spark-spine-neo4j-1       Up 2 hours (healthy)
+solvay-spark-spine-ollama-1      Up 2 hours
+solvay-spark-spine-hindsight-1   Up 2 hours (healthy)</pre>
             <p>
-              <code>docker ps --filter</code> lists the stack's containers from anywhere.
-              <code>-p solvay-spark-spine</code> names the compose project, so compose
-              commands work outside the folder. <code>docker stats</code> shows each
-              container's CPU and memory use.
+              Compose names each container project, then service, then <code>-1</code>,
+              so the app is always <code>solvay-spark-spine-app-1</code>.
+            </p>
+
+            <h3 id="check-network">Check the app is on ivolve-network</h3>
+            <pre class="language-bash">
+docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | grep solvay-spark-spine</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>The networks the app container is on. Expect <code>ivolve-network solvay-spark-spine_default</code>.</td></tr>
+                  <tr><td><code>docker network inspect ivolve-network --format … | grep solvay-spark-spine</code></td><td>The same question asked from the network's side: which of our containers are on <code>ivolve-network</code>. Expect only <code>solvay-spark-spine-app-1</code>. The databases, Ollama and Hindsight should not appear.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              If <code>ivolve-network</code> is missing from the first command's output,
+              the server has an older <code>compose.yml</code>. Copy the current one over
+              (section 11, "After changing compose.yml") and run
+              <code>docker compose up -d app</code>.
             </p>
             <h3>Restart or stop</h3>
             <pre class="language-bash">
@@ -3073,6 +3289,22 @@ docker compose up -d postgres</pre>
               });
             });
           syncToHash(true);
+
+          // Search (and anything else) asks for an element to be shown with a
+          // "doc:reveal" event; switch to the tab that holds it, without the
+          // jump to the top a hash change would cause.
+          document.addEventListener("doc:reveal", function (ev) {
+            var el = ev.detail;
+            for (var i = 0; i < sections.length; i++) {
+              if (sections[i] && sections[i].contains(el)) {
+                if (i !== currentIndex()) {
+                  history.pushState(null, "", tabs[i].getAttribute("href"));
+                  showSection(i, false);
+                }
+                return;
+              }
+            }
+          });
         } else {
           // Scroll mode: highlight the section currently under the reader.
           var ticking = false;
@@ -3906,6 +4138,418 @@ docker compose up -d postgres</pre>
             wipeBtn.textContent = wipeLabel;
           });
         }
+      })();
+
+      // --- Search ------------------------------------------------------------
+      // A box in the header bar, beside the theme toggle, that finds text
+      // anywhere in the document,
+      // including sections a tabbed page is hiding and blocks a disclosure has
+      // folded away. Built here, so a page needs no markup for it; with
+      // <html data-search="off"> it is left out. Matching ignores case and
+      // accents and wants every word typed; when nothing has them all it falls
+      // back to results with some of them, and says so. Opening a result asks
+      // the navigation to reveal its section (the "doc:reveal" event), scrolls
+      // to it, and paints every occurrence with the CSS Custom Highlight API,
+      // which colours text without editing the DOM the other scripts built.
+      (function () {
+        var root = document.documentElement;
+        if (root.getAttribute("data-search") === "off") return;
+        var content = document.querySelector(".content") ||
+          document.querySelector("main");
+        if (!content) return;
+        var sections = Array.prototype.slice.call(
+          content.querySelectorAll("section.phase"),
+        );
+        if (!sections.length) return;
+
+        // --- The box ---
+        var box = document.createElement("div");
+        box.className = "doc-search";
+        box.setAttribute("role", "search");
+        var field = document.createElement("label");
+        field.className = "doc-search-field";
+        var icon = document.createElement("span");
+        icon.className = "doc-search-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "⌕";
+        var input = document.createElement("input");
+        input.type = "search";
+        input.placeholder = "Search this document";
+        input.setAttribute("aria-label", "Search this document");
+        input.setAttribute("autocomplete", "off");
+        input.setAttribute("spellcheck", "false");
+        input.setAttribute("role", "combobox");
+        input.setAttribute("aria-expanded", "false");
+        input.setAttribute("aria-controls", "docSearchResults");
+        var hint = document.createElement("kbd");
+        hint.textContent = "/";
+        hint.title = "Press / or Ctrl+K to search";
+        field.appendChild(icon);
+        field.appendChild(input);
+        field.appendChild(hint);
+        var panel = document.createElement("div");
+        panel.className = "doc-search-panel";
+        panel.hidden = true;
+        var status = document.createElement("div");
+        status.className = "doc-search-status";
+        status.setAttribute("aria-live", "polite");
+        var list = document.createElement("ol");
+        list.className = "doc-search-results";
+        list.id = "docSearchResults";
+        list.setAttribute("role", "listbox");
+        panel.appendChild(status);
+        panel.appendChild(list);
+        box.appendChild(field);
+        box.appendChild(panel);
+        // The header bar: the search, then the theme toggle, moved in so the
+        // two sit side by side at the top right instead of overlapping.
+        var bar = document.createElement("div");
+        bar.className = "doc-topbar";
+        var toggle = document.getElementById("themeToggle");
+        if (toggle) {
+          toggle.parentNode.insertBefore(bar, toggle);
+          bar.appendChild(box);
+          bar.appendChild(toggle);
+        } else {
+          document.body.insertBefore(bar, document.body.firstChild);
+          bar.appendChild(box);
+        }
+        function show(on) {
+          panel.hidden = !on;
+          input.setAttribute("aria-expanded", String(on));
+        }
+
+        // --- Text, folded so that indexes still line up ---
+        // One character in, one character out: lower case, accents dropped.
+        // Keeping the length is what lets a match in the folded text be cut
+        // out of the original for the snippet.
+        function fold(s) {
+          var out = "";
+          for (var i = 0; i < s.length; i++) {
+            var c = s.charAt(i);
+            var d = c.normalize ? c.normalize("NFD").charAt(0) : c;
+            out += d.toLowerCase().charAt(0) || c;
+          }
+          return out;
+        }
+        // Text nodes worth searching: not the "#" heading links, not the copy
+        // buttons, not the capture boxes' own controls.
+        function skip(node) {
+          var el = node.parentNode;
+          return !!(el && el.closest &&
+            el.closest(".heading-anchor, .copy-btn, .capture-foot, .capture-head .count"));
+        }
+        function textOf(el) {
+          var out = "";
+          var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (var n = walker.nextNode(); n; n = walker.nextNode())
+            if (!skip(n)) out += n.nodeValue;
+          return out.replace(/\s+/g, " ").trim();
+        }
+
+        // --- The index, built on first use so every other script has run ---
+        var BLOCKS = "h2, h3, h4, p, li, pre, tr, dt, dd, summary, figcaption, " +
+          ".card, .flow-box, .chip, .phase-tag, .choice-box, .capture textarea";
+        var index = null;
+        function build() {
+          index = [];
+          sections.forEach(function (sec, si) {
+            var h2 = sec.querySelector("h2");
+            var label = sec.getAttribute("data-nav-label") ||
+              (h2 ? textOf(h2) : sec.id || "Section " + (si + 1));
+            var sub = "";
+            var els = Array.prototype.slice.call(sec.querySelectorAll(BLOCKS));
+            els.forEach(function (el) {
+              if (/^H[34]$/.test(el.tagName)) sub = textOf(el);
+              // Only the outermost block: a list inside a card is searched
+              // as part of the card, not a second time on its own.
+              var up = el.parentNode.closest ? el.parentNode.closest(BLOCKS) : null;
+              if (up && sec.contains(up)) return;
+              var text = el.tagName === "TEXTAREA" ? el.value : textOf(el);
+              if (!text) return;
+              index.push({
+                el: el,
+                sec: sec,
+                si: si,
+                where: /^H[234]$/.test(el.tagName) || !sub ? label : label + " › " + sub,
+                heading: /^H[234]$/.test(el.tagName),
+                text: text,
+                folded: fold(text),
+              });
+            });
+          });
+        }
+
+        // --- Matching ---
+        function termsOf(q) {
+          var t = fold(q).split(/\s+/).filter(Boolean);
+          // Single letters match everywhere and say nothing; keep them only
+          // when they are all the reader typed.
+          var long = t.filter(function (w) { return w.length > 1; });
+          return long.length ? long : t;
+        }
+        function score(entry, terms, phrase) {
+          var s = 0;
+          terms.forEach(function (t) {
+            if (entry.folded.indexOf(t) >= 0) s += entry.heading ? 4 : 1;
+          });
+          if (phrase && entry.folded.indexOf(phrase) >= 0) s += 3;
+          return s;
+        }
+        function search(q) {
+          var terms = termsOf(q);
+          if (!terms.length) return { hits: [], terms: [], partial: false };
+          var phrase = terms.length > 1 ? fold(q.trim()).replace(/\s+/g, " ") : "";
+          function has(e, t) { return e.folded.indexOf(t) >= 0; }
+          var hits = index.filter(function (e) {
+            return terms.every(function (t) { return has(e, t); });
+          });
+          var partial = false;
+          if (!hits.length && terms.length > 1) {
+            partial = true;
+            hits = index.filter(function (e) {
+              return terms.some(function (t) { return has(e, t); });
+            });
+          }
+          hits = hits.map(function (e, i) {
+            return { e: e, s: score(e, terms, phrase), i: i };
+          });
+          hits.sort(function (a, b) { return b.s - a.s || a.i - b.i; });
+          return { hits: hits.map(function (h) { return h.e; }), terms: terms, partial: partial };
+        }
+
+        // --- Snippets: the text around the first match, matches marked ---
+        function spans(folded, terms, from, to) {
+          var out = [];
+          terms.forEach(function (t) {
+            var at = folded.indexOf(t, from);
+            while (at >= 0 && at < to) {
+              out.push([at, Math.min(at + t.length, to)]);
+              at = folded.indexOf(t, at + t.length);
+            }
+          });
+          out.sort(function (a, b) { return a[0] - b[0]; });
+          var merged = [];
+          out.forEach(function (r) {
+            var last = merged[merged.length - 1];
+            if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+            else merged.push(r.slice());
+          });
+          return merged;
+        }
+        function snippet(entry, terms) {
+          var first = entry.folded.length;
+          terms.forEach(function (t) {
+            var at = entry.folded.indexOf(t);
+            if (at >= 0 && at < first) first = at;
+          });
+          if (first === entry.folded.length) first = 0;
+          var from = Math.max(0, first - 60);
+          var to = Math.min(entry.text.length, first + 140);
+          // Start and end on a word, not halfway through one.
+          if (from > 0) {
+            var sp = entry.text.indexOf(" ", from);
+            if (sp >= 0 && sp < first) from = sp + 1;
+          }
+          if (to < entry.text.length) {
+            var end = entry.text.lastIndexOf(" ", to);
+            if (end > first) to = end;
+          }
+          var frag = document.createDocumentFragment();
+          if (from > 0) frag.appendChild(document.createTextNode("… "));
+          var at = from;
+          spans(entry.folded, terms, from, to).forEach(function (r) {
+            if (r[0] > at)
+              frag.appendChild(document.createTextNode(entry.text.slice(at, r[0])));
+            var m = document.createElement("mark");
+            m.textContent = entry.text.slice(r[0], r[1]);
+            frag.appendChild(m);
+            at = r[1];
+          });
+          if (at < to) frag.appendChild(document.createTextNode(entry.text.slice(at, to)));
+          if (to < entry.text.length) frag.appendChild(document.createTextNode(" …"));
+          return frag;
+        }
+
+        // --- Results ---
+        var LIMIT = 60;
+        var current = { hits: [], terms: [] };
+        var selected = -1;
+        var rendered = "";
+        function select(i) {
+          var items = list.children;
+          if (!items.length) return;
+          selected = (i + items.length) % items.length;
+          Array.prototype.forEach.call(items, function (li, j) {
+            li.setAttribute("aria-selected", String(j === selected));
+          });
+          input.setAttribute("aria-activedescendant", items[selected].id);
+          items[selected].scrollIntoView({ block: "nearest" });
+        }
+        function render(q) {
+          rendered = q;
+          list.textContent = "";
+          selected = -1;
+          input.removeAttribute("aria-activedescendant");
+          if (!q.trim()) {
+            status.textContent = "";
+            show(false);
+            paint([]);
+            return;
+          }
+          if (!index) build();
+          current = search(q);
+          var hits = current.hits;
+          var secs = {};
+          hits.forEach(function (h) { secs[h.si] = true; });
+          var nsec = Object.keys(secs).length;
+          if (!hits.length) {
+            status.textContent = "No matches for “" + q.trim() + "”.";
+          } else {
+            status.textContent = (current.partial
+              ? "No result has every word — showing results with some of them. "
+              : "") + hits.length + (hits.length === 1 ? " match" : " matches") +
+              " in " + nsec + (nsec === 1 ? " section" : " sections") +
+              (hits.length > LIMIT ? ", first " + LIMIT + " shown" : "") +
+              ". ↑ ↓ to move, Enter to open, Esc to clear.";
+          }
+          hits.slice(0, LIMIT).forEach(function (h, i) {
+            var li = document.createElement("li");
+            li.id = "docSearchHit" + i;
+            li.setAttribute("role", "option");
+            li.setAttribute("aria-selected", "false");
+            var a = document.createElement("a");
+            a.className = "doc-search-hit";
+            a.href = h.sec.id ? "#" + h.sec.id : "#";
+            a.tabIndex = -1;
+            var where = document.createElement("span");
+            where.className = "doc-search-where";
+            where.textContent = h.where;
+            var snip = document.createElement("span");
+            snip.className = "doc-search-snippet";
+            snip.appendChild(snippet(h, current.terms));
+            a.appendChild(where);
+            a.appendChild(snip);
+            a.addEventListener("click", function (ev) {
+              ev.preventDefault();
+              open(h);
+            });
+            li.appendChild(a);
+            list.appendChild(li);
+          });
+          show(true);
+        }
+
+        // --- Painting every occurrence ---
+        var canPaint = !!(window.CSS && CSS.highlights && window.Highlight);
+        function paint(terms, scope) {
+          if (!canPaint) return;
+          if (!terms.length) {
+            CSS.highlights.delete("doc-search");
+            return;
+          }
+          var ranges = [];
+          var walker = document.createTreeWalker(scope || content, NodeFilter.SHOW_TEXT);
+          for (var n = walker.nextNode(); n && ranges.length < 2000; n = walker.nextNode()) {
+            if (skip(n)) continue;
+            var f = fold(n.nodeValue);
+            terms.forEach(function (t) {
+              var at = f.indexOf(t);
+              while (at >= 0) {
+                var r = document.createRange();
+                r.setStart(n, at);
+                r.setEnd(n, at + t.length);
+                ranges.push(r);
+                at = f.indexOf(t, at + t.length);
+              }
+            });
+          }
+          // Highlight takes ranges as separate arguments, not a list.
+          var hl = new Highlight();
+          ranges.forEach(function (r) { hl.add(r); });
+          CSS.highlights.set("doc-search", hl);
+        }
+
+        // --- Opening a result ---
+        var fadeTimer = null;
+        function open(h) {
+          var el = h.el;
+          // A match inside a folded disclosure: unfold it first.
+          for (var d = el.closest("details"); d; d = d.parentNode.closest("details"))
+            d.open = true;
+          // Close the dropdown so the match is not hidden under it; focusing
+          // the box again brings the same results back.
+          show(false);
+          input.blur();
+          document.dispatchEvent(new CustomEvent("doc:reveal", { detail: el }));
+          // Painting is a nicety: if it fails, still take the reader there.
+          try {
+            paint(current.terms, h.sec);
+          } catch (e) {}
+          var old = document.querySelector(".doc-search-target");
+          if (old) old.classList.remove("doc-search-target", "doc-search-fade");
+          el.classList.add("doc-search-target");
+          clearTimeout(fadeTimer);
+          fadeTimer = setTimeout(function () {
+            el.classList.add("doc-search-fade");
+            setTimeout(function () {
+              el.classList.remove("doc-search-target", "doc-search-fade");
+            }, 900);
+          }, 1800);
+          // Straight away: the section was just shown, and asking for its
+          // position makes the browser lay it out. Waiting for a frame would
+          // leave the scroll to a callback some browsers throttle.
+          el.scrollIntoView({ block: "center" });
+        }
+
+        // --- Keys ---
+        var timer = null;
+        input.addEventListener("input", function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () { render(input.value); }, 120);
+        });
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            select(selected + 1);
+          } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            select(selected - 1);
+          } else if (ev.key === "Enter") {
+            ev.preventDefault();
+            clearTimeout(timer);
+            if (rendered !== input.value) render(input.value);
+            var h = current.hits[selected >= 0 ? selected : 0];
+            if (h) open(h);
+          } else if (ev.key === "Escape") {
+            if (input.value) {
+              input.value = "";
+              render("");
+            } else input.blur();
+          }
+        });
+        input.addEventListener("focus", function () {
+          if (input.value.trim()) {
+            if (rendered !== input.value) render(input.value);
+            else show(true);
+          }
+        });
+        // A click anywhere outside the box closes the dropdown.
+        document.addEventListener("mousedown", function (ev) {
+          if (!box.contains(ev.target)) show(false);
+        });
+        document.addEventListener("keydown", function (ev) {
+          var t = ev.target;
+          var typing = t && (t.isContentEditable ||
+            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+          var slash = ev.key === "/" && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
+          var k = (ev.key === "k" || ev.key === "K") && (ev.ctrlKey || ev.metaKey);
+          if (!slash && !k) return;
+          ev.preventDefault();
+          input.focus();
+          input.select();
+          box.scrollIntoView({ block: "nearest" });
+        });
       })();
     </script>
   </body>

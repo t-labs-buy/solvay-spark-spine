@@ -1604,6 +1604,12 @@
                 volume, so updating the app doesn't wipe the data.
               </div>
               <div class="card">
+                <span class="card-title">Docker network</span>
+                How containers find and talk to each other. Containers on the same
+                network reach each other by name; containers on different networks
+                can't. The server has a shared one, <code>ivolve-network</code>.
+              </div>
+              <div class="card">
                 <span class="card-title">SSH and the .pem key</span>
                 SSH is how you get a terminal on the server. The <code>.pem</code>
                 file is your key; without it the server won't let you in.
@@ -1926,6 +1932,47 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                 </tbody>
               </table>
             </div>
+            <p>Which networks the containers join:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Network</th><th>Who is on it</th><th>Why</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code>ivolve-network</code></td>
+                    <td><code>app</code> only</td>
+                    <td>The server's shared network, required by the ivolve platform team, so the platform (proxy, monitoring) can reach the app. It already exists on the server; <code>external: true</code> tells Compose to join it, never create or delete it.</td>
+                  </tr>
+                  <tr>
+                    <td><code>solvay-spark-spine_default</code></td>
+                    <td>every service, including <code>app</code></td>
+                    <td>The stack's private network, created by Compose. The app reaches <code>postgres</code>, <code>ollama</code>, <code>neo4j</code> and <code>hindsight</code> here, by those names.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>In <code>compose.yml</code> that is two short blocks:</p>
+            <pre class="language-yaml">
+services:
+  app:
+    networks:
+      - default      # the stack's private network
+      - ivolve       # the shared ivolve-network
+
+networks:
+  ivolve:
+    name: ivolve-network
+    external: true</pre>
+            <div class="why">
+              <span class="label">Why the databases stay off the shared network</span>
+              <p>
+                Every container on a shared network can reach every other one by name.
+                Keeping Postgres, Neo4j, Ollama and Hindsight private means other
+                teams' containers can't reach our data. It also means a generic name
+                like <code>postgres</code> can't clash with another stack's
+                <code>postgres</code> and send our app to the wrong database.
+              </p>
+            </div>
+
             <p>Where the data lives:</p>
             <div class="tablewrap">
               <table>
@@ -2111,11 +2158,15 @@ ssh -i ~/Downloads/ivolve-cloud-server.pem ubuntu@13.204.129.141</pre>
             <pre class="language-bash">
 docker --version
 docker compose version
-sudo systemctl enable docker</pre>
+sudo systemctl enable docker
+docker network ls | grep ivolve-network</pre>
             <p>
               The first two print version numbers if Docker and Compose are installed.
               The third makes Docker start by itself whenever the server reboots, and
-              with it the app.
+              with it the app. The fourth must print a line with
+              <code>ivolve-network</code>: the shared network the app joins. If it prints
+              nothing, ask the ivolve platform team to create it before you continue;
+              don't create it yourself.
             </p>
             <div class="win">
               <span class="label">What you have now</span>
@@ -2272,7 +2323,8 @@ docker compose ps
 docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
 docker compose up -d hindsight-db hindsight app
 curl localhost:8030/api/health
-docker compose exec app curl -s http://hindsight:8888/health</pre>
+docker compose exec app curl -s http://hindsight:8888/health
+docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Command</th><th>What it does</th></tr></thead>
@@ -2285,6 +2337,7 @@ docker compose exec app curl -s http://hindsight:8888/health</pre>
                   <tr><td><code>docker compose up -d hindsight-db hindsight app</code></td><td>Creates the memory database, starts the memory server and starts the application.</td></tr>
                   <tr><td><code>curl localhost:8030/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
                   <tr><td><code>docker compose exec app curl -s http://hindsight:8888/health</code></td><td>Asks the memory server, from inside the app container, whether it is up. Expect <code>"status":"healthy"</code>. It takes 1–2 minutes after starting.</td></tr>
+                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>Lists the networks the app container is on. Expect both <code>ivolve-network</code> and <code>solvay-spark-spine_default</code>.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2580,6 +2633,15 @@ docker compose up -d app</pre>
               </p>
             </div>
             <div class="qa">
+              <p class="q">"network ivolve-network declared as external, but could not be found".</p>
+              <p>
+                The shared network doesn't exist on this server. Check with
+                <code>docker network ls | grep ivolve-network</code>. Ask the ivolve
+                platform team to create it rather than creating it yourself: they
+                manage its settings. Then run <code>docker compose up -d app</code> again.
+              </p>
+            </div>
+            <div class="qa">
               <p class="q">"pull access denied" or "unauthorized" when pulling the image.</p>
               <p>The server isn't logged in to the registry. Run <code>docker login reg.ivolve.cloud</code> on the server.</p>
             </div>
@@ -2676,7 +2738,7 @@ docker compose up -d postgres</pre>
             <ol class="steps">
               <li><strong>A DNS record</strong> pointing the name at <code>13.204.129.141</code>, from whoever manages the domain.</li>
               <li><strong>Ports 80 and 443</strong> open in the EC2 security group, ideally to the team's IP addresses only.</li>
-              <li><strong>A reverse proxy</strong> (e.g. Caddy) that serves HTTPS and forwards to <code>127.0.0.1:8030</code>. Check first whether the server already has one, since other apps run there: <code>sudo ss -ltnp | grep -E ':(80|443) '</code>.</li>
+              <li><strong>A reverse proxy</strong> (e.g. Caddy) that serves HTTPS and forwards to the app. Check first whether the server already has one, since other apps run there: <code>sudo ss -ltnp | grep -E ':(80|443) '</code>. A proxy that runs as a container on <code>ivolve-network</code> can reach the app directly at <code>solvay-spark-spine-app-1:8000</code> (the port inside the container); one running on the host itself uses <code>127.0.0.1:8030</code>.</li>
               <li><strong>A password at the proxy</strong> (Caddy's <code>basic_auth</code>), so the API is covered too.</li>
             </ol>
             <h3>Other rules</h3>

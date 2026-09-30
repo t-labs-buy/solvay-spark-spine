@@ -15,7 +15,7 @@ stack on a Linux server. For running on a Mac, see [running-the-app.md](running-
 | SPARK corpus `solvay-spark/` | copied to the server, mounted read-only | not in the image: it is client data |
 | `knowledge_base/` | copied to the server, mounted writable | the BPML hierarchy (`BPML_Process_xlsx.md`) and documents added from the UI; without it the graph has a fraction of its processes |
 
-`compose.yml` wires them together. Not included:
+`compose.yml` wires them together. The app also joins the server's shared `ivolve-network`, which must already exist (`docker network ls | grep ivolve-network`); everything else stays on the stack's private network. Not included:
 - **The local MLX vision model.** It runs only on Apple silicon. The Claude and OpenAI vision providers and Tesseract still work.
 
 ## 1. Build and push the image (on your machine)

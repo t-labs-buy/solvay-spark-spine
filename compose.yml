@@ -32,6 +32,11 @@ services:
       # server separately; writable, because the UI adds to it. The container
       # runs as uid 1000, so the folder must be writable by that user.
       - ./knowledge_base:/app/knowledge_base
+    # On the shared ivolve-network, so the platform (proxy, monitoring) can
+    # reach the app; and on the stack's own network, for the services below.
+    networks:
+      - default
+      - ivolve
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,3 +147,12 @@ volumes:
   pgdata:
   ollama:
   neo4j-data:
+
+networks:
+  # The server's shared network, created and managed outside this stack.
+  # Only the app joins it: the databases, Ollama and Hindsight stay on this
+  # stack's private network, so other teams' containers cannot reach them and
+  # generic names like "postgres" cannot clash with another stack's.
+  ivolve:
+    name: ivolve-network
+    external: true

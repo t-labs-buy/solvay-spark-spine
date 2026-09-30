@@ -1733,7 +1733,7 @@
                 <div class="flow-box">
                   <strong>Runs the stack</strong>
                   <ol>
-                    <li>The app (port 8030).</li>
+                    <li>The app (port 8040).</li>
                     <li>Postgres + pgvector (the database).</li>
                     <li>Ollama (turns text into vectors).</li>
                     <li>Neo4j (the graph database).</li>
@@ -1797,7 +1797,7 @@
               <div class="card">
                 <span class="card-title">SSH tunnel</span>
                 Forwards a port on your Mac to a port on the server, so
-                <code>http://localhost:8030</code> in your browser reaches the app
+                <code>http://localhost:8040</code> in your browser reaches the app
                 on the server.
               </div>
             </div>
@@ -1994,7 +1994,7 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                 <tbody>
                   <tr><td><code>USER app</code></td><td>The app runs as an ordinary user (id 1000), not as the administrator. That's safer if the app is ever compromised.</td></tr>
                   <tr><td><code>ENV DOCLING_ARTIFACTS_PATH=/opt/docling-models</code></td><td>Tells Docling to use the models built into the image.</td></tr>
-                  <tr><td><code>EXPOSE 8000</code></td><td>Inside the container the app listens on port 8000. <code>compose.yml</code> maps it to 8030 on the server.</td></tr>
+                  <tr><td><code>EXPOSE 8000</code></td><td>Inside the container the app listens on port 8000. <code>compose.yml</code> maps it to 8040 on the server.</td></tr>
                   <tr><td><code>HEALTHCHECK … /api/health</code></td><td>Every 30 seconds Docker asks the app "are you OK?" and marks the container <em>healthy</em> or <em>unhealthy</em>.</td></tr>
                   <tr><td><code>CMD ["uvicorn", "backend.api.app:app", "--host", "0.0.0.0", …]</code></td><td>The command that starts the web server when the container starts.</td></tr>
                 </tbody>
@@ -2075,7 +2075,7 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                       The application. Reads <code>.env</code> and is told where the others are
                       (<code>DATABASE_URL</code>, <code>OLLAMA_HOST</code>, <code>NEO4J_URI</code>).
                       Published on <code>${APP_PORT}</code>; on our server that's
-                      <code>127.0.0.1:8030</code>, reachable only from the server itself.
+                      <code>127.0.0.1:8040</code>, reachable only from the server itself.
                       Starts only after Postgres and Neo4j report healthy.
                     </td>
                   </tr>
@@ -2440,7 +2440,7 @@ rsync -avzn -e "ssh -i ~/Downloads/ivolve-cloud-server.pem" solvay-spark/ ubuntu
             <pre class="language-bash">
 cd ~/solvay-spark-spine
 cp .env.example .env
-echo 'APP_PORT=127.0.0.1:8030' &gt;&gt; .env
+echo 'APP_PORT=127.0.0.1:8040' &gt;&gt; .env
 openssl rand -hex 24
 nano .env</pre>
             <div class="tablewrap">
@@ -2448,7 +2448,7 @@ nano .env</pre>
                 <thead><tr><th>Command</th><th>What it does</th></tr></thead>
                 <tbody>
                   <tr><td><code>cp .env.example .env</code></td><td>Copies the template to the real settings file.</td></tr>
-                  <tr><td><code>echo 'APP_PORT=127.0.0.1:8030' &gt;&gt; .env</code></td><td>Appends a line (<code>&gt;&gt;</code> adds; <code>&gt;</code> would overwrite the file). The app then listens on port 8030, reachable from the server only. Port 8000 is taken by another team's app on this shared server.</td></tr>
+                  <tr><td><code>echo 'APP_PORT=127.0.0.1:8040' &gt;&gt; .env</code></td><td>Appends a line (<code>&gt;&gt;</code> adds; <code>&gt;</code> would overwrite the file). The app then listens on port 8040, reachable from the server only. Port 8000 is taken by another team's app on this shared server.</td></tr>
                   <tr><td><code>openssl rand -hex 24</code></td><td>Prints a strong random password. Run it once for each secret you need.</td></tr>
                   <tr><td><code>nano .env</code></td><td>Opens the file in a simple editor. Save with <kbd>Ctrl</kbd>+<kbd>O</kbd>, <kbd>Enter</kbd>; exit with <kbd>Ctrl</kbd>+<kbd>X</kbd>.</td></tr>
                 </tbody>
@@ -2502,7 +2502,7 @@ docker compose up -d postgres ollama ollama-pull neo4j
 docker compose ps
 docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
 docker compose up -d hindsight-db hindsight app
-curl localhost:8030/api/health
+curl localhost:8040/api/health
 docker compose exec app curl -s http://hindsight:8888/health
 docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'</pre>
             <div class="tablewrap">
@@ -2515,7 +2515,7 @@ docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSett
                   <tr><td><code>docker compose ps</code></td><td>Lists the services. Wait until <code>postgres</code> and <code>neo4j</code> show <code>(healthy)</code>; Neo4j can take 1–3 minutes the first time.</td></tr>
                   <tr><td><code>docker compose exec -T postgres pg_restore … &lt; spark-….dump</code></td><td>Runs <code>pg_restore</code> inside the Postgres container and feeds it the dump file (<code>&lt;</code> means "read from this file"). It loads the search index and run history into the <code>solvay</code> database.</td></tr>
                   <tr><td><code>docker compose up -d hindsight-db hindsight app</code></td><td>Creates the memory database, starts the memory server and starts the application.</td></tr>
-                  <tr><td><code>curl localhost:8030/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
+                  <tr><td><code>curl localhost:8040/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
                   <tr><td><code>docker compose exec app curl -s http://hindsight:8888/health</code></td><td>Asks the memory server, from inside the app container, whether it is up. Expect <code>"status":"healthy"</code>. It takes 1–2 minutes after starting.</td></tr>
                   <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>Lists the networks the app container is on. Expect both <code>ivolve-network</code> and <code>solvay-spark-spine_default</code>.</td></tr>
                 </tbody>
@@ -2554,19 +2554,19 @@ docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSett
               On your Mac:
             </p>
             <pre class="language-bash">
-ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8030:localhost:8030 ubuntu@13.204.129.141</pre>
+ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8040:localhost:8040 ubuntu@13.204.129.141</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
                 <tbody>
-                  <tr><td><code>-L 8030:localhost:8030</code></td><td>Port 8030 on your Mac forwards to port 8030 on the server. The first number is your Mac's side; change it if 8030 is busy on your Mac (e.g. <code>-L 8031:localhost:8030</code>).</td></tr>
+                  <tr><td><code>-L 8040:localhost:8040</code></td><td>Port 8040 on your Mac forwards to port 8040 on the server. The first number is your Mac's side; change it if 8040 is busy on your Mac (e.g. <code>-L 8041:localhost:8040</code>).</td></tr>
                   <tr><td><code>-N</code></td><td>Opens only the tunnel, no terminal. The window looks frozen; that's correct.</td></tr>
                   <tr><td><code>-o ServerAliveInterval=60</code></td><td>Sends a small signal every minute, so an idle tunnel isn't dropped.</td></tr>
                 </tbody>
               </table>
             </div>
             <p>
-              Leave that window open and browse to <strong>http://localhost:8030</strong>.
+              Leave that window open and browse to <strong>http://localhost:8040</strong>.
               Sign in with <code>APP_USERNAME</code> / <code>APP_PASSWORD</code> from the
               server's <code>.env</code>. Close the window (or <kbd>Ctrl</kbd>+<kbd>C</kbd>)
               to close the tunnel; the app keeps running on the server.
@@ -2576,7 +2576,7 @@ ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8030:
               <p>
                 Install <code>autossh</code> (<code>brew install autossh</code>) and run
                 <code>autossh -M 0 -f -N -o ServerAliveInterval=60 -o ServerAliveCountMax=3
-                -i ~/Downloads/ivolve-cloud-server.pem -L 8030:localhost:8030
+                -i ~/Downloads/ivolve-cloud-server.pem -L 8040:localhost:8040
                 ubuntu@13.204.129.141</code>. It runs in the background and reopens the
                 tunnel whenever it drops.
               </p>
@@ -2603,14 +2603,14 @@ ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8030:
             <pre class="language-bash">
 cd ~/solvay-spark-spine
 docker compose ps
-curl localhost:8030/api/health
+curl localhost:8040/api/health
 docker compose logs --tail 50 app</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
                   <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>postgres</code>, <code>neo4j</code> and <code>hindsight</code> also <code>(healthy)</code>. <code>ollama-pull</code> and <code>hindsight-db</code> show <em>Exited</em>; that's correct.</td></tr>
-                  <tr><td><code>curl localhost:8030/api/health</code></td><td>Whether the app answers. Expect <code>{"ok":true,…}</code>.</td></tr>
+                  <tr><td><code>curl localhost:8040/api/health</code></td><td>Whether the app answers. Expect <code>{"ok":true,…}</code>.</td></tr>
                   <tr><td><code>docker compose logs --tail 50 app</code></td><td>The app's last 50 log lines: errors show up here. Use <code>-f</code> instead of <code>--tail 50</code> to follow live; <kbd>Ctrl</kbd>+<kbd>C</kbd> stops following.</td></tr>
                 </tbody>
               </table>
@@ -2690,6 +2690,13 @@ docker compose up -d</pre>
             <h2>Update the app, the data and the knowledge graph</h2>
 
             <h3>After changing the code</h3>
+            <p>
+              The EC2 app runs a prebuilt image, so a code change reaches the server only
+              after you rebuild and push the image, then run
+              <code>docker compose pull app &amp;&amp; docker compose up -d app</code> there.
+              Editing files on the server, or committing on your Mac, changes nothing on
+              its own.
+            </p>
             <p>On your Mac:</p>
             <pre class="language-bash">
 cd ~/Programme/solvay-spark-spine
@@ -2700,7 +2707,7 @@ git add -A &amp;&amp; git commit -m "Describe your change"
 cd ~/solvay-spark-spine
 docker compose pull app
 docker compose up -d app
-curl localhost:8030/api/health</pre>
+curl localhost:8040/api/health</pre>
             <p>
               <code>pull app</code> downloads the new <code>latest</code> image;
               <code>up -d app</code> replaces the running app container with one from
@@ -2735,7 +2742,7 @@ scp -i ~/Downloads/ivolve-cloud-server.pem compose.yml ubuntu@13.204.129.141:~/s
               graph on the server:
             </p>
             <pre class="language-bash">
-curl -s -X POST localhost:8030/api/graph/rebuild &gt;/dev/null</pre>
+curl -s -X POST localhost:8040/api/graph/rebuild &gt;/dev/null</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
@@ -2743,7 +2750,7 @@ curl -s -X POST localhost:8030/api/graph/rebuild &gt;/dev/null</pre>
                   <tr><td><code>curl</code></td><td>Sends a web request from the command line.</td></tr>
                   <tr><td><code>-s</code></td><td>Silent: no progress bar.</td></tr>
                   <tr><td><code>-X POST</code></td><td>A POST request, which tells the app to <em>do</em> something rather than just return data.</td></tr>
-                  <tr><td><code>localhost:8030/api/graph/rebuild</code></td><td>The app's endpoint that rebuilds the graph from <code>solvay-spark/*/markdown</code>, <code>knowledge_base/</code> and the database, then refreshes Neo4j.</td></tr>
+                  <tr><td><code>localhost:8040/api/graph/rebuild</code></td><td>The app's endpoint that rebuilds the graph from <code>solvay-spark/*/markdown</code>, <code>knowledge_base/</code> and the database, then refreshes Neo4j.</td></tr>
                   <tr><td><code>&gt;/dev/null</code></td><td>Throws away the reply, which is the whole graph and very long. Leave it off, or use <code>| head -c 300</code>, to see the start.</td></tr>
                 </tbody>
               </table>
@@ -2823,8 +2830,29 @@ docker ps --format '{{.Names}}\t{{.Ports}}' | grep 8000
 sudo ss -ltnp | grep ':8000'</pre>
               <p>
                 On our shared server it was another team's container, which must not be
-                stopped. Set a free port in <code>.env</code> (<code>APP_PORT=127.0.0.1:8030</code>)
+                stopped. Set a free port in <code>.env</code> (<code>APP_PORT=127.0.0.1:8040</code>)
                 and run <code>docker compose up -d app</code>.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">The administrator assigns a different port.</p>
+              <p>
+                Only the server side of the mapping changes; inside the container the app
+                stays on 8000. Check the new port is free, change the line in
+                <code>.env</code>, and recreate just the app (the databases keep running):
+              </p>
+              <pre class="language-bash">
+cd ~/solvay-spark-spine
+sudo ss -ltnp | grep ':8040'
+sed -i 's/^APP_PORT=.*/APP_PORT=127.0.0.1:8040/' .env
+docker compose up -d app
+curl localhost:8040/api/health</pre>
+              <p>
+                <code>docker compose ps app</code> should then show
+                <code>127.0.0.1:8040-&gt;8000/tcp</code>. The proxy on
+                <code>ivolve-network</code> is unaffected (it uses port 8000 inside the
+                network), but the SSH tunnel and every <code>curl localhost:…</code>
+                command must use the new port.
               </p>
             </div>
             <div class="qa">
@@ -2941,8 +2969,8 @@ docker compose up -d postgres</pre>
               <p>
                 The app's sign-in page protects the pages only. Every <code>/api/*</code>
                 endpoint answers anyone who can reach the port. That's why the app
-                listens on <code>127.0.0.1:8030</code> and is reached through a tunnel.
-                Don't change <code>APP_PORT</code> to plain <code>8030</code> and open the
+                listens on <code>127.0.0.1:8040</code> and is reached through a tunnel.
+                Don't change <code>APP_PORT</code> to plain <code>8040</code> and open the
                 port to the internet: the SPARK corpus would be readable by anyone.
               </p>
             </div>
@@ -2954,7 +2982,7 @@ docker compose up -d postgres</pre>
             <ol class="steps">
               <li><strong>A DNS record</strong> pointing the name at <code>13.204.129.141</code>, from whoever manages the domain.</li>
               <li><strong>Ports 80 and 443</strong> open in the EC2 security group, ideally to the team's IP addresses only.</li>
-              <li><strong>A reverse proxy</strong> (e.g. Caddy) that serves HTTPS and forwards to the app. Check first whether the server already has one, since other apps run there: <code>sudo ss -ltnp | grep -E ':(80|443) '</code>. A proxy that runs as a container on <code>ivolve-network</code> can reach the app directly at <code>solvay-spark-spine-app-1:8000</code> (the port inside the container); one running on the host itself uses <code>127.0.0.1:8030</code>.</li>
+              <li><strong>A reverse proxy</strong> (e.g. Caddy) that serves HTTPS and forwards to the app. Check first whether the server already has one, since other apps run there: <code>sudo ss -ltnp | grep -E ':(80|443) '</code>. A proxy that runs as a container on <code>ivolve-network</code> can reach the app directly at <code>solvay-spark-spine-app-1:8000</code> (the port inside the container); one running on the host itself uses <code>127.0.0.1:8040</code>.</li>
               <li><strong>A password at the proxy</strong> (Caddy's <code>basic_auth</code>), so the API is covered too.</li>
             </ol>
             <h3>Other rules</h3>

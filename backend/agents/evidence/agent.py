@@ -723,7 +723,9 @@ def run(question: str, holdout: bool = False,
                 written,
                 context=f"Evidence Agent investigation of the Solvay SPARK L2C corpus"
                         f"{' (' + ', '.join(scope) + ' only)' if scope else ''}",
-                metadata={"state": final.state, "model": MODEL,
+                # No model name: the filing LLM copies metadata into the facts,
+                # and which model answered is not something a later run needs.
+                metadata={"state": final.state,
                           "prompt_hash": prompt_hash(),
                           "categories": ",".join(scope) or "all",
                           "claims": str(len([c for c in final.claims if c.sources]))},

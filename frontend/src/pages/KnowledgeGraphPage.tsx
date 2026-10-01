@@ -1263,7 +1263,7 @@ export default function KnowledgeGraphPage({ active, onNavigate, incomingQuery }
           <Stack spacing={0}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, letterSpacing: "-0.015em", fontSize: 15, display: { xs: "none", sm: "block" } }}>
-                Solvay SPARK Knowledge Graph
+                Solvay Spark Spine
               </Typography>
             </Stack>
           </Stack>

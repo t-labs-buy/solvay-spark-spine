@@ -38,7 +38,7 @@ const TABS: { value: Page; label: string; icon: ReactElement; group: TabGroup }[
   // Beside Ask rather than with the inspection tools: it grades what Ask
   // answered, and the two are used together.
   { value: "quality", label: "RAG Metrics", icon: <Gauge size={16} />, group: "engine" },
-  { value: "graph", label: "Knowledge Graph", icon: <Network size={16} />, group: "engine" },
+  { value: "graph", label: "Spine", icon: <Network size={16} />, group: "engine" },
   { value: "evidence", label: "Agent", icon: <FlaskConical size={16} />, group: "engine" },
   { value: "fitgap", label: "InsightLens", icon: <Scale size={16} />, group: "engine" },
   { value: "rollout", label: "Fit-Gap Copilot", icon: <Globe2 size={16} />, group: "engine" },

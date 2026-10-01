@@ -468,14 +468,14 @@ function Sources({
  *  during the run -- see rollout/sources.py -- so here it is attached to the
  *  quote it justifies. Collapsed by default: the quote is the finding, the
  *  provenance is what you open when you doubt it. */
-function EvidenceRow({ ev, chunk, session }: {
+function EvidenceRow({ ev, chunk, runId }: {
   ev: { quote: string; side: string; evidence_class: string; doc: string; chunk_id: string;
         heading_path?: string };
   chunk?: RolloutSourceChunk;
-  session: string;
+  runId: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const href = chunk ? rollout.sourceUrl(chunk, session) : "";
+  const href = chunk ? rollout.sourceUrl(chunk, runId) : "";
   const heading = chunk?.heading_path || ev.heading_path || "";
   return (
     <Box sx={{ mt: 0.6, pl: 1, borderLeft: 2, borderColor: "divider" }}>
@@ -485,8 +485,8 @@ function EvidenceRow({ ev, chunk, session }: {
         <Chip size="small" label={ev.side} sx={{ height: 17, fontSize: 10.5 }} />
         <Chip size="small" label={ev.evidence_class} sx={{ height: 17, fontSize: 10.5 }} />
         {chunk?.category && (
-          <Chip size="small" color={chunk.kind === "upload" ? "warning" : "default"}
-                label={chunk.kind === "upload" ? "attached" : chunk.category}
+          <Chip size="small" color={chunk.kind === "upload" || chunk.category === "UPLOAD" ? "warning" : "default"}
+                label={chunk.kind === "upload" || chunk.category === "UPLOAD" ? "attached" : chunk.category}
                 sx={{ height: 17, fontSize: 10.5 }} />
         )}
         <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
@@ -552,17 +552,17 @@ function EvidenceRow({ ev, chunk, session }: {
  *  by nine deviations is one thing a reader wants to open, not nine rows. The
  *  chunks under it say which passage carried which finding, and clicking a
  *  finding goes to it. */
-function SourceDocument({ doc, sources, session, onGap }: {
+function SourceDocument({ doc, sources, runId, onGap }: {
   doc: RolloutSourceDocument;
   sources: RolloutSources;
-  session: string;
+  runId: string | null;
   onGap: (ref: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const chunks = Object.values(sources.chunks)
     .filter((c) => c.document === doc.document)
     .sort((a, b) => (b.used_by.length - a.used_by.length));
-  const href = chunks[0] ? rollout.sourceUrl(chunks[0], session) : "";
+  const href = chunks[0] ? rollout.sourceUrl(chunks[0], runId) : "";
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.75 }}>
@@ -570,8 +570,8 @@ function SourceDocument({ doc, sources, session, onGap }: {
         <Typography sx={{ fontSize: 13, fontWeight: 700, flex: "1 1 260px", minWidth: 0 }}>
           {doc.document || "(unrecorded document)"}
         </Typography>
-        <Chip size="small" color={doc.kind === "upload" ? "warning" : "default"}
-              label={doc.kind === "upload" ? "attached" : doc.category}
+        <Chip size="small" color={doc.kind === "upload" || doc.category === "UPLOAD" ? "warning" : "default"}
+              label={doc.kind === "upload" || doc.category === "UPLOAD" ? "attached" : doc.category}
               sx={{ height: 19, fontSize: 10.5 }} />
         <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
           {doc.citations} citation{doc.citations === 1 ? "" : "s"} · {doc.chunks} passage
@@ -636,10 +636,10 @@ function SourceDocument({ doc, sources, session, onGap }: {
  *  those deviations, with their evidence, are what the row should open into.
  *  Nothing here is new information; it is the same register, reached from the
  *  number it produced. */
-function AlignmentRow({ deviations, chunks, session, onGap, children }: {
+function AlignmentRow({ deviations, chunks, runId, onGap, children }: {
   deviations: Deviation[];
   chunks?: Record<string, RolloutSourceChunk>;
-  session: string;
+  runId: string | null;
   onGap: (ref: string) => void;
   children: ReactNode;
 }) {
@@ -675,7 +675,7 @@ function AlignmentRow({ deviations, chunks, session, onGap, children }: {
               {d.evidence.length > 0 && (
                 <Box sx={{ mt: 0.85 }}>
                   {d.evidence.map((e, i) => (
-                    <EvidenceRow key={i} ev={e} chunk={chunks?.[e.chunk_id]} session={session} />
+                    <EvidenceRow key={i} ev={e} chunk={chunks?.[e.chunk_id]} runId={runId} />
                   ))}
                 </Box>
               )}
@@ -1551,7 +1551,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
                                      onDecide={runId ? (g, v, x) => void decide(g, v, x) : undefined}
                                      focusGap={highlightGap} fileStem={runId ?? "fit-gap"}
                                      onTrace={runId && !running ? traceGap : undefined}
-                                     renderEvidence={(e) => <EvidenceRow ev={e} chunk={sources?.chunks?.[e.chunk_id]} session={session} />} />
+                                     renderEvidence={(e) => <EvidenceRow ev={e} chunk={sources?.chunks?.[e.chunk_id]} runId={runId} />} />
             )}
             <FacilitatorView open={facilitating !== null} start={facilitating ?? 0}
                              onClose={() => setFacilitating(null)}
@@ -1618,7 +1618,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
                         <AlignmentRow key={row.dimension}
                                       deviations={analysis.deviations.filter(
                                         (d) => d.dimension === row.dimension)}
-                                      chunks={sources?.chunks} session={session}
+                                      chunks={sources?.chunks} runId={runId}
                                       onGap={(ref) => { setTab("deviations"); setHighlightGap(ref); }}>
                           <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
                             <Typography sx={{ fontSize: 12.5, fontWeight: 600, minWidth: 220 }}>
@@ -1863,7 +1863,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
 
                       {sources.documents.map((doc) => (
                         <SourceDocument key={doc.document} doc={doc} sources={sources}
-                                        session={session} onGap={(ref) => {
+                                        runId={runId} onGap={(ref) => {
                                           setTab("deviations");
                                           setHighlightGap(ref);
                                         }} />

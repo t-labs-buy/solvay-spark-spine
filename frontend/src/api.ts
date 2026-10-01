@@ -2042,9 +2042,15 @@ export const rollout = {
   /** Where a cited document can be read. Corpus documents are resolved by
    *  file name; an attachment is served from its session, as the Markdown the
    *  agent actually read. */
-  sourceUrl: (chunk: RolloutSourceChunk, session: string) =>
-    chunk.kind === "upload"
-      ? (session ? `/api/uploads/${session}/files/${encodeURIComponent(chunk.document)}/markdown` : "")
+  /** Where a cited passage's document opens. An attachment is served from the
+   *  run that read it -- not from the page's current upload session, which is
+   *  a different one, and expires hours after the run anyway. UPLOAD is the
+   *  reserved category of attachments, which also catches runs recorded when
+   *  they were mislabelled as corpus. */
+  sourceUrl: (chunk: RolloutSourceChunk, runId: string | null) =>
+    chunk.kind === "upload" || chunk.category === "UPLOAD"
+      ? (runId && chunk.file
+          ? `/api/rollout/runs/${runId}/attachments/${encodeURIComponent(chunk.file)}` : "")
       : (chunk.file ? `/api/kb/files/${encodeURIComponent(chunk.file)}` : ""),
   decide: (runId: string, body: {
     gap_id: string; reviewer: string; verdict: string; disposition?: string; comment?: string;

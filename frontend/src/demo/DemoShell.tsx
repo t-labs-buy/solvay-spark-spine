@@ -44,7 +44,7 @@ type Entry = { value: Page; label: string; icon: ReactElement; slug: string };
 
 /** The header. Named as the application names them. */
 const PRIMARY: Entry[] = [
-  { value: "graph", label: "Knowledge Graph", icon: <Network size={16} />, slug: "graph" },
+  { value: "graph", label: "Spine", icon: <Network size={16} />, slug: "graph" },
   { value: "rollout", label: "Fit-Gap Copilot", icon: <Globe2 size={16} />, slug: "fit-gap-copilot" },
 ];
 

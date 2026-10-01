@@ -9,13 +9,13 @@ stack on a Linux server. For running on a Mac, see [running-the-app.md](running-
 |---|---|---|
 | App (backend + UI + LibreOffice, Poppler, Tesseract) | `reg.ivolve.cloud/ivolve/solvay-spark-spine`, built from `Dockerfile` | port 8000 |
 | Postgres 18 + pgvector | `pgvector/pgvector:pg18` | data restored from a dump of the local database |
-| Ollama + `bge-m3` | `ollama/ollama` | the `ollama-pull` service fetches the model once |
+| Ollama + `bge-m3` | `ollama/ollama` | the `solvay-ollama-pull` service fetches the model once |
 | Neo4j | `neo4j:5-community` | the app loads the graph into it at start |
 | Hindsight (Evidence Agent memory) | `reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight`, built from `Dockerfile.hindsight` | its own image: its dependencies conflict with Docling's; stores memories in the `hindsight` database |
 | SPARK corpus `solvay-spark/` | copied to the server, mounted read-only | not in the image: it is client data |
 | `knowledge_base/` | copied to the server, mounted writable | the BPML hierarchy (`BPML_Process_xlsx.md`) and documents added from the UI; without it the graph has a fraction of its processes |
 
-`compose.yml` wires them together. The app also joins the server's shared `ivolve-network`, which must already exist (`docker network ls | grep ivolve-network`); everything else stays on the stack's private network. Not included:
+`compose.yml` wires them together. Every container joins the server's shared `ivolve-network`, which must already exist (`docker network ls | grep ivolve-network`). Other teams' stacks share that network, so every service called by name has a `solvay-` prefix (`solvay-postgres`, `solvay-ollama`, `solvay-neo4j`, `solvay-hindsight`), and the URLs use those names; a generic `postgres` could resolve to another stack's database. Not included:
 - **The local MLX vision model.** It runs only on Apple silicon. The Claude and OpenAI vision providers and Tesseract still work.
 
 ## 1. Build and push the image (on your machine)
@@ -50,7 +50,7 @@ mkdir -p ~/solvay-spark-spine && cd ~/solvay-spark-spine
 cp .env.example .env                   # fill it in; change every sign-in value
 docker login reg.ivolve.cloud          # a token with read_registry is enough here
 docker compose pull
-docker compose up -d postgres ollama ollama-pull neo4j
+docker compose up -d solvay-postgres solvay-ollama solvay-ollama-pull solvay-neo4j
 ```
 
 ## 4. Restore the database
@@ -58,7 +58,7 @@ docker compose up -d postgres ollama ollama-pull neo4j
 The dump holds the Ask RAG index (the `bge-m3` embeddings) and run history. Restore it before the app first starts:
 
 ```bash
-docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl < spark-<date>.dump
+docker compose exec -T solvay-postgres pg_restore -U spark -d solvay --no-owner --no-acl < spark-<date>.dump
 ```
 
 `pg_restore` may warn that the `vector` extension already exists. That is harmless.
@@ -66,7 +66,7 @@ docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-ac
 ## 5. Start the app
 
 ```bash
-docker compose up -d hindsight-db hindsight app
+docker compose up -d solvay-hindsight-db solvay-hindsight app
 docker compose logs -f app             # wait for "Application startup complete"
 curl -s localhost:8000/api/health      # soffice and pdftoppm should both be set
 ```
@@ -101,7 +101,7 @@ and a file missing from any of them changes the counts.
   - Or set `APP_PORT=127.0.0.1:8000` and reach it through the proxy only.
 - **Set sign-in secrets.** Set `APP_SECRET` and `DEMO_SECRET`, and replace the default passwords.
 - **Data leaves the server** as it does locally. Questions and retrieved excerpts go to Anthropic, and so do documents converted with a cloud vision provider.
-- **Nothing is published except the app.** Postgres, Ollama and Neo4j publish no ports and are reachable only on the compose network.
+- **Nothing is published except the app.** Postgres, Ollama, Neo4j and Hindsight publish no ports; they are reachable only from containers on `ivolve-network`.
 
 ## Volumes
 

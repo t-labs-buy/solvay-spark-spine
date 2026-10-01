@@ -1,10 +1,18 @@
-# The server stack: the app image plus Postgres/pgvector, Ollama and Neo4j.
-# See docs/deployment.md. For local development compose.neo4j.yml is still the
-# one to use (it runs only Neo4j, next to ./scripts/run.sh).
+# The server stack: the app image plus Postgres/pgvector, Ollama, Neo4j and
+# Hindsight. See docs/deployment.md. For local development compose.neo4j.yml is
+# still the one to use (it runs only Neo4j, next to ./scripts/run.sh).
 #
 #   docker compose up -d
 #
 # Reads .env from this directory (template: .env.example).
+#
+# Every container joins the server's shared ivolve-network, as the platform
+# requires. That network is shared with other teams' stacks, and on it a
+# service is reachable by its service name. So every service that is called by
+# name has a solvay- prefix: a generic "postgres" there would clash with
+# another stack's "postgres", and Docker would hand out either address, sending
+# our app to the wrong database at random. Keep the prefix on any service added
+# here, and use the prefixed name in every URL.
 
 services:
   app:
@@ -12,11 +20,12 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/solvay
-      OLLAMA_HOST: http://ollama:11434
-      NEO4J_URI: bolt://neo4j:7687
-      # Evidence Agent memory (the hindsight service below). Empty turns it off.
-      HINDSIGHT_URL: http://hindsight:8888
+      DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@solvay-postgres:5432/solvay
+      OLLAMA_HOST: http://solvay-ollama:11434
+      NEO4J_URI: bolt://solvay-neo4j:7687
+      # Evidence Agent memory (the solvay-hindsight service below). Empty turns
+      # it off.
+      HINDSIGHT_URL: http://solvay-hindsight:8888
     ports:
       # Put a TLS reverse proxy in front before opening this beyond the host:
       # /api/* has no authentication (see docs/deployment.md).
@@ -32,20 +41,19 @@ services:
       # server separately; writable, because the UI adds to it. The container
       # runs as uid 1000, so the folder must be writable by that user.
       - ./knowledge_base:/app/knowledge_base
-    # On the shared ivolve-network, so the platform (proxy, monitoring) can
-    # reach the app; and on the stack's own network, for the services below.
+    # The proxy reaches the app by its container name,
+    # solvay-spark-spine-app-1, so the service keeps its short name.
     networks:
-      - default
-      - ivolve
+      - ivolve-network
     depends_on:
-      postgres:
+      solvay-postgres:
         condition: service_healthy
-      ollama:
+      solvay-ollama:
         condition: service_started
-      neo4j:
+      solvay-neo4j:
         condition: service_healthy
 
-  postgres:
+  solvay-postgres:
     image: docker.io/pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
@@ -57,6 +65,8 @@ services:
     volumes:
       # pg18 images keep their data under /var/lib/postgresql/<major>/.
       - pgdata:/var/lib/postgresql
+    networks:
+      - ivolve-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U spark -d solvay"]
       interval: 10s
@@ -66,10 +76,10 @@ services:
   # One-shot: creates the hindsight database beside solvay, then exits.
   # POSTGRES_DB only acts on a brand-new volume, and the server's was created
   # before Hindsight joined the stack, so this checks and creates it itself.
-  hindsight-db:
+  solvay-hindsight-db:
     image: docker.io/pgvector/pgvector:pg18
     environment:
-      PGHOST: postgres
+      PGHOST: solvay-postgres
       PGUSER: spark
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     # Retries: a brand-new Postgres reports healthy while its first-start
@@ -83,46 +93,56 @@ services:
           sleep 2
         done
         psql -d solvay -tAc "select 1 from pg_database where datname = 'hindsight'" | grep -q 1 || createdb hindsight
+    networks:
+      - ivolve-network
     depends_on:
-      postgres:
+      solvay-postgres:
         condition: service_healthy
     restart: "no"
 
   # Hindsight, the Evidence Agent's long-term memory (docs/agent-memory.md).
   # Same models as scripts/hindsight.sh: Opus reads and files what each
   # investigation found, Sonnet answers "Ask memory" within its deadline.
-  hindsight:
+  solvay-hindsight:
     image: reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight:${HINDSIGHT_TAG:-latest}
     restart: unless-stopped
     environment:
-      HINDSIGHT_API_DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/hindsight
+      HINDSIGHT_API_DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@solvay-postgres:5432/hindsight
       HINDSIGHT_API_LLM_PROVIDER: litellm
       HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_MODEL:-anthropic/claude-opus-5}
       HINDSIGHT_API_LLM_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
       HINDSIGHT_API_REFLECT_LLM_MODEL: ${HINDSIGHT_REFLECT_MODEL:-anthropic/claude-sonnet-5}
       HINDSIGHT_API_REFLECT_LLM_TIMEOUT: ${HINDSIGHT_REFLECT_TIMEOUT:-60}
       HINDSIGHT_API_EMBEDDINGS_PROVIDER: local
+    # On the network like the rest: it reads and writes its database in
+    # solvay-postgres, and the app calls it at solvay-hindsight:8888.
+    networks:
+      - ivolve-network
     depends_on:
-      hindsight-db:
+      solvay-hindsight-db:
         condition: service_completed_successfully
 
-  ollama:
+  solvay-ollama:
     image: docker.io/ollama/ollama:latest
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
+    networks:
+      - ivolve-network
 
   # One-shot: pulls the embedding model into the ollama volume, then exits.
-  ollama-pull:
+  solvay-ollama-pull:
     image: docker.io/ollama/ollama:latest
     environment:
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://solvay-ollama:11434
     entrypoint: ["ollama", "pull", "bge-m3"]
+    networks:
+      - ivolve-network
     depends_on:
-      - ollama
+      - solvay-ollama
     restart: "no"
 
-  neo4j:
+  solvay-neo4j:
     image: docker.io/library/neo4j:5-community
     restart: unless-stopped
     environment:
@@ -135,12 +155,16 @@ services:
       NEO4J_db_tx__log_rotation_size: 32M
     volumes:
       - neo4j-data:/data
+    networks:
+      - ivolve-network
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 20
 
+# Named by the keys below, not by the services, so renaming a service keeps its
+# data: solvay-postgres still mounts solvay-spark-spine_pgdata.
 volumes:
   workdir:
   graph-data:
@@ -149,10 +173,8 @@ volumes:
   neo4j-data:
 
 networks:
-  # The server's shared network, created and managed outside this stack.
-  # Only the app joins it: the databases, Ollama and Hindsight stay on this
-  # stack's private network, so other teams' containers cannot reach them and
-  # generic names like "postgres" cannot clash with another stack's.
-  ivolve:
-    name: ivolve-network
+  # The server's shared network, created and managed outside this stack. Every
+  # service joins it (see the note at the top), so the names on it must be
+  # unique across all the stacks on the server.
+  ivolve-network:
     external: true

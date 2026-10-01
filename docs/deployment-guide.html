@@ -1244,6 +1244,92 @@
         font-weight: 600;
       }
 
+      /* A file shown in full in a pop-up: a native <dialog>, opened by a
+         .file-open button. The page behind stays put; Esc, the close button
+         or a click outside closes it. */
+      .file-open {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 0.35rem 0.85rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .file-open::before {
+        content: "▤";
+      }
+      .file-open:hover {
+        background: var(--card);
+      }
+      .file-open:focus-visible,
+      .file-dialog-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .file-dialog {
+        width: min(64rem, calc(100vw - 2rem));
+        max-height: 88vh;
+        padding: 0;
+        background: var(--card);
+        color: var(--ink);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+      }
+      .file-dialog[open] {
+        display: flex;
+        flex-direction: column;
+      }
+      .file-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+      }
+      .file-dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 0.9rem 0.6rem 1.1rem;
+        background: var(--head-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .file-dialog-head .label {
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .file-dialog-close {
+        background: none;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1;
+        padding: 0.35rem 0.5rem;
+        cursor: pointer;
+      }
+      .file-dialog-close:hover {
+        color: var(--accent);
+        border-color: var(--border);
+      }
+      .file-dialog-body {
+        overflow: auto;
+        padding: 0.9rem 1.1rem 1.1rem;
+      }
+      .file-dialog-body .codewrap,
+      .file-dialog-body pre {
+        margin: 0;
+      }
+      @media print {
+        .file-open,
+        .file-dialog {
+          display: none;
+        }
+      }
+
       /* Copy button. The .codewrap wrapper and the button inside it are
          injected by the script at the end of the file, so authors write a
          plain <pre> and get this for free — and with JavaScript disabled
@@ -1697,6 +1783,7 @@
         <div class="meta-strip">
           <span><strong>Audience</strong> — new team members, no container experience assumed</span>
           <span><strong>Needs first</strong> — a Mac with the repository, the server key, a registry token</span>
+          <span><strong>Live app</strong> — <a href="https://solvay-sparkai.ivolve.cloud/">https://solvay-sparkai.ivolve.cloud/</a></span>
           <span><strong>Server</strong> — AWS EC2, Ubuntu, <code>13.204.129.141</code></span>
           <span><strong>Registry</strong> — <code>reg.ivolve.cloud/ivolve/solvay-spark-spine</code></span>
         </div>
@@ -2093,6 +2180,11 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
               settings they receive. <code>docker compose up -d</code> reads it and starts
               everything, in the right order.
             </p>
+            <p>
+              <button type="button" class="file-open" data-dialog="composeDialog">
+                View the full compose.yml
+              </button>
+            </p>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Service</th><th>Image</th><th>What it does and key settings</th></tr></thead>
@@ -2109,76 +2201,80 @@ chmod 400 ~/Downloads/ivolve-cloud-server.pem</pre>
                     </td>
                   </tr>
                   <tr>
-                    <td><code>postgres</code></td>
+                    <td><code>solvay-postgres</code></td>
                     <td><code>pgvector/pgvector:pg18</code></td>
-                    <td>The database: user <code>spark</code>, database <code>solvay</code>, password from <code>POSTGRES_PASSWORD</code>. Holds the search index and run history. No port is published, so only the other containers can reach it.</td>
+                    <td>The database: user <code>spark</code>, database <code>solvay</code>, password from <code>POSTGRES_PASSWORD</code>. Holds the search index and run history. No port is published, so it is reachable only from containers on <code>ivolve-network</code>.</td>
                   </tr>
                   <tr>
-                    <td><code>ollama</code></td>
+                    <td><code>solvay-ollama</code></td>
                     <td><code>ollama/ollama</code></td>
                     <td>Runs the <code>bge-m3</code> embedding model, which turns questions into vectors for search.</td>
                   </tr>
                   <tr>
-                    <td><code>ollama-pull</code></td>
+                    <td><code>solvay-ollama-pull</code></td>
                     <td><code>ollama/ollama</code></td>
                     <td>A one-off helper that downloads <code>bge-m3</code> into Ollama, then exits. Seeing it as <em>Exited</em> is normal.</td>
                   </tr>
                   <tr>
-                    <td><code>neo4j</code></td>
+                    <td><code>solvay-neo4j</code></td>
                     <td><code>neo4j:5-community</code></td>
                     <td>The graph database behind the Cypher view. User <code>neo4j</code>, password from <code>NEO4J_PASSWORD</code>. The app loads the knowledge graph into it at startup.</td>
                   </tr>
                   <tr>
-                    <td><code>hindsight-db</code></td>
+                    <td><code>solvay-hindsight-db</code></td>
                     <td><code>pgvector/pgvector:pg18</code></td>
                     <td>A one-off helper that waits for Postgres, creates the <code>hindsight</code> database if it is missing, then exits. Seeing it as <em>Exited</em> is normal.</td>
                   </tr>
                   <tr>
-                    <td><code>hindsight</code></td>
+                    <td><code>solvay-hindsight</code></td>
                     <td><code>reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight:latest</code></td>
-                    <td>The memory server, on port 8888 inside the stack. Uses <code>ANTHROPIC_API_KEY</code> from <code>.env</code>: Claude Opus reads each investigation and files its facts; Claude Sonnet answers "Ask memory". The app finds it at <code>HINDSIGHT_URL=http://hindsight:8888</code>.</td>
+                    <td>The memory server, on port 8888 inside the stack. Uses <code>ANTHROPIC_API_KEY</code> from <code>.env</code>: Claude Opus reads each investigation and files its facts; Claude Sonnet answers "Ask memory". The app finds it at <code>HINDSIGHT_URL=http://solvay-hindsight:8888</code>.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p>Which networks the containers join:</p>
+            <p>Which network the containers join:</p>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Network</th><th>Who is on it</th><th>Why</th></tr></thead>
                 <tbody>
                   <tr>
                     <td><code>ivolve-network</code></td>
-                    <td><code>app</code> only</td>
-                    <td>The server's shared network, required by the ivolve platform team, so the platform (proxy, monitoring) can reach the app. It already exists on the server; <code>external: true</code> tells Compose to join it, never create or delete it.</td>
-                  </tr>
-                  <tr>
-                    <td><code>solvay-spark-spine_default</code></td>
-                    <td>every service, including <code>app</code></td>
-                    <td>The stack's private network, created by Compose. The app reaches <code>postgres</code>, <code>ollama</code>, <code>neo4j</code> and <code>hindsight</code> here, by those names.</td>
+                    <td>every service</td>
+                    <td>The server's shared network. The ivolve platform team requires every container on it, so the platform (proxy, monitoring) can reach them. It already exists on the server; <code>external: true</code> tells Compose to join it, never create or delete it. The services find each other here by name: <code>solvay-postgres</code>, <code>solvay-ollama</code>, <code>solvay-neo4j</code>, <code>solvay-hindsight</code>.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p>In <code>compose.yml</code> that is two short blocks:</p>
+            <p>In <code>compose.yml</code> each service lists the network, and one block at the end declares it:</p>
             <pre class="language-yaml">
 services:
-  app:
+  solvay-postgres:
     networks:
-      - default      # the stack's private network
-      - ivolve       # the shared ivolve-network
+      - ivolve-network
+  # … and the same two lines on every other service
 
 networks:
-  ivolve:
-    name: ivolve-network
+  ivolve-network:
     external: true</pre>
             <div class="why">
-              <span class="label">Why the databases stay off the shared network</span>
+              <span class="label">Why every service name starts with solvay-</span>
               <p>
-                Every container on a shared network can reach every other one by name.
-                Keeping Postgres, Neo4j, Ollama and Hindsight private means other
-                teams' containers can't reach our data. It also means a generic name
-                like <code>postgres</code> can't clash with another stack's
-                <code>postgres</code> and send our app to the wrong database.
+                On a shared network every container is reachable by its service name,
+                and other teams' stacks are on <code>ivolve-network</code> too. If two
+                stacks both had a service called <code>postgres</code>, Docker would
+                answer <code>postgres</code> with either one, and our app would
+                sometimes log in to the other team's database and fail, which shows up
+                as Postgres connection or password errors that come and go. With
+                the <code>solvay-</code> prefix, and the prefixed names in
+                <code>DATABASE_URL</code>, <code>OLLAMA_HOST</code>,
+                <code>NEO4J_URI</code> and <code>HINDSIGHT_URL</code>, the names can't
+                clash. Keep the prefix on any service you add.
+              </p>
+              <p>
+                The one exception is <code>app</code>: the proxy reaches it by its full
+                container name, <code>solvay-spark-spine-app-1</code>, which is already
+                unique, and nothing in the stack calls it <code>app</code>.
               </p>
             </div>
 
@@ -2373,7 +2469,7 @@ docker network ls | grep ivolve-network</pre>
               The first two print version numbers if Docker and Compose are installed.
               The third makes Docker start by itself whenever the server reboots, and
               with it the app. The fourth must print a line with
-              <code>ivolve-network</code>: the shared network the app joins. If it prints
+              <code>ivolve-network</code>: the shared network every container in the stack joins. If it prints
               nothing, ask the ivolve platform team to create it before you continue;
               don't create it yourself.
             </p>
@@ -2527,12 +2623,12 @@ nano .env</pre>
 cd ~/solvay-spark-spine
 docker login reg.ivolve.cloud
 docker compose pull
-docker compose up -d postgres ollama ollama-pull neo4j
+docker compose up -d solvay-postgres solvay-ollama solvay-ollama-pull solvay-neo4j
 docker compose ps
-docker compose exec -T postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
-docker compose up -d hindsight-db hindsight app
+docker compose exec -T solvay-postgres pg_restore -U spark -d solvay --no-owner --no-acl &lt; spark-2026-09-29.dump
+docker compose up -d solvay-hindsight-db solvay-hindsight app
 curl localhost:8040/api/health
-docker compose exec app curl -s http://hindsight:8888/health
+docker compose exec app curl -s http://solvay-hindsight:8888/health
 docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'</pre>
             <div class="tablewrap">
               <table>
@@ -2540,13 +2636,13 @@ docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSett
                 <tbody>
                   <tr><td><code>docker login reg.ivolve.cloud</code></td><td>Logs the server in to the registry, so it may download the image. A token with <code>read_registry</code> is enough.</td></tr>
                   <tr><td><code>docker compose pull</code></td><td>Downloads every image named in <code>compose.yml</code>.</td></tr>
-                  <tr><td><code>docker compose up -d postgres ollama ollama-pull neo4j</code></td><td>Starts the supporting services in the background (<code>-d</code>, "detached"). The app waits until the database is restored.</td></tr>
-                  <tr><td><code>docker compose ps</code></td><td>Lists the services. Wait until <code>postgres</code> and <code>neo4j</code> show <code>(healthy)</code>; Neo4j can take 1–3 minutes the first time.</td></tr>
-                  <tr><td><code>docker compose exec -T postgres pg_restore … &lt; spark-….dump</code></td><td>Runs <code>pg_restore</code> inside the Postgres container and feeds it the dump file (<code>&lt;</code> means "read from this file"). It loads the search index and run history into the <code>solvay</code> database.</td></tr>
-                  <tr><td><code>docker compose up -d hindsight-db hindsight app</code></td><td>Creates the memory database, starts the memory server and starts the application.</td></tr>
+                  <tr><td><code>docker compose up -d solvay-postgres solvay-ollama solvay-ollama-pull solvay-neo4j</code></td><td>Starts the supporting services in the background (<code>-d</code>, "detached"). The app waits until the database is restored.</td></tr>
+                  <tr><td><code>docker compose ps</code></td><td>Lists the services. Wait until <code>solvay-postgres</code> and <code>solvay-neo4j</code> show <code>(healthy)</code>; Neo4j can take 1–3 minutes the first time.</td></tr>
+                  <tr><td><code>docker compose exec -T solvay-postgres pg_restore … &lt; spark-….dump</code></td><td>Runs <code>pg_restore</code> inside the Postgres container and feeds it the dump file (<code>&lt;</code> means "read from this file"). It loads the search index and run history into the <code>solvay</code> database.</td></tr>
+                  <tr><td><code>docker compose up -d solvay-hindsight-db solvay-hindsight app</code></td><td>Creates the memory database, starts the memory server and starts the application.</td></tr>
                   <tr><td><code>curl localhost:8040/api/health</code></td><td>Asks the app whether it is up. The answer should start with <code>{"ok":true</code>.</td></tr>
-                  <tr><td><code>docker compose exec app curl -s http://hindsight:8888/health</code></td><td>Asks the memory server, from inside the app container, whether it is up. Expect <code>"status":"healthy"</code>. It takes 1–2 minutes after starting.</td></tr>
-                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>Lists the networks the app container is on. Expect both <code>ivolve-network</code> and <code>solvay-spark-spine_default</code>.</td></tr>
+                  <tr><td><code>docker compose exec app curl -s http://solvay-hindsight:8888/health</code></td><td>Asks the memory server, from inside the app container, whether it is up. Expect <code>"status":"healthy"</code>. It takes 1–2 minutes after starting.</td></tr>
+                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>Lists the networks the app container is on. Expect <code>ivolve-network</code>.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2558,7 +2654,7 @@ docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSett
               <p>
                 <code>WARN No services to build</code> from compose is normal. So is a
                 <code>pg_restore</code> warning that <code>extension "vector" already
-                exists</code>. <code>ollama-pull</code> and <code>hindsight-db</code> showing
+                exists</code>. <code>solvay-ollama-pull</code> and <code>solvay-hindsight-db</code> showing
                 <em>Exited</em> is normal: they finished their one job.
               </p>
             </div>
@@ -2577,6 +2673,17 @@ docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSett
           <section class="phase" id="open" data-nav-label="Open the app in your local system browser">
             <span class="phase-tag">Step 9 · On your Mac</span>
             <h2>Open the app in your local system browser</h2>
+            <div class="win">
+              <span class="label">The deployed app</span>
+              <p>
+                The team opens the app at
+                <a href="https://solvay-sparkai.ivolve.cloud/"><strong>https://solvay-sparkai.ivolve.cloud/</strong></a>,
+                in any browser, through the HTTPS proxy set up in section 14. The SSH
+                tunnel below is for administrators: it reaches the app directly on the
+                server, which is useful when the proxy is down or while checking a new
+                deployment.
+              </p>
+            </div>
             <p>
               The app accepts connections from the server itself only, so it isn't on
               the public internet. You reach it through an <strong>SSH tunnel</strong>.
@@ -2638,7 +2745,7 @@ docker compose logs --tail 50 app</pre>
               <table>
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
-                  <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>postgres</code>, <code>neo4j</code> and <code>hindsight</code> also <code>(healthy)</code>. <code>ollama-pull</code> and <code>hindsight-db</code> show <em>Exited</em>; that's correct.</td></tr>
+                  <tr><td><code>docker compose ps</code></td><td>Each service's state. All should be <code>Up</code>; <code>app</code>, <code>solvay-postgres</code>, <code>solvay-neo4j</code> and <code>solvay-hindsight</code> also <code>(healthy)</code>. <code>solvay-ollama-pull</code> and <code>solvay-hindsight-db</code> show <em>Exited</em>; that's correct.</td></tr>
                   <tr><td><code>curl localhost:8040/api/health</code></td><td>Whether the app answers. Expect <code>{"ok":true,…}</code>.</td></tr>
                   <tr><td><code>docker compose logs --tail 50 app</code></td><td>The app's last 50 log lines: errors show up here. Use <code>-f</code> instead of <code>--tail 50</code> to follow live; <kbd>Ctrl</kbd>+<kbd>C</kbd> stops following.</td></tr>
                 </tbody>
@@ -2649,25 +2756,27 @@ docker compose logs --tail 50 app</pre>
 docker ps --filter name=solvay-spark-spine --format '{{.Names}}\t{{.Status}}'
 docker compose -p solvay-spark-spine ps
 docker logs --tail 50 solvay-spark-spine-app-1
+docker logs solvay-spark-spine-solvay-postgres-1
 docker stats --no-stream</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
-                  <tr><td><code>docker ps --filter name=solvay-spark-spine --format '{{.Names}}\t{{.Status}}'</code></td><td>Every running container in the stack, one per line, with its name and status. <code>--filter</code> keeps only names containing <code>solvay-spark-spine</code>, which hides other teams' containers; <code>--format</code> prints just the two columns. Add <code>-a</code> to include stopped ones such as <code>ollama-pull</code> and <code>hindsight-db</code>.</td></tr>
+                  <tr><td><code>docker ps --filter name=solvay-spark-spine --format '{{.Names}}\t{{.Status}}'</code></td><td>Every running container in the stack, one per line, with its name and status. <code>--filter</code> keeps only names containing <code>solvay-spark-spine</code>, which hides other teams' containers; <code>--format</code> prints just the two columns. Add <code>-a</code> to include stopped ones such as <code>solvay-ollama-pull</code> and <code>solvay-hindsight-db</code>.</td></tr>
                   <tr><td><code>docker compose -p solvay-spark-spine ps</code></td><td>The same, through Compose. <code>-p</code> names the project, so it works outside the folder.</td></tr>
                   <tr><td><code>docker logs --tail 50 solvay-spark-spine-app-1</code></td><td>The app's last 50 log lines.</td></tr>
+                  <tr><td><code>docker logs solvay-spark-spine-solvay-postgres-1</code></td><td>The database's whole log: startup, crashes, and every refused login (<code>password authentication failed</code>), which is where Postgres connection failures show up. Add <code>--tail 50</code> for just the end. On a server not yet moved to the <code>solvay-</code> names (section 11), the container is <code>solvay-spark-spine-postgres-1</code>.</td></tr>
                   <tr><td><code>docker stats --no-stream</code></td><td>Each container's CPU and memory use, once.</td></tr>
                 </tbody>
               </table>
             </div>
             <p>A healthy stack looks like this:</p>
             <pre>
-solvay-spark-spine-app-1         Up 2 hours (healthy)
-solvay-spark-spine-postgres-1    Up 2 hours (healthy)
-solvay-spark-spine-neo4j-1       Up 2 hours (healthy)
-solvay-spark-spine-ollama-1      Up 2 hours
-solvay-spark-spine-hindsight-1   Up 2 hours (healthy)</pre>
+solvay-spark-spine-app-1                Up 2 hours (healthy)
+solvay-spark-spine-solvay-postgres-1    Up 2 hours (healthy)
+solvay-spark-spine-solvay-neo4j-1       Up 2 hours (healthy)
+solvay-spark-spine-solvay-ollama-1      Up 2 hours
+solvay-spark-spine-solvay-hindsight-1   Up 2 hours (healthy)</pre>
             <p>
               Compose names each container project, then service, then <code>-1</code>,
               so the app is always <code>solvay-spark-spine-app-1</code>.
@@ -2681,16 +2790,16 @@ docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {
               <table>
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
-                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>The networks the app container is on. Expect <code>ivolve-network solvay-spark-spine_default</code>.</td></tr>
-                  <tr><td><code>docker network inspect ivolve-network --format … | grep solvay-spark-spine</code></td><td>The same question asked from the network's side: which of our containers are on <code>ivolve-network</code>. Expect only <code>solvay-spark-spine-app-1</code>. The databases, Ollama and Hindsight should not appear.</td></tr>
+                  <tr><td><code>docker inspect solvay-spark-spine-app-1 --format …</code></td><td>The networks the app container is on. Expect <code>ivolve-network</code>.</td></tr>
+                  <tr><td><code>docker network inspect ivolve-network --format … | grep solvay-spark-spine</code></td><td>The same question asked from the network's side: which of our containers are on <code>ivolve-network</code>. Expect all five running ones: <code>app</code>, <code>solvay-postgres</code>, <code>solvay-neo4j</code>, <code>solvay-ollama</code> and <code>solvay-hindsight</code>, each as <code>solvay-spark-spine-…-1</code>. A container missing here can't be reached by the others.</td></tr>
                 </tbody>
               </table>
             </div>
             <p>
-              If <code>ivolve-network</code> is missing from the first command's output,
-              the server has an older <code>compose.yml</code>. Copy the current one over
-              (section 11, "After changing compose.yml") and run
-              <code>docker compose up -d app</code>.
+              If a container is missing, or its name has no <code>solvay-</code> in the
+              middle (<code>…-postgres-1</code> rather than <code>…-solvay-postgres-1</code>),
+              the server has an older <code>compose.yml</code>. Move it to the current one
+              as described in section 11, "Moving a running server to the solvay- names".
             </p>
             <h3>Restart or stop</h3>
             <pre class="language-bash">
@@ -2756,14 +2865,58 @@ curl localhost:8040/api/health</pre>
             <p>On your Mac, <code>./scripts/docker-publish.sh hindsight</code>. Then on the server:</p>
             <pre class="language-bash">
 cd ~/solvay-spark-spine
-docker compose pull hindsight
-docker compose up -d hindsight</pre>
+docker compose pull solvay-hindsight
+docker compose up -d solvay-hindsight</pre>
             <p>The memories are in the database, so they survive the update.</p>
 
             <h3>After changing compose.yml</h3>
             <pre class="language-bash">
 scp -i ~/Downloads/ivolve-cloud-server.pem compose.yml ubuntu@13.204.129.141:~/solvay-spark-spine/</pre>
             <p>On your Mac. Then on the server, <code>docker compose up -d</code> applies it.</p>
+            <p>
+              <button type="button" class="file-open" data-dialog="composeDialog">
+                View the full compose.yml
+              </button>
+            </p>
+
+            <h3 id="rename-services">Moving a running server to the solvay- names</h3>
+            <p>
+              Once only, on a server still running the older <code>compose.yml</code>,
+              whose services were called <code>postgres</code>, <code>neo4j</code>,
+              <code>ollama</code> and <code>hindsight</code>. Renamed services get new
+              containers, and the old ones must be stopped first: two Postgres
+              containers on the same data volume at once can damage the database.
+              The data itself is kept, because the volumes are named in
+              <code>compose.yml</code>, not after the services.
+            </p>
+            <p>On the server, before copying the new file:</p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose down</pre>
+            <p>Then copy the new <code>compose.yml</code> from your Mac (the <code>scp</code> above), and on the server:</p>
+            <pre class="language-bash">
+docker compose up -d
+docker compose ps
+curl localhost:8040/api/health
+docker compose exec app curl -s http://solvay-hindsight:8888/health</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker compose down</code></td><td>Stops and removes the old containers. Run it while the old <code>compose.yml</code> is still in place, so Compose knows which containers are ours. Volumes are untouched: no <code>-v</code>.</td></tr>
+                  <tr><td><code>docker compose up -d</code></td><td>Starts the stack under the new names, on the same volumes, with every container on <code>ivolve-network</code>.</td></tr>
+                  <tr><td><code>docker compose ps</code></td><td>Every service should be <code>Up</code>, with <code>solvay-</code> names; the two one-off helpers show <em>Exited</em>.</td></tr>
+                  <tr><td><code>curl localhost:8040/api/health</code></td><td>The app answers, so it reached the database. Expect <code>{"ok":true,…}</code>.</td></tr>
+                  <tr><td><code>docker compose exec app curl -s http://solvay-hindsight:8888/health</code></td><td>The memory server answers under its new name. Expect <code>"status":"healthy"</code>, 1–2 minutes after starting.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              If you already ran <code>docker compose up -d</code> with the new file,
+              the old containers are still running beside the new ones. Stop them with
+              <code>docker compose up -d --remove-orphans</code>, then restart the database
+              cleanly with <code>docker compose restart solvay-postgres app</code>.
+            </p>
 
             <h3 id="rebuild-graph">Rebuild the knowledge graph</h3>
             <p>
@@ -2885,19 +3038,19 @@ curl localhost:8040/api/health</pre>
               </p>
             </div>
             <div class="qa">
-              <p class="q">"dependency failed to start: container …-neo4j-1 is unhealthy".</p>
+              <p class="q">"dependency failed to start: container …-solvay-neo4j-1 is unhealthy".</p>
               <p>Look at Neo4j's log first:</p>
               <pre class="language-bash">
-docker compose logs --tail 50 neo4j</pre>
+docker compose logs --tail 50 solvay-neo4j</pre>
               <p>
                 Usually the password is under 8 characters, or it changed after the first
                 start. Fix <code>NEO4J_PASSWORD</code> in <code>.env</code>, then reset
                 Neo4j. Its data is only a copy of the graph, which the app reloads:
               </p>
               <pre class="language-bash">
-docker compose rm -sf neo4j
+docker compose rm -sf solvay-neo4j
 docker volume rm solvay-spark-spine_neo4j-data
-docker compose up -d neo4j
+docker compose up -d solvay-neo4j
 docker compose up -d app</pre>
               <p>
                 If it was just slow (the first start downloads a plugin), wait for
@@ -2923,7 +3076,7 @@ docker compose up -d app</pre>
               <p>
                 Read <code>docker compose logs --tail 100 app</code>. A message about
                 <code>DATABASE_URL</code> or a password means <code>.env</code> is incomplete;
-                "connection refused" to <code>postgres</code> means the database isn't
+                "connection refused" to <code>solvay-postgres</code> means the database isn't
                 healthy yet.
               </p>
             </div>
@@ -2932,17 +3085,17 @@ docker compose up -d app</pre>
               <p class="q">The Evidence Agent says memory is unavailable.</p>
               <p>Check the memory server and its log:</p>
               <pre class="language-bash">
-docker compose ps hindsight hindsight-db
-docker compose logs --tail 50 hindsight
-docker compose exec app curl -s http://hindsight:8888/health</pre>
+docker compose ps solvay-hindsight solvay-hindsight-db
+docker compose logs --tail 50 solvay-hindsight
+docker compose exec app curl -s http://solvay-hindsight:8888/health</pre>
               <p>
-                <code>hindsight-db</code> must have exited with code 0. If it failed,
+                <code>solvay-hindsight-db</code> must have exited with code 0. If it failed,
                 Postgres wasn't ready or the password is wrong: run
-                <code>docker compose up -d hindsight-db hindsight</code> again. If
-                <code>hindsight</code> is still <em>starting</em>, wait 1–2 minutes. An
+                <code>docker compose up -d solvay-hindsight-db solvay-hindsight</code> again. If
+                <code>solvay-hindsight</code> is still <em>starting</em>, wait 1–2 minutes. An
                 <code>AuthenticationError</code> in its log means
                 <code>ANTHROPIC_API_KEY</code> in <code>.env</code> is missing or wrong;
-                fix it, then <code>docker compose up -d hindsight</code>.
+                fix it, then <code>docker compose up -d solvay-hindsight</code>.
               </p>
             </div>
 
@@ -2961,8 +3114,8 @@ docker compose exec app curl -s http://hindsight:8888/health</pre>
               <p class="q">Ask returns nothing, or an error about embeddings.</p>
               <p>Check the model downloaded and the index was restored:</p>
               <pre class="language-bash">
-docker compose logs ollama-pull | tail -3
-docker compose exec postgres psql -U spark -d solvay -c "select count(*) from rag_chunks;"</pre>
+docker compose logs solvay-ollama-pull | tail -3
+docker compose exec solvay-postgres psql -U spark -d solvay -c "select count(*) from rag_chunks;"</pre>
               <p>
                 The first should end in <code>success</code>; the second should print
                 a number well above 0. If it's 0, restore the dump again (section 8).
@@ -2985,7 +3138,7 @@ docker compose exec postgres psql -U spark -d solvay -c "select count(*) from ra
               <pre class="language-bash">
 docker compose down
 docker volume rm solvay-spark-spine_pgdata
-docker compose up -d postgres</pre>
+docker compose up -d solvay-postgres</pre>
             </div>
           </section>
 
@@ -3005,7 +3158,7 @@ docker compose up -d postgres</pre>
             </div>
             <h3>Giving the team a web address</h3>
             <p>
-              For a proper URL such as <code>https://spark.ivolve.cloud</code>, keep the app
+              For a proper URL, like ours at <code>https://solvay-sparkai.ivolve.cloud/</code>, keep the app
               on localhost and put a reverse proxy with a password in front of it.
               Section 14 walks through it step by step.
             </p>
@@ -3042,7 +3195,7 @@ docker compose up -d postgres</pre>
             <p>
               So far only people with the server key can open the app, through the SSH
               tunnel in section 9. This section gives the team an ordinary web address,
-              such as <strong>https://spark.ivolve.cloud</strong>, that opens in any
+              <strong>https://solvay-sparkai.ivolve.cloud/</strong>, that opens in any
               browser. There's no key or tunnel to set up, just a password.
             </p>
             <p>
@@ -3073,7 +3226,7 @@ docker compose up -d postgres</pre>
                 <div class="flow-role">A team member</div>
                 <div class="flow-box">
                   <strong>Browser</strong>
-                  <span>Types https://spark.ivolve.cloud. DNS turns the name into the server's address.</span>
+                  <span>Types https://solvay-sparkai.ivolve.cloud. DNS turns the name into the server's address.</span>
                 </div>
               </div>
               <div class="flow-arrow a1"><span class="lbl">internet<br>port 443 (HTTPS)</span></div>
@@ -3102,7 +3255,7 @@ docker compose up -d postgres</pre>
             <div class="cards">
               <div class="card">
                 <span class="card-title">Domain name and DNS</span>
-                A domain name (<code>spark.ivolve.cloud</code>) is the human-friendly
+                A domain name (<code>solvay-sparkai.ivolve.cloud</code>) is the human-friendly
                 address. DNS is the internet's phone book that turns the name into the
                 server's number, its IP address <code>13.204.129.141</code>. A
                 <em>DNS record</em> is one entry in that phone book.
@@ -3200,7 +3353,7 @@ docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' | grep -Ei 'caddy|nginx|
             <div class="why">
               <span class="label">What to send the owner of an existing proxy</span>
               <p>
-                "Please add a site for <code>spark.ivolve.cloud</code> that forwards to
+                "Please add a site for <code>solvay-sparkai.ivolve.cloud</code> that forwards to
                 <code>http://solvay-spark-spine-app-1:8000</code> on
                 <code>ivolve-network</code>. It needs HTTPS and a password in front
                 (for example basic auth), because the app's <code>/api/*</code> has no
@@ -3219,14 +3372,14 @@ docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' | grep -Ei 'caddy|nginx|
                 <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
                 <tbody>
                   <tr><td>Type</td><td><code>A</code></td><td>"This name points at an IPv4 address."</td></tr>
-                  <tr><td>Name</td><td><code>spark</code></td><td>Makes <code>spark.ivolve.cloud</code>.</td></tr>
+                  <tr><td>Name</td><td><code>solvay-sparkai</code></td><td>Makes <code>solvay-sparkai.ivolve.cloud</code>.</td></tr>
                   <tr><td>Value</td><td><code>13.204.129.141</code></td><td>The server's public IP address.</td></tr>
                 </tbody>
               </table>
             </div>
             <p>When they say it's done, check it on your Mac:</p>
             <pre class="language-bash">
-dig +short spark.ivolve.cloud</pre>
+dig +short solvay-sparkai.ivolve.cloud</pre>
             <p>
               It should print <code>13.204.129.141</code>. If it prints nothing, wait a
               few minutes and try again. Don't start Caddy until this works; Let's
@@ -3298,7 +3451,7 @@ cd ~/caddy
 nano Caddyfile</pre>
             <p>Paste this, put your hash in place of the example, then save (<kbd>Ctrl</kbd>+<kbd>O</kbd>, <kbd>Enter</kbd>) and exit (<kbd>Ctrl</kbd>+<kbd>X</kbd>):</p>
             <pre>
-spark.ivolve.cloud {
+solvay-sparkai.ivolve.cloud {
     basic_auth {
         spark $2a$14$PASTE-THE-WHOLE-HASH-HERE
     }
@@ -3308,7 +3461,7 @@ spark.ivolve.cloud {
               <table>
                 <thead><tr><th>Line</th><th>Meaning</th></tr></thead>
                 <tbody>
-                  <tr><td><code>spark.ivolve.cloud {</code></td><td>"These are the rules for this web address." Because it's a real name, Caddy automatically gets a certificate for it and redirects <code>http://</code> to <code>https://</code>.</td></tr>
+                  <tr><td><code>solvay-sparkai.ivolve.cloud {</code></td><td>"These are the rules for this web address." Because it's a real name, Caddy automatically gets a certificate for it and redirects <code>http://</code> to <code>https://</code>.</td></tr>
                   <tr><td><code>basic_auth { … }</code></td><td>Ask for a password before anything else.</td></tr>
                   <tr><td><code>spark $2a$14$…</code></td><td>One allowed login: user name <code>spark</code>, then the password's hash. Add more lines for more users, one each.</td></tr>
                   <tr><td><code>reverse_proxy solvay-spark-spine-app-1:8000</code></td><td>Pass every request to the app container, by its name, on port 8000 (the app's port <em>inside</em> its container). This works because both containers are on <code>ivolve-network</code>.</td></tr>
@@ -3379,8 +3532,8 @@ docker compose exec caddy wget -qO- http://solvay-spark-spine-app-1:8000/api/hea
 
             <h3 id="public-test">Step 7 · Test it from your Mac</h3>
             <pre class="language-bash">
-curl -I https://spark.ivolve.cloud/api/health
-curl -u spark:YOUR-PASSWORD https://spark.ivolve.cloud/api/health</pre>
+curl -I https://solvay-sparkai.ivolve.cloud/api/health
+curl -u spark:YOUR-PASSWORD https://solvay-sparkai.ivolve.cloud/api/health</pre>
             <div class="tablewrap">
               <table>
                 <thead><tr><th>Command</th><th>Expect</th><th>What it proves</th></tr></thead>
@@ -3391,7 +3544,7 @@ curl -u spark:YOUR-PASSWORD https://spark.ivolve.cloud/api/health</pre>
               </table>
             </div>
             <p>
-              Then open <strong>https://spark.ivolve.cloud</strong> in a browser, with
+              Then open <strong>https://solvay-sparkai.ivolve.cloud</strong> in a browser, with
               no tunnel running. You should see a padlock in the address bar and a
               small password pop-up. After it, the app's own sign-in page appears.
             </p>
@@ -3447,7 +3600,7 @@ curl -u spark:YOUR-PASSWORD https://spark.ivolve.cloud/api/health</pre>
               <p class="q">The log says it couldn't get a certificate ("challenge failed", "timeout", "NXDOMAIN").</p>
               <p>
                 Let's Encrypt couldn't reach the server by its name. Check that
-                <code>dig +short spark.ivolve.cloud</code> prints
+                <code>dig +short solvay-sparkai.ivolve.cloud</code> prints
                 <code>13.204.129.141</code>, and that port 80 is open to
                 <em>Anywhere</em> in the security group. Caddy retries by itself; after
                 fixing, <code>docker compose restart caddy</code> speeds it up.
@@ -3504,6 +3657,199 @@ docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {
         </div>
       </div>
     </main>
+
+    <!-- compose.yml in full, opened by the "View the full compose.yml" buttons.
+         Outside every section, so the page search doesn't index it twice. Keep
+         it in step with compose.yml in the repository. -->
+    <dialog class="file-dialog" id="composeDialog" aria-labelledby="composeDialogTitle">
+      <div class="file-dialog-head">
+        <span class="label" id="composeDialogTitle">compose.yml</span>
+        <button type="button" class="file-dialog-close" aria-label="Close">✕</button>
+      </div>
+      <div class="file-dialog-body">
+        <pre class="language-yaml">
+# The server stack: the app image plus Postgres/pgvector, Ollama, Neo4j and
+# Hindsight. See docs/deployment.md. For local development compose.neo4j.yml is
+# still the one to use (it runs only Neo4j, next to ./scripts/run.sh).
+#
+#   docker compose up -d
+#
+# Reads .env from this directory (template: .env.example).
+#
+# Every container joins the server's shared ivolve-network, as the platform
+# requires. That network is shared with other teams' stacks, and on it a
+# service is reachable by its service name. So every service that is called by
+# name has a solvay- prefix: a generic "postgres" there would clash with
+# another stack's "postgres", and Docker would hand out either address, sending
+# our app to the wrong database at random. Keep the prefix on any service added
+# here, and use the prefixed name in every URL.
+
+services:
+  app:
+    image: reg.ivolve.cloud/ivolve/solvay-spark-spine:${TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@solvay-postgres:5432/solvay
+      OLLAMA_HOST: http://solvay-ollama:11434
+      NEO4J_URI: bolt://solvay-neo4j:7687
+      # Evidence Agent memory (the solvay-hindsight service below). Empty turns
+      # it off.
+      HINDSIGHT_URL: http://solvay-hindsight:8888
+    ports:
+      # Put a TLS reverse proxy in front before opening this beyond the host:
+      # /api/* has no authentication (see docs/deployment.md).
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - workdir:/app/.workdir
+      # Seeded from the image on first start; graph rebuilds rewrite it.
+      - graph-data:/app/data
+      # The SPARK corpus, copied to the server separately.
+      - ./solvay-spark:/app/solvay-spark:ro
+      # Part of the corpus too: the BPML hierarchy the graph is built on
+      # (BPML_Process_xlsx.md) and documents added from the UI. Copied to the
+      # server separately; writable, because the UI adds to it. The container
+      # runs as uid 1000, so the folder must be writable by that user.
+      - ./knowledge_base:/app/knowledge_base
+    # The proxy reaches the app by its container name,
+    # solvay-spark-spine-app-1, so the service keeps its short name.
+    networks:
+      - ivolve-network
+    depends_on:
+      solvay-postgres:
+        condition: service_healthy
+      solvay-ollama:
+        condition: service_started
+      solvay-neo4j:
+        condition: service_healthy
+
+  solvay-postgres:
+    image: docker.io/pgvector/pgvector:pg18
+    restart: unless-stopped
+    environment:
+      # A superuser: the app runs CREATE EXTENSION vector and creates the
+      # solvay_session database for uploads (backend/rag/rag.py).
+      POSTGRES_USER: spark
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: solvay
+    volumes:
+      # pg18 images keep their data under /var/lib/postgresql/&lt;major&gt;/.
+      - pgdata:/var/lib/postgresql
+    networks:
+      - ivolve-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spark -d solvay"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: creates the hindsight database beside solvay, then exits.
+  # POSTGRES_DB only acts on a brand-new volume, and the server's was created
+  # before Hindsight joined the stack, so this checks and creates it itself.
+  solvay-hindsight-db:
+    image: docker.io/pgvector/pgvector:pg18
+    environment:
+      PGHOST: solvay-postgres
+      PGUSER: spark
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Retries: a brand-new Postgres reports healthy while its first-start
+    # setup still refuses TCP connections.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 30); do
+          psql -d solvay -tAc "select 1" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; break
+          sleep 2
+        done
+        psql -d solvay -tAc "select 1 from pg_database where datname = 'hindsight'" | grep -q 1 || createdb hindsight
+    networks:
+      - ivolve-network
+    depends_on:
+      solvay-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Hindsight, the Evidence Agent's long-term memory (docs/agent-memory.md).
+  # Same models as scripts/hindsight.sh: Opus reads and files what each
+  # investigation found, Sonnet answers "Ask memory" within its deadline.
+  solvay-hindsight:
+    image: reg.ivolve.cloud/ivolve/solvay-spark-spine-hindsight:${HINDSIGHT_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://spark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@solvay-postgres:5432/hindsight
+      HINDSIGHT_API_LLM_PROVIDER: litellm
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_MODEL:-anthropic/claude-opus-5}
+      HINDSIGHT_API_LLM_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      HINDSIGHT_API_REFLECT_LLM_MODEL: ${HINDSIGHT_REFLECT_MODEL:-anthropic/claude-sonnet-5}
+      HINDSIGHT_API_REFLECT_LLM_TIMEOUT: ${HINDSIGHT_REFLECT_TIMEOUT:-60}
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: local
+    # On the network like the rest: it reads and writes its database in
+    # solvay-postgres, and the app calls it at solvay-hindsight:8888.
+    networks:
+      - ivolve-network
+    depends_on:
+      solvay-hindsight-db:
+        condition: service_completed_successfully
+
+  solvay-ollama:
+    image: docker.io/ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - ivolve-network
+
+  # One-shot: pulls the embedding model into the ollama volume, then exits.
+  solvay-ollama-pull:
+    image: docker.io/ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://solvay-ollama:11434
+    entrypoint: ["ollama", "pull", "bge-m3"]
+    networks:
+      - ivolve-network
+    depends_on:
+      - solvay-ollama
+    restart: "no"
+
+  solvay-neo4j:
+    image: docker.io/library/neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_db_tx__log_rotation_retention__policy: 100M size
+      NEO4J_db_tx__log_rotation_size: 32M
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - ivolve-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 &gt;/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+# Named by the keys below, not by the services, so renaming a service keeps its
+# data: solvay-postgres still mounts solvay-spark-spine_pgdata.
+volumes:
+  workdir:
+  graph-data:
+  pgdata:
+  ollama:
+  neo4j-data:
+
+networks:
+  # The server's shared network, created and managed outside this stack. Every
+  # service joins it (see the note at the top), so the names on it must be
+  # unique across all the stacks on the server.
+  ivolve-network:
+    external: true</pre>
+      </div>
+    </dialog>
 
     <script>
       (function () {
@@ -5096,6 +5442,34 @@ docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {
           input.select();
           box.scrollIntoView({ block: "nearest" });
         });
+      })();
+      // File pop-ups: a .file-open button opens the <dialog> named in its
+      // data-dialog; Esc (built in), the close button or a click on the
+      // backdrop closes it, and focus goes back to the button.
+      (function () {
+        Array.prototype.forEach.call(
+          document.querySelectorAll(".file-open[data-dialog]"),
+          function (btn) {
+            var dlg = document.getElementById(btn.getAttribute("data-dialog"));
+            if (!dlg || typeof dlg.showModal !== "function") {
+              btn.hidden = true;
+              return;
+            }
+            btn.addEventListener("click", function () {
+              dlg.showModal();
+            });
+          }
+        );
+        Array.prototype.forEach.call(
+          document.querySelectorAll("dialog.file-dialog"),
+          function (dlg) {
+            var close = dlg.querySelector(".file-dialog-close");
+            if (close) close.addEventListener("click", function () { dlg.close(); });
+            dlg.addEventListener("click", function (ev) {
+              if (ev.target === dlg) dlg.close();
+            });
+          }
+        );
       })();
     </script>
   </body>

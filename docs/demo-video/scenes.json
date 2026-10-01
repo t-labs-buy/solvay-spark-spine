@@ -1,0 +1,280 @@
+{
+  "title": "Fit-Gap Copilot — India Customer Returns",
+  "subtitle": "Run ro_879e0497a4 · 4.10.2 Process Returns — India (25 Sep 2026); the India As-Is is synthetic",
+  "output": "fitgap-demo-rough.mp4",
+  "voice": {
+    "kokoro": "af_heart",
+    "say": "Daniel",
+    "speed": 1.0
+  },
+  "pronounce": {
+    "kokoro": [
+      [
+        "\\bSolvay's\\b",
+        "[Solvay's](/sˈɑlvAz/)"
+      ],
+      [
+        "\\bSolvay\\b",
+        "[Solvay](/sˈɑlvA/)"
+      ],
+      [
+        "GAP-IN-RET-0?(\\d+)",
+        "gap \\1"
+      ],
+      [
+        "GAP-0?(\\d+)",
+        "gap \\1"
+      ],
+      [
+        "\\bSAP\\b",
+        "S-A-P"
+      ],
+      [
+        "\\bL2C\\b",
+        "L-2-C"
+      ],
+      [
+        "\\bwatchlist\\b",
+        "watch list"
+      ],
+      [
+        "\\bworkstream\\b",
+        "work stream"
+      ],
+      [
+        "\\bgo-live\\b",
+        "go live"
+      ],
+      [
+        "\\blow-risk\\b",
+        "low risk"
+      ]
+    ],
+    "say": [
+      [
+        "GAP-IN-RET-0?(\\d+)",
+        "gap \\1"
+      ],
+      [
+        "GAP-0?(\\d+)",
+        "gap \\1"
+      ],
+      [
+        "\\bGSTIN\\b",
+        "G S T I N"
+      ],
+      [
+        "\\bIRN\\b",
+        "I R N"
+      ],
+      [
+        "\\bITC\\b",
+        "I T C"
+      ],
+      [
+        "\\bGST\\b",
+        "G S T"
+      ],
+      [
+        "\\bBKP2\\b",
+        "B K P 2"
+      ],
+      [
+        "\\bL2C\\b",
+        "L 2 C"
+      ],
+      [
+        "\\bSAP\\b",
+        "S A P"
+      ],
+      [
+        "\\bAs-Is\\b",
+        "as-is"
+      ],
+      [
+        "\\bCS\\b",
+        "C S"
+      ]
+    ]
+  },
+  "mask": [
+    "model\\s+claude-[\\w.-]+\\s*·?\\s*",
+    "claude-[\\w.-]+"
+  ],
+  "check_ignore": [
+    [
+      "gst",
+      "gsd"
+    ],
+    [
+      "gstin",
+      "gsdin"
+    ]
+  ],
+  "scenes": [
+    {
+      "id": "s00_title",
+      "dur": 8,
+      "kind": "card",
+      "caption": "",
+      "screen": "Title card.",
+      "vo": "Fit-Gap Copilot. One country, one process, weeks before the rollout workshop."
+    },
+    {
+      "id": "s01_hook",
+      "dur": 30,
+      "kind": "app",
+      "caption": "Weeks before the India rollout: one As-Is document in, a full fit-gap out",
+      "screen": "Fit-Gap Copilot, History drawer open on the India run preview, then 'Load into page'.",
+      "vo": "Picture it: we are weeks ahead of the India rollout. Solvay has not shared a country As-Is yet, so we wrote a realistic India customer returns process ourselves. It is synthetic and AI-generated, with the India nuances you would expect. We attached that one document to the Fit-Gap Copilot and ran it against Solvay's own Global Template. Nothing else. This is what came back.",
+      "cues": [
+        "It is synthetic",
+        "We attached that one document",
+        "This is what came back."
+      ]
+    },
+    {
+      "id": "s03_summary",
+      "dur": 72,
+      "kind": "app",
+      "caption": "51.3% aligned to the Global Template = 48.7% divergence — computed, not guessed",
+      "screen": "Summary tab: the five score cards; hover the 51.3% card to open the formula working; scroll to executive summary, alignment by dimension and the workshop plan.",
+      "vo": "The Summary gives the verdict in five numbers. India's returns process is 51.3 percent aligned with the Global Template, which is a 48.7 percent divergence. Against SAP Best Practice it is 53.8 percent aligned. Harmonization potential is 58.4 percent: five deviations will standardise, nine depend on the workshop, and one likely stays local. There are fifteen deviations, six of them high or critical, and eleven that need floor time. These are computed, not generated. Hover the score and you see the working: seven dimensions, each rated zero to four, and weighted, with process flow at twenty-five, rules at twenty and governance at fifteen. And it is not a keyword search. The Copilot rebuilt the template's returns process from Solvay's process knowledge graph and compared it with India step by step. Notice one more thing: SAP scores above the template. Solvay's template is its own design, and that is why a graph of Solvay's process, not SAP's, has to be the reference.",
+      "cues": [
+        "India's returns process is 51.3",
+        "Against SAP Best Practice",
+        "Harmonization potential is",
+        "There are fifteen deviations",
+        "These are computed",
+        "Hover the score",
+        "And it is not a keyword search.",
+        "Notice one more thing"
+      ]
+    },
+    {
+      "id": "s04_brief",
+      "dur": 40,
+      "kind": "app",
+      "caption": "The Brief: the one-page story for the steering room",
+      "screen": "Brief tab: 51.3 out of 100 header; scroll through What we found, The decisions timeline, Where it diverges and the India watchlist.",
+      "vo": "The Brief is the same result as one page for the steering room. What we found: the backbone fits. Request, returns order, goods receipt, inspection, refund and credit memo all line up. The gaps sit in governance and compliance. Then the decisions, in the order the workshop should take them. Then where it diverges: process flow is three out of four, while integration and reporting are one out of four. And an India watchlist of the GST items.",
+      "cues": [
+        "What we found",
+        "The gaps sit in",
+        "Then the decisions",
+        "Then where it diverges",
+        "And an India watchlist"
+      ]
+    },
+    {
+      "id": "s05_gap01",
+      "dur": 100,
+      "kind": "app",
+      "caption": "One gap end to end: GAP-IN-RET-01 — approvals run outside SAP",
+      "screen": "Deviations tab: register with GT fit / SAP fit columns; click GAP-IN-RET-01; scroll the inspector through Comparison, Material impact, Decision (options A/B/C), Evidence (4 quotes) and Still open.",
+      "vo": "Now one gap, end to end. The Deviations register lists all fifteen, each scored against the template and against SAP. Take GAP-IN-RET-01, a high-materiality approval gap. The comparison puts three columns side by side. India: four approval tiers by value and age, from a supervisor up to one hundred thousand rupees, to Sales plus Finance above five hundred thousand or ninety days, all evidenced by e-mail. The Global Template: one automatic billing block, released by the Customer Service Manager, with an optional approval workflow. SAP Best Practice: no approval task at all. The impact is scored too: four out of five on internal control, because the approval evidence lives in e-mail, not on the SAP document. The Copilot proposes 'Configure SAP standard', and the harmonization score of eighty says this one will standardise. It frames the question for the room and gives three options, the owners and a thirty-minute slot. Every claim is quoted from a source: the India document, the L2C customer returns workshop, the sales approval workflows deck, and SAP's BKP2 model. In our dry run the room chose option B: adopt the template's billing block and keep the rupee bands as policy.",
+      "cues": [
+        "The Deviations register",
+        "Take GAP-IN-RET-01",
+        "The comparison puts",
+        "India: four approval tiers",
+        "The Global Template: one automatic",
+        "SAP Best Practice: no approval task",
+        "The impact is scored too",
+        "The Copilot proposes",
+        "It frames the question",
+        "Every claim is quoted",
+        "In our dry run"
+      ]
+    },
+    {
+      "id": "s06_routes",
+      "dur": 52,
+      "kind": "app",
+      "caption": "Every deviation gets a route: adopt the template, move to SAP standard, or keep a local exception",
+      "screen": "Deviations → Risk view (where the deviations sit, proposed disposition); then open GAP-IN-RET-09 and GAP-IN-RET-11 in the register.",
+      "vo": "Every deviation gets a proposed route, with the reason behind it. The Risk view shows them all at once: what can adopt the template, what should be configured as SAP standard, what is a legacy step to retire, and what is a real local exception. Some routes surprise. On GAP-09, a credit released before the goods come back, India is closer to SAP than the template is. SAP has an Immediate Refund path, so the fix is SAP standard, not the template. At the other end, GAP-11 is the one critical item: the IRN e-invoice step for the credit note. The template is silent, so it is flagged as a suspected localization to validate with the tax workstream. It is not assumed.",
+      "cues": [
+        "The Risk view shows",
+        "Some routes surprise.",
+        "On GAP-09",
+        "SAP has an Immediate Refund",
+        "At the other end, GAP-11",
+        "The template is silent"
+      ]
+    },
+    {
+      "id": "s07_alignment_loc",
+      "dur": 36,
+      "kind": "app",
+      "caption": "All 14 India steps mapped — 5 GST localizations held as candidates until a source confirms them",
+      "screen": "Process alignment tab (14 steps with their findings; select step 5.3); then the Localization tab (5 candidates).",
+      "vo": "Process alignment walks the fourteen India steps in order and ties each one to its findings: six fit with a deviation and eight deviate. Localization lists the five GST items: IRN, e-way bill, GSTIN integrity, ITC confirmation and GST reconciliation. They stay candidates until a source proves they are legally required. That is why the localization-adjusted score does not move yet.",
+      "cues": [
+        "six fit with a deviation",
+        "Localization lists",
+        "They stay candidates",
+        "That is why"
+      ]
+    },
+    {
+      "id": "s08_workshop",
+      "dur": 52,
+      "kind": "app",
+      "caption": "The workshop, pre-built: 11 decisions, 4 h 15 min, and the right people in the room",
+      "screen": "Workshop agenda tab: run-of-show bar, first agenda card with options, 'Who needs to be in the room' rail; then 'Start facilitating' and step to GAP-IN-RET-01 (no decision is recorded); Exit.",
+      "vo": "So the workshop is already written. Eleven decisions in four hours fifteen, with legal and localization blockers first. Each has its options, owners and time slot. The rail lists who needs to be in the room, and four low-risk items are batch-confirmed with no floor time. In facilitator mode the room sees one decision at a time: the template's own words, India's As-Is and the impact if nothing changes. Accept, defer or reject, each with a rationale. Every verdict goes into the decision registry and back into the knowledge graph, so the next rollout starts from what Solvay has already decided. All fifteen items in this run are decided.",
+      "cues": [
+        "Eleven decisions",
+        "Each has its options",
+        "The rail lists",
+        "four low-risk items",
+        "In facilitator mode",
+        "the template's own words",
+        "Accept, defer or reject",
+        "Every verdict goes",
+        "All fifteen items"
+      ]
+    },
+    {
+      "id": "s09_trace",
+      "dur": 24,
+      "kind": "app",
+      "caption": "Fully traceable: 46 of 46 claims traced, 95 of 95 quotes found verbatim",
+      "screen": "Sources tab (10 documents, 32 chunks cited, 93 read not used); then the Traceability tab headline counts and the GAP-IN-RET-01 trace.",
+      "vo": "Nothing is a black box. Sources lists the ten documents behind the result, including what was read and not used. Traceability checks every claim back to its passage: forty-six of forty-six claims traced, and ninety-five of ninety-five quotes found word for word.",
+      "cues": [
+        "Sources lists",
+        "Traceability checks",
+        "forty-six of forty-six"
+      ]
+    },
+    {
+      "id": "s10_close",
+      "dur": 22,
+      "kind": "card",
+      "caption": "",
+      "screen": "Closing card.",
+      "vo": "Weeks of localization workshops become a few hours of decisions. It runs asynchronously, for every rollout country, without touching the go-live. And it runs on Solvay's own process knowledge graph, not SAP's."
+    }
+  ],
+  "cards": {
+    "s00_title": {
+      "kicker": "Spark AI Spine · Fit-Gap Copilot",
+      "title": "India Customer Returns",
+      "sub": "What the Copilot surfaces from one country As-Is document, weeks before the rollout workshop",
+      "foot": "Run ro_879e0497a4 · 4.10.2 Process Returns · India As-Is is synthetic, generated for this demo"
+    },
+    "s10_close": {
+      "kicker": "What changes",
+      "title": "Weeks of workshops → hours of decisions",
+      "bullets": [
+        "Gaps surfaced before the workshop, not during it",
+        "Every deviation scored, routed and evidenced",
+        "Runs asynchronously for every rollout country, without touching the go-live",
+        "Built on Solvay's own process knowledge graph, not SAP's"
+      ],
+      "foot": "Questions? We'll take them live in the tool."
+    }
+  }
+}

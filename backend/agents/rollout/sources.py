@@ -34,8 +34,15 @@ SNIPPET_CHARS = 1200
 
 
 def _kind(category: str, uploaded: bool) -> str:
-    """How a reader should think about where this came from."""
-    if uploaded:
+    """How a reader should think about where this came from.
+
+    UPLOAD is a reserved category nothing in the corpus can carry, so it alone
+    marks an attachment. The name check is not enough on its own: the run
+    records the file name ("…Sample.txt") while the chunk carries its indexed
+    title ("…Sample_txt"), and they never matched -- every attachment was
+    filed as corpus and its link pointed at a knowledge-base file that does
+    not exist."""
+    if uploaded or category.upper() == "UPLOAD":
         return "upload"
     return "corpus"
 

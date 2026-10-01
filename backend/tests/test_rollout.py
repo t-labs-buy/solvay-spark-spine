@@ -686,6 +686,24 @@ def test_the_source_index_says_where_each_finding_came_from():
     assert billing["chunks"] == 1 and billing["citations"] == 2
 
 
+def test_an_attachment_is_an_upload_even_when_its_title_is_not_its_file_name():
+    """The real shape: the run records the file name ("…Sample.txt") while the
+    chunk carries its indexed title ("…Sample_txt") and no `uploaded` flag. The
+    reserved UPLOAD category must be enough, or the citation links to a
+    knowledge-base file that does not exist."""
+    from backend.agents.rollout import sources
+
+    a = analysis(dimension_ratings=[rate("rules", 2)],
+                 deviations=[dev(gap_id="GAP-01", evidence=[
+                     ev("four approval tiers", side="as_is", chunk="UPLOAD:7")])])
+    log = {"UPLOAD:7": _retrieved("UPLOAD:7", "India_Returns_Sample_txt", "UPLOAD", "5.3", 0.03,
+                                  "four approval tiers")}
+    idx = sources.index(a.model_dump(), AsIsModel().model_dump(), log,
+                        upload_names={"India_Returns_Sample.txt"})
+    assert idx["chunks"]["UPLOAD:7"]["kind"] == "upload"
+    assert idx["documents"][0]["kind"] == "upload"
+
+
 def test_the_index_counts_what_was_read_and_not_used():
     """The gap between retrieved and cited is the honest measure of how much
     the run looked at without relying on: it separates "the corpus does not

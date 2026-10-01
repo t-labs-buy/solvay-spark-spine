@@ -350,6 +350,12 @@ def run(req: RunRequest) -> Iterator[Event]:
         )
         store.finish_run(conn, run_id, analysis.model_dump(), scores, gate_summary, tokens,
                          sources=trace)
+        # The attachments are swept hours from now; the citations that point
+        # into them are kept for good, so keep what they point into as well.
+        _try(store.save_attachments, conn, run_id, {
+            uploads.md_name(f["name"]): {"name": f["name"], "markdown": md}
+            for f in attached if (md := uploads.markdown(session_id, f["name"])) is not None
+        })
 
         run.end(output=_headline(analysis, scores, gate_summary, record["scope_label"]))
         # The run as the store now holds it, so the scores are computed from

@@ -2454,6 +2454,43 @@ def rollout_get_run(run_id: str) -> dict:
     return run
 
 
+@app.get("/api/rollout/runs/{run_id}/attachments/{file}")
+def rollout_run_attachment(run_id: str, file: str) -> Response:
+    """The Markdown of a document attached to this run, as the agent read it.
+
+    `file` is the name the citation carries (`…Sample_txt.md`). Served from the
+    copy kept with the run; for a run recorded before copies were kept, from
+    the upload session if it has not been swept yet."""
+    from backend.agents.rollout import store as ro_store
+
+    conn = ro_store.connect()
+    ro_store.create_schema(conn)
+    found = ro_store.get_attachment(conn, run_id, file)
+    if found is None:
+        raise HTTPException(404, "Run not found")
+    kept, upload = found
+    if kept and kept.get("markdown") is not None:
+        return Response(kept["markdown"], media_type="text/markdown; charset=utf-8")
+    fg_uploads = _uploads()
+    session = upload.get("session") or ""
+    for doc in upload.get("documents") or []:
+        if fg_uploads.md_name(doc.get("name", "")) != file:
+            continue
+        try:
+            text = fg_uploads.markdown(session, doc["name"]) if session else None
+        except ValueError:
+            text = None
+        if text is not None:
+            return Response(text, media_type="text/markdown; charset=utf-8")
+        raise HTTPException(
+            410,
+            f"'{doc['name']}' is no longer held: attachments are deleted after "
+            f"{fg_uploads.TTL_HOURS:g} hours unused, and this run was recorded before the "
+            "Fit-Gap Copilot kept a copy with each run. The cited passages are still shown "
+            "under each quote and in the Sources tab.")
+    raise HTTPException(404, f"'{file}' was not attached to this run")
+
+
 @app.delete("/api/rollout/runs/{run_id}")
 def rollout_run_delete(run_id: str) -> dict:
     """Remove one analysis. The same shape as the Evidence Agent's, because a

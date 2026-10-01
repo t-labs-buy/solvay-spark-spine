@@ -458,9 +458,15 @@ def remove_file(sid: str, name: str) -> dict:
 # --- the session's own knowledge graph ----------------------------------------
 
 
-def _md_path(sid: str, name: str) -> Path:
+def md_name(name: str) -> str:
+    """The Markdown file name an attachment is indexed under -- the `source`
+    its chunks carry, so a citation can be traced back to its attachment."""
     stem, suffix = Path(name).stem, Path(name).suffix.lower().replace(".", "_")
-    return _dir(sid) / f"{stem}{suffix}.md"
+    return f"{stem}{suffix}.md"
+
+
+def _md_path(sid: str, name: str) -> Path:
+    return _dir(sid) / md_name(name)
 
 
 def markdown(sid: str, name: str) -> str | None:

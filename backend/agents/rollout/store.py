@@ -102,6 +102,12 @@ def create_schema(conn=None) -> None:
         # shows them. Runs recorded before it have an empty object.
         conn.execute("ALTER TABLE rollout_runs ADD COLUMN IF NOT EXISTS"
                      " evaluation jsonb NOT NULL DEFAULT '{}'::jsonb")
+        # The Markdown of each attached document, as the agent read it, keyed by
+        # the file name its chunks carry. Attachments themselves are swept after
+        # FITGAP_UPLOAD_TTL_HOURS, so without this a citation from one could not
+        # be opened a day later. Runs recorded before it have an empty object.
+        conn.execute("ALTER TABLE rollout_runs ADD COLUMN IF NOT EXISTS"
+                     " attachments jsonb NOT NULL DEFAULT '{}'::jsonb")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS rollout_decisions (
@@ -340,6 +346,25 @@ def save_evaluation(conn, run_id: str, evaluation: dict) -> None:
     conn.execute("UPDATE rollout_runs SET evaluation = %s WHERE id = %s",
                  (json.dumps(evaluation, default=str), run_id))
     conn.commit()
+
+
+def save_attachments(conn, run_id: str, attachments: dict[str, dict]) -> None:
+    """Keep each attached document's Markdown with the run:
+    {md file name: {"name": original file name, "markdown": text}}."""
+    conn.execute("UPDATE rollout_runs SET attachments = attachments || %s::jsonb WHERE id = %s",
+                 (json.dumps(attachments), run_id))
+    conn.commit()
+
+
+def get_attachment(conn, run_id: str, file: str) -> tuple[dict | None, dict] | None:
+    """(the kept copy of one attachment or None, the run's upload record), or
+    None when there is no such run. The upload record names the session, so a
+    run made within the last few hours can still be served from it."""
+    r = conn.execute("SELECT attachments -> %s, uploads FROM rollout_runs WHERE id = %s",
+                     (file, run_id)).fetchone()
+    if not r:
+        return None
+    return r[0], r[1] or {}
 
 
 def get_run(conn, run_id: str, decisions_too: bool = True) -> dict | None:

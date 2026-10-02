@@ -1,6 +1,6 @@
 /** The application's sign-in page (/login), a bundle of its own so the
  *  application's code is not sent to someone who has not signed in.
- *  See app_login.py for what this login is and is not. */
+ *  Accounts are in Postgres; see backend/auth/. */
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -36,7 +36,7 @@ function LoginApp() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <SignInForm mode={mode} onToggleMode={() => setMode(mode === "dark" ? "light" : "dark")}
-                  endpoint="/api/app/login" subtitle="Sign in to continue"
+                  endpoint="/api/auth/login" subtitle="Sign in to continue"
                   nextTarget={nextTarget} idPrefix="app" />
     </ThemeProvider>
   );

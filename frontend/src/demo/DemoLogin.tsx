@@ -12,7 +12,7 @@ function nextTarget(): string {
 
 export default function DemoLogin({ mode, onToggleMode }: { mode: Mode; onToggleMode: () => void }) {
   return (
-    <SignInForm mode={mode} onToggleMode={onToggleMode} endpoint="/api/demo/login"
+    <SignInForm mode={mode} onToggleMode={onToggleMode} endpoint="/api/auth/login"
                 subtitle="Sign in to the client demo" nextTarget={nextTarget} idPrefix="demo" />
   );
 }

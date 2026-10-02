@@ -18,16 +18,19 @@
  *    hidden     no sidebar at all (the close button when expanded)
  */
 import {
-  AppBar, Box, ButtonBase, Chip, Divider, IconButton, ListItemIcon, Menu, MenuItem, Tab, Tabs,
+  AppBar, Box, Button, ButtonBase, Chip, Divider, IconButton, Tab, Tabs,
   Toolbar, Tooltip, Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronsLeft, ChevronsRight, CircleUserRound, FlaskConical, Globe2, LogOut, Menu as MenuIcon,
-  MessageSquareText, Moon, Network, Sun, X,
+  ChevronsLeft, ChevronsRight, FlaskConical, Globe2, Menu as MenuIcon,
+  MessageSquareText, Moon, Network, ShieldCheck, Sun, X,
 } from "lucide-react";
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import AdminPage from "../pages/AdminPage";
+import type { UsageTool } from "../api";
+import type { RunRequest } from "../runRequest";
 import AskPage from "../pages/AskPage";
 import EvidencePage from "../pages/EvidencePage";
 import KnowledgeGraphPage from "../pages/KnowledgeGraphPage";
@@ -35,10 +38,12 @@ import DemoLanding from "./DemoLanding";
 import RolloutPage from "../pages/RolloutPage";
 import type { Mode } from "../theme";
 import BrandLogo from "../components/BrandLogo";
+import type { Account } from "../auth";
+import AccountMenu from "../components/AccountMenu";
 
 const PRODUCT = "Spark AI Spine";
 
-type Page = "landing" | "graph" | "rollout" | "ask" | "evidence";
+type Page = "landing" | "graph" | "rollout" | "ask" | "evidence" | "admin";
 
 type Entry = { value: Page; label: string; icon: ReactElement; slug: string };
 
@@ -70,7 +75,13 @@ const SECONDARY: { title: string; items: Entry[] }[] = [
  *  introduction, not a module. */
 const LANDING: Entry = { value: "landing", label: "Home", icon: <Network size={16} />, slug: "home" };
 
-const ALL: Entry[] = [LANDING, ...PRIMARY, ...SECONDARY.flatMap((g) => g.items)];
+/** The Admin dashboard -- usage, accounts, activity -- the same page as the
+ *  application's. Reached from a button beside the account menu, shown only
+ *  to an Admin; anyone else who types /demo/admin is told it is for Admins
+ *  and the server refuses its data. */
+const ADMIN: Entry = { value: "admin", label: "Admin", icon: <ShieldCheck size={16} />, slug: "admin" };
+
+const ALL: Entry[] = [LANDING, ...PRIMARY, ...SECONDARY.flatMap((g) => g.items), ADMIN];
 /** Where /demo opens, straight after signing in: the introduction, so a
  *  presentation starts from what the product is before showing what it does. */
 const HOME: Page = "landing";
@@ -103,8 +114,7 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
   const [page, setPage] = useState<Page>(pageFromPath);
   const [visited, setVisited] = useState<Set<Page>>(() => new Set([pageFromPath()]));
   const [sidebar, setSidebar] = useState<SidebarState>(initialSidebar);
-  const [account, setAccount] = useState<HTMLElement | null>(null);
-  const [user, setUser] = useState<string>("");
+  const [account, setAccount] = useState<Account | null>(null);
 
   const isPrimary = PRIMARY.some((e) => e.value === page);
   const isModule = !isPrimary && page !== "landing";
@@ -143,10 +153,13 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
   // The page is only served with a valid session, but a tab left open past
   // the session's end would otherwise go on looking signed in.
   useEffect(() => {
-    fetch("/api/demo/session")
+    fetch("/api/auth/session")
       .then(async (res) => {
         if (res.status === 401) location.replace(`/demo/login?next=${encodeURIComponent(location.pathname)}`);
-        else if (res.ok) setUser((await res.json()).user ?? "");
+        else if (res.ok) {
+          const d = await res.json();
+          setAccount({ id: d.id, username: d.username, role: d.role });
+        }
       })
       .catch(() => { /* offline: the server will say so on the next request */ });
   }, []);
@@ -164,19 +177,27 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
     if (known) go(known.value);
   };
 
-  const signOut = async () => {
-    setAccount(null);
-    await fetch("/api/demo/logout", { method: "POST" }).catch(() => undefined);
-    location.replace("/demo/login");
+
+  // A run the Admin page asked a tool page to open. Demo Mode has no
+  // InsightLens, so its runs are listed there but cannot be opened here.
+  const [runRequests, setRunRequests] = useState<Partial<Record<Page, RunRequest>>>({});
+  const DEMO_TOOL: Partial<Record<UsageTool, Page>> = { ask: "ask", evidence: "evidence", rollout: "rollout" };
+  const openRunIn = (tool: UsageTool, id: string) => {
+    const target = DEMO_TOOL[tool];
+    if (!target) return;
+    setRunRequests((r) => ({ ...r, [target]: { id, nonce: Date.now() } }));
+    go(target);
   };
 
   const render = (p: Page): ReactNode => {
     switch (p) {
       case "landing": return <DemoLanding onNavigate={go} />;
       case "graph": return <KnowledgeGraphPage active={page === "graph"} onNavigate={fromApp} incomingQuery={null} />;
-      case "rollout": return <RolloutPage active={page === "rollout"} showTechDetails={false} />;
-      case "ask": return <AskPage active={page === "ask"} showTechDetails={false} />;
-      case "evidence": return <EvidencePage active={page === "evidence"} showTechDetails={false} />;
+      case "rollout": return <RolloutPage active={page === "rollout"} showTechDetails={false} openRun={runRequests.rollout} />;
+      case "ask": return <AskPage active={page === "ask"} showTechDetails={false} openRun={runRequests.ask} />;
+      case "evidence": return <EvidencePage active={page === "evidence"} showTechDetails={false} openRun={runRequests.evidence} />;
+      case "admin": return <AdminPage active={page === "admin"} account={account} onOpenRun={openRunIn}
+                                      canOpen={(t) => t in DEMO_TOOL} />;
     }
   };
 
@@ -231,7 +252,8 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
 
           {/* When a sidebar module is open the header has no selected tab,
               so name the page here rather than leave the room guessing. */}
-          {isModule && (
+          {/* Not for Admin: its own button beside the account menu says so. */}
+          {isModule && page !== "admin" && (
             <Chip size="small" variant="outlined"
                   icon={ALL.find((e) => e.value === page)?.icon}
                   label={ALL.find((e) => e.value === page)?.label}
@@ -250,24 +272,17 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
               </AnimatePresence>
             </IconButton>
           </Tooltip>
-          <Tooltip title="Account">
-            <IconButton onClick={(e) => setAccount(e.currentTarget)} aria-label="Account" aria-haspopup="menu">
-              <CircleUserRound size={19} />
-            </IconButton>
-          </Tooltip>
-          <Menu anchorEl={account} open={!!account} onClose={() => setAccount(null)}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}>
-            <Box sx={{ px: 2, py: 1 }}>
-              <Typography sx={{ fontSize: 12, color: "text.secondary" }}>Signed in as</Typography>
-              <Typography sx={{ fontWeight: 600 }}>{user || "demo"}</Typography>
-            </Box>
-            <Divider />
-            <MenuItem onClick={signOut}>
-              <ListItemIcon><LogOut size={17} /></ListItemIcon>
-              Sign out
-            </MenuItem>
-          </Menu>
+          {account?.role === "admin" && (
+            <Tooltip title="Usage dashboard, accounts and the activity log">
+              <Button size="small" onClick={() => go("admin")} startIcon={<ShieldCheck size={16} />}
+                      variant={page === "admin" ? "contained" : "outlined"}
+                      sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                Admin
+              </Button>
+            </Tooltip>
+          )}
+          <AccountMenu account={account} loginPath="/demo/login"
+                       onAdmin={account?.role === "admin" ? () => go("admin") : undefined} />
         </Toolbar>
       </AppBar>
 

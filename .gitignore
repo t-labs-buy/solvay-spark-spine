@@ -17,3 +17,4 @@ frontend/test/quote-highlight.fixture.json
 # The memory server's log, written by hindsight.sh
 hindsight.log
 hindsight-venv/
+.env.bak*

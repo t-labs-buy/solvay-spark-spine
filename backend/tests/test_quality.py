@@ -485,10 +485,21 @@ def test_the_review_endpoint_saves_and_reaches_the_judge_view():
     real_client = tracing.client
     tracing.client = lambda: FakeLangfuse()
     try:
+        from backend.auth import store as auth_store
+
         conn = ask_store.connect()
-        conn.execute("UPDATE ask_runs SET trace_id = 'trace-1' WHERE id = 'http'")
+        # Signed in as an Admin who owns the question: the review is the
+        # owner's to give, and the judge view is an Admin's to read.
+        try:
+            admin = auth_store.create_user(conn, "quality-admin", "quality-pass", "admin")
+        except auth_store.AccountError:
+            admin = auth_store.authenticate(conn, "quality-admin", "quality-pass")
+        conn.execute("UPDATE ask_runs SET trace_id = 'trace-1', user_id = %s WHERE id = 'http'",
+                     (admin["id"],))
         conn.commit()
         c = TestClient(server.app)
+        assert c.post("/api/auth/login", json={"username": "quality-admin",
+                                               "password": "quality-pass"}).status_code == 200
         assert c.post("/api/ask/runs/http/review", json={"verdict": "maybe"}).status_code == 400
         assert c.post("/api/ask/runs/nope/review", json={"verdict": "not"}).status_code == 404
         r = c.post("/api/ask/runs/http/review", json={"verdict": "not", "note": "invented date"})

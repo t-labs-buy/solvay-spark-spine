@@ -73,7 +73,7 @@ Other routes:
 ## Regenerating
 
 ```bash
-# App running on http://localhost:8000; Demo Mode sign-in comes from DEMO_USERNAME / DEMO_PASSWORD.
+# App running on http://localhost:8000; the recording signs in with the account in DEMO_USERNAME / DEMO_PASSWORD.
 python3 docs/demo-video/tools/voice.py             # narration + cue times (cached), ~1 min first time
 python3 docs/demo-video/tools/record.py            # all scenes, ~7 min; or name scenes: s05_gap01
 python3 docs/demo-video/tools/build.py             # narrated MP4 + script.md, ~45 s

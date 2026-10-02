@@ -1659,8 +1659,11 @@ def test_old_decisions_are_copied_once_with_their_option():
                      " VALUES ('ro_ws', 'GAP-01', 'Ravi', 'accept', 'Option B: Drop it'),"
                      "        ('ro_ws', 'GAP-01', 'Ravi', 'defer', 'Option A: Not what was offered')")
         conn.commit()
-        store.create_schema(conn)
-        store.create_schema(conn)
+        # Twice, as two server starts would: the schema is brought up once per
+        # process, so each "start" forgets that it was done.
+        for _ in range(2):
+            store._ready.clear()
+            store.create_schema(conn)
         log = store.get_decisions(conn, "ro_ws")
         assert len(log) == 2, log
         assert (log[0]["option_index"], log[0]["option_text"], log[0]["legacy"]) == (1, "Drop it", True)

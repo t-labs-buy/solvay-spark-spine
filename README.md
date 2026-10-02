@@ -142,7 +142,7 @@ From the command line, same engine, no browser:
 | Knowledge graph: quality checks, query algorithm | [docs/knowledge-graph.md](docs/knowledge-graph.md) |
 | Cypher and Neo4j | [docs/neo4j.md](docs/neo4j.md) |
 | Langfuse tracing, agent scores, Ragas answer scoring | [docs/tracing-and-evaluation.md](docs/tracing-and-evaluation.md), [docs/rag-evaluation.md](docs/rag-evaluation.md) |
-| Sign-in and Demo Mode | [docs/sign-in-and-demo-mode.md](docs/sign-in-and-demo-mode.md) |
+| Accounts, roles, the Admin tab and Demo Mode | [docs/sign-in-and-demo-mode.md](docs/sign-in-and-demo-mode.md) |
 | Deploying on a server: container image, registry, compose stack | [docs/deployment.md](docs/deployment.md); beginner walkthrough: [docs/deployment-guide.html](docs/deployment-guide.html) |
 | Architecture and pipeline | [docs/system-diagram.md](docs/system-diagram.md), [docs/pipeline.md](docs/pipeline.md) |
 
@@ -154,9 +154,10 @@ From the command line, same engine, no browser:
 
 ## Notes
 
-- **Localhost only.** No auth, no upload limit, no sandboxing of the parsers.
-  Add all three before putting this on a network. The sign-in pages are a
-  presentation lock, not access control: every `/api/*` endpoint stays open.
+- **Accounts, but no TLS.** Every page and `/api/*` endpoint needs a signed-in
+  account (see [docs/sign-in-and-demo-mode.md](docs/sign-in-and-demo-mode.md)).
+  There is still no upload limit and no sandboxing of the parsers, and the
+  session cookie needs HTTPS in front of it before this goes on a network.
 - **Data leaves the machine** when asking (question and retrieved excerpts go
   to Anthropic), and when a cloud vision provider (`--vlm-provider openai` or
   `claude`) is chosen for conversion. The default local path sends nothing.

@@ -37,6 +37,7 @@ its generations in the right place.
 from __future__ import annotations
 
 import atexit
+import contextvars
 import logging
 import os
 import re
@@ -372,6 +373,15 @@ class Run:
             flush()
 
 
+# The signed-in account, set by the auth middleware for each request. Read by
+# start_run when no user_id is passed, so every trace a request opens carries
+# its user without the user being threaded through every agent's signature.
+# Context variables follow the request into Starlette's threadpool; a thread
+# an agent starts itself does not inherit them, so such a thread passes
+# user_id explicitly.
+USER: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace_user", default=None)
+
+
 def start_run(
     name: str,
     *,
@@ -389,6 +399,7 @@ def start_run(
         return Run(None, {})
 
     attrs: dict[str, Any] = {"trace_name": name}
+    user_id = user_id or USER.get()
     if session_id:
         attrs["session_id"] = session_id
     if user_id:

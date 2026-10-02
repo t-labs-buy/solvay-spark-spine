@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any
 
 
+from backend.auth.store import owned as auth_owned  # noqa: E402
 from backend.rag import rag  # noqa: E402
 
 # How many questions to keep. Older rows are trimmed as new ones arrive.
@@ -112,6 +113,8 @@ def create_schema(conn=None) -> None:
 
 
 def _create_schema(conn) -> None:
+    from backend.auth import store as auth_store
+
     with conn.transaction():
         conn.execute(
             """
@@ -228,18 +231,22 @@ def _create_schema(conn) -> None:
                 created_at timestamptz NOT NULL DEFAULT now()
             )"""
         )
+        # Who asked, and who reviewed. Rows from before accounts belong to
+        # `legacy`.
+        auth_store.own_table(conn, "ask_runs")
+        auth_store.own_table(conn, "ask_reviews", "created_at")
 
 
 def start_run(conn, run: dict) -> None:
     conn.execute(
         """INSERT INTO ask_runs
            (id, question, mode, k, categories, answer_model, embed_model,
-            corpus_fingerprint, prompt_hash)
+            corpus_fingerprint, prompt_hash, user_id)
            VALUES (%(id)s, %(question)s, %(mode)s, %(k)s, %(categories)s,
                    %(answer_model)s, %(embed_model)s, %(corpus_fingerprint)s,
-                   %(prompt_hash)s)
+                   %(prompt_hash)s, %(user_id)s)
            ON CONFLICT (id) DO NOTHING""",
-        {"prompt_hash": "", **run,
+        {"prompt_hash": "", "user_id": None, **run,
          "categories": json.dumps(run.get("categories") or [])},
     )
     conn.commit()
@@ -275,7 +282,8 @@ def finish_run(conn, run_id: str, answer: str, done: dict) -> None:
          done.get("output_tokens", 0), run_id),
     )
     conn.commit()
-    trim(conn)
+    owner = conn.execute("SELECT user_id FROM ask_runs WHERE id = %s", (run_id,)).fetchone()
+    trim(conn, owner=owner[0] if owner else None)
 
 
 def fail_run(conn, run_id: str, message: str, answer: str = "") -> None:
@@ -290,15 +298,17 @@ def fail_run(conn, run_id: str, message: str, answer: str = "") -> None:
     conn.commit()
 
 
-def trim(conn, keep: int | None = None) -> int:
-    """Drop everything past the newest `keep` runs. Called after each finished
-    question rather than on a timer, so there is no sweeper to forget to run."""
+def trim(conn, keep: int | None = None, owner: int | None = None) -> int:
+    """Drop everything past `owner`'s newest `keep` runs. Called after each
+    finished question rather than on a timer, so there is no sweeper to forget
+    to run. Per owner, so one busy user cannot push everyone else's out."""
     keep = RETENTION if keep is None else keep
     removed = conn.execute(
         """DELETE FROM ask_runs WHERE id IN (
-               SELECT id FROM ask_runs ORDER BY started_at DESC OFFSET %s)
+               SELECT id FROM ask_runs WHERE user_id IS NOT DISTINCT FROM %s
+               ORDER BY started_at DESC OFFSET %s)
            RETURNING id""",
-        (keep,),
+        (owner, keep),
     ).fetchall()
     conn.commit()
     return len(removed)
@@ -316,7 +326,7 @@ def _status(status: str, started_at) -> str:
 _COLUMNS = ("id, question, mode, k, categories, answer_model, embed_model,"
             " corpus_fingerprint, started_at, finished_at, status, seconds,"
             " input_tokens, output_tokens, answer, sources, terms, error,"
-            " trace_id, prompt_hash")
+            " trace_id, prompt_hash, user_id")
 
 
 def _row(r) -> dict:
@@ -330,6 +340,7 @@ def _row(r) -> dict:
         "input_tokens": r[12], "output_tokens": r[13],
         "answer": r[14], "sources": r[15] or [], "terms": r[16] or [],
         "error": r[17], "trace_id": r[18] or "", "prompt_hash": r[19] or "",
+        "user_id": r[20],
     }
 
 
@@ -394,16 +405,17 @@ def finish_evaluation(conn, run_id: str, result: dict, pushed: int = 0) -> None:
 VERDICTS = ("grounded", "partly", "not")
 
 
-def save_review(conn, run_id: str, verdict: str, reviewer: str = "", note: str = "") -> None:
+def save_review(conn, run_id: str, verdict: str, reviewer: str = "", note: str = "",
+                user_id: int | None = None) -> None:
     if verdict not in VERDICTS:
         raise ValueError(f"verdict must be one of {VERDICTS}")
     conn.execute(
-        """INSERT INTO ask_reviews (run_id, verdict, reviewer, note)
-           VALUES (%s, %s, %s, %s)
+        """INSERT INTO ask_reviews (run_id, verdict, reviewer, note, user_id)
+           VALUES (%s, %s, %s, %s, %s)
            ON CONFLICT (run_id) DO UPDATE
            SET verdict = EXCLUDED.verdict, reviewer = EXCLUDED.reviewer,
-               note = EXCLUDED.note, created_at = now()""",
-        (run_id, verdict, reviewer[:120], note[:2000]),
+               note = EXCLUDED.note, user_id = EXCLUDED.user_id, created_at = now()""",
+        (run_id, verdict, reviewer[:120], note[:2000], user_id),
     )
     conn.commit()
 
@@ -457,8 +469,11 @@ def get_evaluation(conn, run_id: str) -> dict | None:
     return _eval_row(r) if r else None
 
 
-def get_run(conn, run_id: str) -> dict | None:
-    r = conn.execute(f"SELECT {_COLUMNS} FROM ask_runs WHERE id = %s", (run_id,)).fetchone()
+def get_run(conn, run_id: str, owner: int | None = None) -> dict | None:
+    """The run, or None if it does not exist or is not `owner`'s (None: any)."""
+    where, args = auth_owned(owner)
+    r = conn.execute(f"SELECT {_COLUMNS} FROM ask_runs WHERE id = %s{where}",
+                     (run_id, *args)).fetchone()
     return _row(r) if r else None
 
 
@@ -478,7 +493,8 @@ QUALITY_FILTERS: dict[str, str] = {
 }
 
 
-def list_runs(conn, limit: int = 50, search: str = "", quality: str = "") -> list[dict]:
+def list_runs(conn, limit: int = 50, search: str = "", quality: str = "",
+              owner: int | None = None) -> list[dict]:
     """The history panel: enough to recognise a question and decide whether to
     reopen it. Deliberately does not select `sources` or `answer` -- they are
     most of the row, and fifty of them is a megabyte nobody asked for.
@@ -492,15 +508,19 @@ def list_runs(conn, limit: int = 50, search: str = "", quality: str = "") -> lis
         params["search"] = f"%{search.strip()}%"
     if quality in QUALITY_FILTERS:
         clauses.append(f"({QUALITY_FILTERS[quality]})")
+    if owner is not None:
+        clauses.append("r.user_id = %(owner)s")
+        params["owner"] = owner
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     rows = conn.execute(
         f"""SELECT r.id, r.question, r.mode, r.k, r.categories, r.status,
                    r.started_at, r.finished_at, r.seconds, r.answer_model,
                    jsonb_array_length(r.sources), left(r.answer, 180),
                    r.input_tokens, r.output_tokens, r.error,
-                   e.status, e.overall, e.safety
+                   e.status, e.overall, e.safety, r.user_id, u.username
             FROM ask_runs r
             LEFT JOIN ask_evaluations e ON e.run_id = r.id
+            LEFT JOIN users u ON u.id = r.user_id
             {where} ORDER BY r.started_at DESC LIMIT %(limit)s""",
         params,
     ).fetchall()
@@ -520,20 +540,25 @@ def list_runs(conn, limit: int = 50, search: str = "", quality: str = "") -> lis
             # than None for the status, so the browser has one empty value to
             # test rather than two.
             "eval_status": r[15] or "", "overall": r[16], "safety": r[17],
+            "user_id": r[18], "owner": r[19],
         }
         for r in rows
     ]
 
 
-def delete_run(conn, run_id: str) -> bool:
+def delete_run(conn, run_id: str, owner: int | None = None) -> bool:
+    where, args = auth_owned(owner)
     removed = conn.execute(
-        "DELETE FROM ask_runs WHERE id = %s RETURNING id", (run_id,)).fetchall()
+        f"DELETE FROM ask_runs WHERE id = %s{where} RETURNING id", (run_id, *args)).fetchall()
     conn.commit()
     return bool(removed)
 
 
-def clear(conn) -> int:
-    removed = conn.execute("DELETE FROM ask_runs RETURNING id").fetchall()
+def clear(conn, owner: int | None = None) -> int:
+    """Delete every question, or only `owner`'s."""
+    where, args = auth_owned(owner)
+    removed = conn.execute(f"DELETE FROM ask_runs WHERE true{where} RETURNING id",
+                           args).fetchall()
     conn.commit()
     return len(removed)
 

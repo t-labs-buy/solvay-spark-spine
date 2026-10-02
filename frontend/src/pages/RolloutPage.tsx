@@ -40,6 +40,9 @@ import ProcessAlignmentView from "../components/rollout/ProcessAlignmentView";
 import ScoreCards from "../components/rollout/ScoreCards";
 import SummaryView, { Section } from "../components/rollout/SummaryView";
 import { duration, elapsed, runTiming } from "../components/rollout/timing";
+import { currentAccount, ownerLabel } from "../auth";
+import useHistoryScope from "../useHistoryScope";
+import type { RunRequest } from "../runRequest";
 
 /** A log for a run recorded before the reasoning was kept: its tool calls,
  *  in order, under a note that says that is all there is. */
@@ -849,6 +852,8 @@ function Row({ label, value }: { label: string; value: string }) {
 
 interface Props {
   active: boolean;
+  /** Open this recorded run, as the Admin page's run history asks. */
+  openRun?: RunRequest | null;
   /** The model the analysis runs on, in the plan summary and the history.
    *  Demo Mode turns it off: a client is shown the analysis, not what it
    *  runs on. Its downloads leave the model out as well -- see clientExports. */
@@ -860,7 +865,7 @@ interface Props {
  *  the panel and left out of the list, and showed blank for every run. */
 const PANEL_TABS = ["localization", "dimensions", "backlog", "asis", "gates", "sources", "evaluation"];
 
-export default function RolloutPage({ active, showTechDetails = true }: Props) {
+export default function RolloutPage({ active, showTechDetails = true, openRun: request = null }: Props) {
   const theme = useTheme();
   const semantic = useSemantic();
   const premium = usePremium();
@@ -940,10 +945,12 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
   const [attendees, setAttendees] = useState("");
   const [drafts, setDrafts] = useState<Record<string, WorkshopDraft>>({});
   const [history, setHistory] = useState<RolloutRunSummary[]>([]);
+  // Whose runs the history lists: an Admin can switch to everyone's.
+  const historyView = useHistoryScope();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [reviewer, setReviewer] = useState(() => {
-    try { return localStorage.getItem("fitgap.reviewer") ?? ""; } catch { return ""; }
-  });
+  // Verdicts are recorded under the signed-in account; the server ignores any
+  // name sent with them. Shown so the page says whose decision it is.
+  const [reviewer, setReviewer] = useState("");
   // Every verdict recorded against this run, oldest first. Loaded with a past
   // run and appended to as decisions are made, so a card can show what was
   // decided instead of looking exactly as it did before the click.
@@ -971,7 +978,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
     if (!active) return;
     rollout.status().then(setStatus).catch(() => setStatus(null));
     rollout.runs().then(setHistory).catch(() => setHistory([]));
-  }, [active]);
+  }, [active, historyView]);
 
   const refreshUploads = useCallback(async (id: string) => {
     if (!id) { setUploads(null); return; }
@@ -992,8 +999,8 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
   useEffect(() => { if (active) void refreshUploads(session); }, [active, session, refreshUploads]);
 
   useEffect(() => {
-    try { localStorage.setItem("fitgap.reviewer", reviewer); } catch { /* private mode */ }
-  }, [reviewer]);
+    currentAccount().then((a) => a && setReviewer(a.username));
+  }, []);
 
   // The scope picker is InsightLens's — both agents read the Global Template
   // hierarchy out of the same BPML process house document in the corpus.
@@ -1170,6 +1177,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
         )
         : null,
       meta: [
+        ownerLabel(r.owner),
         r.gt_alignment !== null ? `GT ${r.gt_alignment}%` : "",
         r.harmonization_potential !== null ? `harm ${r.harmonization_potential}%` : "",
         r.deviations ? plural(r.deviations, "deviation") : "",
@@ -1180,6 +1188,11 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
     })),
     [history],
   );
+
+  useEffect(() => {
+    if (request) void loadRun(request.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
 
   async function loadRun(id: string) {
     try {
@@ -1399,8 +1412,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
                   Deciding as
                 </Typography>
                 <TextField id="rollout-reviewer" size="small" placeholder="Your name" value={reviewer}
-                           onChange={(e) => setReviewer(e.target.value)}
-                           error={!reviewer.trim() && decisions.length === 0}
+                           slotProps={{ input: { readOnly: true } }}
                            sx={{ width: 180, "& .MuiInputBase-input": { fontSize: 12.5, py: 0.75 },
                                  "& .MuiOutlinedInput-root": { borderRadius: RADIUS } }} />
               </Stack>

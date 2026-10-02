@@ -743,7 +743,11 @@ def run(question: str, holdout: bool = False,
                           "prompt_hash": prompt_hash(),
                           "categories": ",".join(scope) or "all",
                           "claims": str(len([c for c in final.claims if c.sources]))},
-                tags=["evidence", final.state] + [c.lower() for c in scope],
+                # Who ran the investigation, as a tag rather than metadata: the
+                # bank is shared, and a tag lets a fact be traced to its source
+                # without the filing LLM copying a username into the fact.
+                tags=["evidence", final.state] + [c.lower() for c in scope]
+                     + ([f"user:{tracing.USER.get()}"] if tracing.USER.get() else []),
             )
         run.end(output={"state": final.state, "answer": final.answer,
                         "claims": len(final.claims),

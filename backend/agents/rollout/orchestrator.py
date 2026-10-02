@@ -155,14 +155,14 @@ def run(req: RunRequest) -> Iterator[Event]:
             "uploads": {"session": session_id, "schema": uploads.schema_name(session_id),
                         "documents": [{"name": f["name"], "role": f["role"]} for f in attached]},
             "corpus_fingerprint": _fingerprint(categories),
+            "user_id": req.user_id,
         }
         store.start_run(conn, record)
 
         # One trace for the whole run. The upload session is the Langfuse
         # session: it is what ties several analyses of the same attached
-        # documents together, including the ones InsightLens ran. There is no
-        # user_id because this application has no accounts -- see the note in
-        # app.py's module docstring.
+        # documents together, including the ones InsightLens ran. The user is
+        # the signed-in account, which tracing.start_run reads for itself.
         run = tracing.start_run(
             "analyse-rollout",
             input={

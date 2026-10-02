@@ -1,26 +1,89 @@
-# Sign-in and Demo Mode
+# Accounts, roles and Demo Mode
 
-The presentation lock on the application, and the separate Demo Mode front door for client presentations. Neither is access control: see the "Localhost only" note in the [README](../README.md#notes).
+Accounts are stored in Postgres. Each person signs in with their own username
+and password, has a role (**Admin** or **User**), and sees only their own run
+history. The same account opens the application at `/` and Demo Mode at
+`/demo`. The code is in `backend/auth/`.
 
-## Signing in to the application
+## Signing in
 
-Every page of the application (`/`, `/ask`, `/rollout`, …) asks for a static
-username and password first: **test** / **test** by default. The sign-in page
-is `/login`; the sign-out button is at the right of the header. A page opened
-while signed out goes to `/login` and comes back to that page afterwards.
+Every page (`/`, `/ask`, `/rollout`, …) and every `/api/*` endpoint needs a
+signed-in account. A page opened while signed out goes to `/login` and returns
+to that page afterwards. An API call made while signed out gets `401`. Demo
+Mode has its own sign-in page at `/demo/login` that uses the same accounts.
 
-It is a presentation lock, not access control: the `/api/*` endpoints stay
-open, because Demo Mode's pages call the same API. Keep the "localhost only"
-rule. Demo Mode has its own, separate sign-in (below). `app_login.py` holds it,
-and `test_app_login.py` tests it.
+The session is an HMAC-signed, HttpOnly cookie (`spark_session`). Passwords
+are stored as scrypt hashes. On every request the server checks the account
+behind the cookie, so the following take effect on that account's next
+request, wherever it is signed in:
+
+- **Resetting a password** signs the account out.
+- **Deactivating** an account signs it out.
+- **Changing a role** applies straight away, without signing out.
+
+### The first Admin
+
+When the server starts and there is no active Admin, it creates one from
+`ADMIN_USERNAME` and `ADMIN_PASSWORD`. If neither is set, the server logs a
+warning. You can also create an Admin from the command line:
+
+```bash
+.venv/bin/python -m backend.auth.store create-admin <username>   # prompts for the password
+.venv/bin/python -m backend.auth.store list
+```
 
 | Variable | Default | |
 |---|---|---|
-| `APP_USERNAME` | `test` | |
-| `APP_PASSWORD` | `test` | |
-| `APP_SECRET` | random per process | signs the session cookie; set it to stay signed in across restarts |
-| `APP_SESSION_HOURS` | `12` | |
-| `APP_LOGIN` | `on` | `off` removes the sign-in |
+| `ADMIN_USERNAME` | — | the first Admin, created at start-up if there is no active Admin |
+| `ADMIN_PASSWORD` | — | at least 8 characters |
+| `AUTH_SECRET` | random per process | signs the session cookie; set it to stay signed in across restarts (`APP_SECRET` is still read) |
+| `AUTH_SESSION_HOURS` | `12` | |
+
+The old static logins (`test`/`test` and `solvay`/`solvay`) and `APP_LOGIN=off`
+no longer exist.
+
+## Roles
+
+| | User | Admin |
+|---|---|---|
+| Run Ask RAG, the Agent, InsightLens, the Fit-Gap Copilot | yes | yes |
+| Their own run history: open, export, review, decide, delete | yes | yes |
+| Other people's runs | no ("not found") | read-only, via **History: everyone's runs** in the account menu |
+| RAG Metrics (Quality), experiments, the memory "reflect" button | no | yes |
+| The **Admin** tab: accounts, usage, activity | no | yes |
+
+The knowledge base, the knowledge graph and source documents are shared by
+everyone. Two more things are shared as organisational memory:
+
+- **The Evidence Agent's memory bank.** Facts it retains are tagged `user:<name>`.
+- **The Fit-Gap Copilot's workshop decisions** (`/api/rollout/decisions`). Each
+  decision records who made it.
+
+Reviewer, facilitator and "decided by" names are no longer typed in. The
+server takes them from the signed-in account.
+
+Accounts are never deleted. An account that should no longer sign in is
+deactivated, so its runs keep an owner. Runs recorded before accounts existed
+belong to a built-in account called `legacy`. Only Admins can see those runs,
+and `legacy` cannot sign in.
+
+## The Admin tab
+
+- **Usage.** Runs, failures, run time and tokens for each account and each
+  tool, plus sign-ins and a chart of runs per day. The numbers come from the
+  run tables themselves. LLM cost is in Langfuse, where every trace now
+  carries the username.
+- **Users.** Create accounts, change a role, reset a password, deactivate or
+  reactivate an account. Nobody can demote or deactivate themselves, and the
+  last active Admin cannot be removed.
+- **Activity.** Sign-ins (including failed ones), runs, reviews, decisions,
+  exports, deletions and account changes, newest first.
+
+```bash
+.venv/bin/python backend/tests/test_auth.py        # sign-in, sessions, roles, account rules
+.venv/bin/python backend/tests/test_ownership.py   # per-user runs, legacy hand-over, usage
+.venv/bin/python backend/tests/test_app_login.py   # the page gates (no database)
+```
 
 ## Demo Mode (client presentations)
 
@@ -37,8 +100,7 @@ land on the introduction, and the landing page shows no buttons to them. All
 of them remain in the application at `/`.
 
 ```bash
-./scripts/run.sh                      # then open http://localhost:8000/demo
-# username solvay, password solvay
+./scripts/run.sh                      # then open http://localhost:8000/demo and sign in
 ```
 
 The application at `/` is untouched. Demo Mode is a separate page bundle
@@ -46,21 +108,5 @@ The application at `/` is untouched. Demo Mode is a separate page bundle
 `demo_mode.py`, and it renders the application's own page components, so a
 fix to a page shows up in both.
 
-**The sign-in is for a presentation, not for security.** It keeps a casual
-visitor on a shared screen out of the demo page, and that is all: the main
-application and every `/api/*` endpoint stay exactly as open as before, so the
-"localhost only" note below still applies in full. The password is checked on
-the server (it is not in the JavaScript bundle) and the session is an
-HMAC-signed, HttpOnly cookie.
-
-```bash
-# Optional overrides (defaults shown):
-DEMO_USERNAME=solvay
-DEMO_PASSWORD=solvay
-DEMO_SECRET=                  # unset: random per process, so a restart signs out
-DEMO_SESSION_HOURS=12
-```
-
-```bash
-.venv/bin/python backend/tests/test_demo_mode.py   # credentials, the signed session, the gate
-```
+Demo Mode uses the same accounts and the same session as the application
+(see above). Its pages send a signed-out visitor to `/demo/login`.

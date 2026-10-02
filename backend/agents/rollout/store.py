@@ -16,11 +16,13 @@ from __future__ import annotations
 import json
 import re
 import sys
+import threading
 import uuid
 from pathlib import Path
 from typing import Any
 
 
+from backend.auth.store import owned as auth_owned  # noqa: E402
 from backend.rag import rag  # noqa: E402
 from backend.agents.guardrails.contact import redact, redact_obj as _clean  # noqa: E402
 from backend.agents.rollout import decisions  # noqa: E402
@@ -44,8 +46,26 @@ def connect():
     return rag.connection(schema=False)
 
 
+# Once per process per database: see ask_store.py for the deadlock that
+# running ALTER TABLE on every request caused.
+_ready: set[str] = set()
+_ready_lock = threading.Lock()
+
+
 def create_schema(conn=None) -> None:
-    conn = conn or connect()
+    key = database_url()
+    if key in _ready:
+        return
+    with _ready_lock:
+        if key in _ready:
+            return
+        _create_schema(conn or connect())
+        _ready.add(key)
+
+
+def _create_schema(conn) -> None:
+    from backend.auth import store as auth_store
+
     with conn.transaction():
         conn.execute(
             """
@@ -201,6 +221,12 @@ def create_schema(conn=None) -> None:
                      " ON workshop_decisions (source_run, gap_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS workshop_decisions_memory_idx"
                      " ON workshop_decisions (country, scope_bpml, primary_type) WHERE is_current")
+        # Who ran it, who facilitated, who decided. Rows from before accounts
+        # belong to `legacy`; the typed names stay as they were. Before the
+        # backfill, which reads runs through _COLUMNS.
+        auth_store.own_table(conn, "rollout_runs")
+        auth_store.own_table(conn, "workshop_sessions")
+        auth_store.own_table(conn, "workshop_decisions", "decided_at")
         _backfill(conn)
 
 
@@ -208,13 +234,14 @@ def start_run(conn, run: dict) -> None:
     conn.execute(
         """INSERT INTO rollout_runs
            (id, subject, scope_bpml, scope_label, country, country_context, sap_release,
-            gt_version, question, model, prompt_hash, categories, uploads, corpus_fingerprint)
+            gt_version, question, model, prompt_hash, categories, uploads, corpus_fingerprint,
+            user_id)
            VALUES (%(id)s, %(subject)s, %(scope_bpml)s, %(scope_label)s, %(country)s,
                    %(country_context)s, %(sap_release)s, %(gt_version)s, %(question)s,
                    %(model)s, %(prompt_hash)s,
-                   %(categories)s, %(uploads)s, %(corpus_fingerprint)s)
+                   %(categories)s, %(uploads)s, %(corpus_fingerprint)s, %(user_id)s)
            ON CONFLICT (id) DO NOTHING""",
-        {"subject": "country_as_is", **_clean(run),
+        {"subject": "country_as_is", **_clean(run), "user_id": run.get("user_id"),
          "categories": json.dumps(run.get("categories") or []),
          "uploads": json.dumps(_clean(run.get("uploads") or {}))},
     )
@@ -303,7 +330,7 @@ _COLUMNS = ("id, subject, scope_bpml, scope_label, country, country_context,"
             " sap_release, gt_version,"
             " question, model, prompt_hash, categories, uploads, corpus_fingerprint,"
             " started_at, finished_at, status, input_tokens, output_tokens,"
-            " asis, analysis, scores, gates, sources, calls, log, evaluation")
+            " asis, analysis, scores, gates, sources, calls, log, evaluation, user_id")
 
 
 # A run whose SSE stream was dropped -- the browser closed, the tab was
@@ -339,6 +366,7 @@ def _row(r) -> dict:
         "calls": r[24] or [],
         "log": r[25] or [],
         "evaluation": r[26] or {},
+        "user_id": r[27],
     }
 
 
@@ -356,19 +384,25 @@ def save_attachments(conn, run_id: str, attachments: dict[str, dict]) -> None:
     conn.commit()
 
 
-def get_attachment(conn, run_id: str, file: str) -> tuple[dict | None, dict] | None:
+def get_attachment(conn, run_id: str, file: str,
+                   owner: int | None = None) -> tuple[dict | None, dict] | None:
     """(the kept copy of one attachment or None, the run's upload record), or
     None when there is no such run. The upload record names the session, so a
     run made within the last few hours can still be served from it."""
-    r = conn.execute("SELECT attachments -> %s, uploads FROM rollout_runs WHERE id = %s",
-                     (file, run_id)).fetchone()
+    where, args = auth_owned(owner)
+    r = conn.execute("SELECT attachments -> %s, uploads FROM rollout_runs WHERE id = %s" + where,
+                     (file, run_id, *args)).fetchone()
     if not r:
         return None
     return r[0], r[1] or {}
 
 
-def get_run(conn, run_id: str, decisions_too: bool = True) -> dict | None:
-    r = conn.execute(f"SELECT {_COLUMNS} FROM rollout_runs WHERE id = %s", (run_id,)).fetchone()
+def get_run(conn, run_id: str, decisions_too: bool = True,
+            owner: int | None = None) -> dict | None:
+    """The run, or None if it does not exist or is not `owner`'s (None: any)."""
+    where, args = auth_owned(owner)
+    r = conn.execute(f"SELECT {_COLUMNS} FROM rollout_runs WHERE id = %s{where}",
+                     (run_id, *args)).fetchone()
     if not r:
         return None
     run = _row(r)
@@ -378,12 +412,16 @@ def get_run(conn, run_id: str, decisions_too: bool = True) -> dict | None:
     return run
 
 
-def list_runs(conn, limit: int = 40) -> list[dict]:
+def list_runs(conn, limit: int = 40, owner: int | None = None) -> list[dict]:
+    where, args = auth_owned(owner, "r")
     rows = conn.execute(
-        """SELECT id, scope_bpml, scope_label, country, status, started_at, finished_at,
-                  model, categories, uploads, scores, subject
-           FROM rollout_runs ORDER BY started_at DESC LIMIT %s""",
-        (limit,),
+        """SELECT r.id, r.scope_bpml, r.scope_label, r.country, r.status, r.started_at,
+                  r.finished_at, r.model, r.categories, r.uploads, r.scores, r.subject,
+                  r.user_id, u.username
+           FROM rollout_runs r LEFT JOIN users u ON u.id = r.user_id
+           WHERE true""" + where + """
+           ORDER BY r.started_at DESC LIMIT %s""",
+        (*args, limit),
     ).fetchall()
     out = []
     for r in rows:
@@ -399,6 +437,7 @@ def list_runs(conn, limit: int = 40) -> list[dict]:
             "harmonization_potential": scores.get("harmonization_potential"),
             "deviations": (scores.get("counts") or {}).get("deviations", 0),
             "must_discuss": ((scores.get("counts") or {}).get("workshop") or {}).get("MUST_DISCUSS", 0),
+            "user_id": r[12], "owner": r[13],
         })
     return out
 
@@ -437,7 +476,8 @@ def _decision(r) -> dict:
 def _insert_decision(conn, run_id: str | None, source_run: str, gap_id: str, ctx: dict, *,
                      verdict: str, option_index: int | None, option_text: str, rationale: str,
                      disposition: str, decided_by: str, session_id: str | None = None,
-                     decided_at=None, legacy_id: int | None = None) -> int:
+                     decided_at=None, legacy_id: int | None = None,
+                     user_id: int | None = None) -> int:
     """One row, marking the verdict it replaces as no longer current."""
     prev = conn.execute(
         "UPDATE workshop_decisions SET is_current = false"
@@ -446,14 +486,14 @@ def _insert_decision(conn, run_id: str | None, source_run: str, gap_id: str, ctx
     cols = (["run_id", "source_run", "session_id", "gap_id", *decisions.RUN_FIELDS, "template_process",
              *decisions.DEVIATION_FIELDS, "question", "options", "decision_owner", "evidence",
              "verdict", "option_index", "option_text", "rationale", "disposition", "decided_by",
-             "supersedes", "legacy_id"])
+             "supersedes", "legacy_id", "user_id"])
     vals = [run_id, source_run, session_id, gap_id,
             *[ctx[k] for k in decisions.RUN_FIELDS], ctx["template_process"],
             *[ctx[k] for k in decisions.DEVIATION_FIELDS],
             ctx["question"], json.dumps(ctx["options"]), json.dumps(ctx["decision_owner"]),
             json.dumps(ctx["evidence"]),
             verdict, option_index, option_text, redact(rationale), disposition, decided_by,
-            prev[0] if prev else None, legacy_id]
+            prev[0] if prev else None, legacy_id, user_id]
     if decided_at is not None:
         cols.append("decided_at"); vals.append(decided_at)
     row = conn.execute(
@@ -464,7 +504,8 @@ def _insert_decision(conn, run_id: str | None, source_run: str, gap_id: str, ctx
 
 def save_decision(conn, run_id: str, gap_id: str, reviewer: str, verdict: str,
                   disposition: str = "", comment: str = "", *, option_index: int | None = None,
-                  rationale: str = "", session_id: str | None = None) -> dict:
+                  rationale: str = "", session_id: str | None = None,
+                  user_id: int | None = None) -> dict:
     """Record one verdict, with the context it was made in copied beside it.
 
     `comment` is the old free-text field. A comment in the "Option B: ..."
@@ -480,7 +521,7 @@ def save_decision(conn, run_id: str, gap_id: str, reviewer: str, verdict: str,
         new_id = _insert_decision(
             conn, run_id, run_id, gap_id, ctx, verdict=verdict, option_index=option_index,
             option_text=text, rationale=rationale.strip(), disposition=disposition,
-            decided_by=reviewer, session_id=session_id)
+            decided_by=reviewer, session_id=session_id, user_id=user_id)
     conn.commit()
     return get_decision(conn, new_id)
 
@@ -524,7 +565,7 @@ def get_sessions(conn, run_id: str) -> list[dict]:
 
 
 def submit_workshop(conn, run_id: str, facilitator: str, attendees: list[str],
-                    answers: list[dict]) -> dict:
+                    answers: list[dict], user_id: int | None = None) -> dict:
     """Facilitator mode's Submit: the whole sitting in one transaction.
 
     Every answer is checked before anything is written, so a bad one refuses
@@ -559,13 +600,16 @@ def submit_workshop(conn, run_id: str, facilitator: str, attendees: list[str],
     with conn.transaction():
         conn.execute(
             """INSERT INTO workshop_sessions (id, run_id, source_run, facilitator, attendees,
-                                              country, scope_bpml, scope_label, submitted_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())""",
+                                              country, scope_bpml, scope_label, submitted_at,
+                                              user_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now(), %s)""",
             (session_id, run_id, run_id, redact(facilitator), json.dumps(people),
-             run.get("country", ""), run.get("scope_bpml", ""), run.get("scope_label", "")))
+             run.get("country", ""), run.get("scope_bpml", ""), run.get("scope_label", ""),
+             user_id))
         ids = [_insert_decision(conn, run_id, run_id, gap, ctx, verdict=verdict, option_index=index,
                                 option_text=text, rationale=rationale, disposition="",
-                                decided_by=facilitator, session_id=session_id)
+                                decided_by=facilitator, session_id=session_id,
+                                user_id=user_id)
                for gap, verdict, index, text, rationale, ctx in rows]
     conn.commit()
     session = next(x for x in get_sessions(conn, run_id) if x["id"] == session_id)
@@ -590,12 +634,13 @@ def list_decisions(conn, *, country: str = "", scope_bpml: str = "", primary_typ
     return [_decision(r) for r in conn.execute(sql, (*args, limit)).fetchall()]
 
 
-def delete_run(conn, run_id: str) -> bool:
+def delete_run(conn, run_id: str, owner: int | None = None) -> bool:
     """Remove one run. Its workshop decisions stay: they carry their own
     context, and what an organization agreed is not a run's working notes.
     Their run_id becomes null and source_run keeps the id."""
+    where, args = auth_owned(owner)
     removed = conn.execute(
-        "DELETE FROM rollout_runs WHERE id = %s RETURNING id", (run_id,)).fetchall()
+        f"DELETE FROM rollout_runs WHERE id = %s{where} RETURNING id", (run_id, *args)).fetchall()
     conn.commit()
     return bool(removed)
 

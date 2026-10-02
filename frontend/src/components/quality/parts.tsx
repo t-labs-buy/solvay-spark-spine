@@ -13,6 +13,28 @@ import { quality } from "../../api";
  *  data rather than a card that draws attention to itself. */
 export const RADIUS = "4px";
 
+export const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+/** One figure in a header's KPI strip: a label, the number, a status word
+ *  that carries the colour (so the colour is never the only signal), and a
+ *  line of context. Laid out as peers in a wrapping row, ruled between. */
+export function Kpi({ label, value, status, tone, sub }: {
+  label: string; value: string; status: string; tone: "good" | "warn" | "muted"; sub: string;
+}) {
+  return (
+    <Stack spacing={0.25} sx={{ flex: "1 1 0", minWidth: 150, py: 1.5, pr: 2, mr: 2, borderRight: 1, borderColor: "divider",
+                                "&:last-of-type": { borderRight: 0, mr: 0 } }}>
+      <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{label}</Typography>
+      <Typography sx={{ fontFamily: MONO, fontSize: 24, fontWeight: 500, lineHeight: 1.25 }}>{value}</Typography>
+      <Typography sx={{ fontSize: 12, fontWeight: 600,
+                        color: tone === "good" ? "success.main" : tone === "warn" ? "warning.main" : "text.secondary" }}>
+        {status}
+      </Typography>
+      <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>{sub}</Typography>
+    </Stack>
+  );
+}
+
 export function Panel({ title, hint, actions, children, pad = true }: {
   title: string; hint?: string; actions?: ReactNode; children: ReactNode; pad?: boolean;
 }) {

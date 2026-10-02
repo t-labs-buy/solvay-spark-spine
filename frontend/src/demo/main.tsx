@@ -4,6 +4,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import DemoApp from "./DemoApp";
 import { clientExports } from "../api";
+import { installSessionGuard } from "../auth";
+
+installSessionGuard("/demo/login");
 
 // Every workshop pack downloaded here is the client copy: no model named.
 clientExports();

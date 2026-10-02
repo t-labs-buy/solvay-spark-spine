@@ -104,6 +104,7 @@ def run(req: RunRequest) -> Iterator[Event]:
             "prompt_hash": agent.prompt_hash(), "holdout": req.holdout,
             "categories": list(scope_categories),
             "uploads": upload_record,
+            "user_id": req.user_id,
             # Scoped to what this run could read: a fingerprint over the whole
             # corpus would claim it saw documents it could never retrieve.
             "corpus_fingerprint": store.corpus_fingerprint(categories=list(scope_categories)),
@@ -143,6 +144,7 @@ def run(req: RunRequest) -> Iterator[Event]:
             "corpus_fingerprint": record["corpus_fingerprint"],
             "categories": list(scope_categories),
             "uploads": upload_record,
+            "user_id": req.user_id,
         }
 
         events: queue.Queue = queue.Queue()

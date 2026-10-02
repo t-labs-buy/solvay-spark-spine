@@ -15,9 +15,11 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import type { FailureType, QualityExplorer, QualityOverview, QualityPoint } from "../../api";
 import { band, Bullet, statusOf } from "./charts";
-import { Empty, Panel, RADIUS } from "./parts";
+import { Empty, MONO, Panel, RADIUS } from "./parts";
 
-export const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+// Defined beside the other shared pieces; re-exported for the views that
+// have always imported it from here.
+export { MONO };
 
 type SortKey = "status" | "question" | "at" | "overall" | "faithfulness" | "answer_relevancy"
   | "context_precision" | "context_relevance" | "cause" | "tokens";

@@ -26,13 +26,13 @@ import {
 } from "../api";
 import MetricDetailDrawer from "../components/MetricDetailDrawer";
 import AnswerListDrawer from "../components/quality/AnswerListDrawer";
-import AnswersView, { Field, MONO } from "../components/quality/AnswersView";
+import AnswersView, { Field } from "../components/quality/AnswersView";
 import DocumentsView from "../components/quality/DocumentsView";
 import ExperimentsView from "../components/quality/ExperimentsView";
 import ExplorerView, { FOCUS, type Drill } from "../components/quality/ExplorerView";
 import JudgeView from "../components/quality/JudgeView";
 import MatrixView from "../components/quality/MatrixView";
-import { RADIUS, ReviewBar, TrustNote } from "../components/quality/parts";
+import { Kpi, RADIUS, ReviewBar, TrustNote } from "../components/quality/parts";
 
 type View = "answers" | "matrix" | "documents" | "analysis" | "experiments" | "judge";
 const VIEWS: { value: View; label: string }[] = [
@@ -83,23 +83,6 @@ function remembered(): View {
     if (VIEWS.some((x) => x.value === v)) return v as View;
   } catch { /* private window */ }
   return "answers";
-}
-
-function Kpi({ label, value, status, tone, sub }: {
-  label: string; value: string; status: string; tone: "good" | "warn" | "muted"; sub: string;
-}) {
-  return (
-    <Stack spacing={0.25} sx={{ flex: "1 1 0", minWidth: 150, py: 1.5, pr: 2, mr: 2, borderRight: 1, borderColor: "divider",
-                                "&:last-of-type": { borderRight: 0, mr: 0 } }}>
-      <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{label}</Typography>
-      <Typography sx={{ fontFamily: MONO, fontSize: 24, fontWeight: 500, lineHeight: 1.25 }}>{value}</Typography>
-      <Typography sx={{ fontSize: 12, fontWeight: 600,
-                        color: tone === "good" ? "success.main" : tone === "warn" ? "warning.main" : "text.secondary" }}>
-        {status}
-      </Typography>
-      <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>{sub}</Typography>
-    </Stack>
-  );
 }
 
 const selectSx = { fontSize: 13, minWidth: 190, borderRadius: RADIUS, "& .MuiSelect-select": { py: 0.75 } };

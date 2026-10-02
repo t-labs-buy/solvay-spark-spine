@@ -2587,9 +2587,8 @@ nano .env</pre>
                   <tr><td><code>ANTHROPIC_API_KEY</code></td><td>The team's Anthropic key.</td></tr>
                   <tr><td><code>POSTGRES_PASSWORD</code></td><td>A generated password. It becomes the password of the database user <code>spark</code>.</td></tr>
                   <tr><td><code>NEO4J_PASSWORD</code></td><td>A generated password, <strong>at least 8 characters</strong>; Neo4j refuses shorter ones.</td></tr>
-                  <tr><td><code>APP_USERNAME</code> / <code>APP_PASSWORD</code></td><td>The login people type on the app's sign-in page. Choose them; don't leave the default <code>test/test</code>.</td></tr>
-                  <tr><td><code>APP_SECRET</code> / <code>DEMO_SECRET</code></td><td>Generated values. Without them, every restart signs everyone out.</td></tr>
-                  <tr><td><code>DEMO_USERNAME</code> / <code>DEMO_PASSWORD</code></td><td>The Demo Mode login. Change the default <code>solvay/solvay</code>.</td></tr>
+                  <tr><td><code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code></td><td>The first Admin account, created on the first start. Sign in with it and create everyone else's account from the <strong>Admin</strong> tab.</td></tr>
+                  <tr><td><code>AUTH_SECRET</code></td><td>A generated value. Without it, every restart signs everyone out.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2703,7 +2702,7 @@ ssh -i ~/Downloads/ivolve-cloud-server.pem -N -o ServerAliveInterval=60 -L 8040:
             </div>
             <p>
               Leave that window open and browse to <strong>http://localhost:8040</strong>.
-              Sign in with <code>APP_USERNAME</code> / <code>APP_PASSWORD</code> from the
+              Sign in with <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> from the
               server's <code>.env</code>. Close the window (or <kbd>Ctrl</kbd>+<kbd>C</kbd>)
               to close the tunnel; the app keeps running on the server.
             </p>
@@ -2795,6 +2794,49 @@ docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {
                 </tbody>
               </table>
             </div>
+            <div class="why">
+              <span class="label">Why check from the network's side</span>
+              <p>
+                The containers find each other by name over <code>ivolve-network</code>:
+                the app connects to <code>solvay-postgres</code>, <code>solvay-neo4j</code>,
+                <code>solvay-ollama</code> and <code>solvay-hindsight</code>, and those names
+                only resolve for containers on the same network. <code>docker compose ps</code>
+                can show every service <code>Up</code> while one of them sits on the wrong
+                network, and the app then fails with "could not translate host name" or a
+                connection timeout. Asking the network which containers it holds catches
+                that in one command, and shows our stack alone even though other teams'
+                containers share the network.
+              </p>
+            </div>
+            <p>How the command works, one stage of the pipe at a time:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Part</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker network inspect ivolve-network</code></td><td>Describes the shared network, including every container attached to it. On its own it prints a long block of JSON.</td></tr>
+                  <tr><td><code>--format '{{range .Containers}}{{.Name}} {{end}}'</code></td><td>Replaces the JSON with just the names. <code>{{range .Containers}}</code> loops over the attached containers, <code>{{.Name}}</code> prints each one's name followed by a space, and <code>{{end}}</code> closes the loop. The result is a single line of names, ours mixed in with other teams'.</td></tr>
+                  <tr><td><code>| tr ' ' '\n'</code></td><td>Turns each space into a line break, so every name lands on its own line. <code>grep</code> works line by line, so this has to happen first.</td></tr>
+                  <tr><td><code>| grep solvay-spark-spine</code></td><td>Keeps only the lines containing <code>solvay-spark-spine</code>, the Compose project name that starts every one of our container names. Everything belonging to other stacks drops out.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>On a healthy server it prints five lines (in any order):</p>
+            <pre>
+solvay-spark-spine-app-1
+solvay-spark-spine-solvay-postgres-1
+solvay-spark-spine-solvay-neo4j-1
+solvay-spark-spine-solvay-ollama-1
+solvay-spark-spine-solvay-hindsight-1</pre>
+            <p>
+              The one-off helpers <code>solvay-ollama-pull</code> and
+              <code>solvay-hindsight-db</code> don't appear: they have already exited, and
+              a stopped container is no longer listed on the network. If the command
+              prints <code>network not found</code> instead, <code>ivolve-network</code>
+              doesn't exist on this machine; see "network ivolve-network declared as
+              external, but could not be found" in section 12. Copy the command exactly:
+              a mistyped <code>{{</code> or <code>}}</code> in the format string gives
+              <code>template parsing error</code>.
+            </p>
             <p>
               If a container is missing, or its name has no <code>solvay-</code> in the
               middle (<code>…-postgres-1</code> rather than <code>…-solvay-postgres-1</code>),
@@ -3552,8 +3594,8 @@ curl -u spark:YOUR-PASSWORD https://solvay-sparkai.ivolve.cloud/api/health</pre>
               <span class="label">Two logins, on purpose</span>
               <p>
                 People sign in twice: first Caddy's pop-up (user <code>spark</code>),
-                then the app's sign-in page (<code>APP_USERNAME</code> /
-                <code>APP_PASSWORD</code> from the server's <code>.env</code>). The first
+                then the app's sign-in page, with their own account (the first Admin
+                is <code>ADMIN_USERNAME</code> from the server's <code>.env</code>). The first
                 protects everything, including the API; the second is the app's own.
                 The browser remembers the first for the session.
               </p>

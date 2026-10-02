@@ -216,6 +216,10 @@ def create_schema(conn=None) -> None:
         conn.execute(
             "ALTER TABLE upload_files ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'other'"
         )
+        # Whose session this is. No foreign key: the accounts are in the main
+        # database and this is a database of its own. A session from before
+        # accounts has none, belongs to nobody and expires within hours.
+        conn.execute("ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS user_id bigint")
     with _meta_lock:
         _meta_ready = True
 
@@ -227,16 +231,18 @@ def _ttl() -> str:
     return f"{max(TTL_HOURS, 0.1)} hours"
 
 
-def new_session() -> str:
-    """Create a session: a row, a schema, and the rag tables inside it."""
+def new_session(user_id: int | None = None) -> str:
+    """Create a session, owned by `user_id`: a row, a schema, and the rag
+    tables inside it."""
     import uuid
 
     conn = connect()
     create_schema(conn)
     sid = uuid.uuid4().hex[:12]
     conn.execute(
-        "INSERT INTO upload_sessions (id, expires_at) VALUES (%s, now() + %s::interval)",
-        (sid, _ttl()),
+        "INSERT INTO upload_sessions (id, expires_at, user_id)"
+        " VALUES (%s, now() + %s::interval, %s)",
+        (sid, _ttl(), user_id),
     )
     scoped = session_connect(sid)
     scoped.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema_name(sid)}"')
@@ -257,6 +263,18 @@ def exists(sid: str) -> bool:
             (check_session(sid),),
         ).fetchone()
     )
+
+
+def owner(sid: str) -> int | None:
+    """The account a live session belongs to, or None (no such session, or
+    one from before accounts)."""
+    if not live():
+        return None
+    conn = connect()
+    create_schema(conn)
+    r = conn.execute("SELECT user_id FROM upload_sessions WHERE id = %s AND expires_at > now()",
+                     (check_session(sid),)).fetchone()
+    return r[0] if r else None
 
 
 def touch(sid: str) -> None:

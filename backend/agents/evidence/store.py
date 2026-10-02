@@ -31,10 +31,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 
+from backend.auth.store import owned as auth_owned  # noqa: E402
 from backend.rag import rag  # noqa: E402
 
 
@@ -49,8 +51,26 @@ def connect():
     return rag.connection(schema=False)
 
 
+# Once per process per database: see ask_store.py for the deadlock that
+# running ALTER TABLE on every request caused.
+_ready: set[str] = set()
+_ready_lock = threading.Lock()
+
+
 def create_schema(conn=None) -> None:
-    conn = conn or connect()
+    key = database_url()
+    if key in _ready:
+        return
+    with _ready_lock:
+        if key in _ready:
+            return
+        _create_schema(conn or connect())
+        _ready.add(key)
+
+
+def _create_schema(conn) -> None:
+    from backend.auth import store as auth_store
+
     with conn.transaction():
         conn.execute(
             """
@@ -94,16 +114,19 @@ def create_schema(conn=None) -> None:
         # shows them. Runs recorded before it have an empty object.
         conn.execute("ALTER TABLE evidence_runs ADD COLUMN IF NOT EXISTS"
                      " evaluation jsonb NOT NULL DEFAULT '{}'::jsonb")
+        # Who ran it. Runs from before accounts belong to `legacy`.
+        auth_store.own_table(conn, "evidence_runs")
 
 
 def start_run(conn, run: dict) -> None:
     conn.execute(
         """INSERT INTO evidence_runs
-           (id, question, holdout, categories, model, prompt_hash, corpus_fingerprint)
+           (id, question, holdout, categories, model, prompt_hash, corpus_fingerprint, user_id)
            VALUES (%(id)s, %(question)s, %(holdout)s, %(categories)s, %(model)s,
-                   %(prompt_hash)s, %(corpus_fingerprint)s)
+                   %(prompt_hash)s, %(corpus_fingerprint)s, %(user_id)s)
            ON CONFLICT (id) DO NOTHING""",
-        {**run, "categories": json.dumps(run.get("categories") or [])},
+        {**run, "categories": json.dumps(run.get("categories") or []),
+         "user_id": run.get("user_id")},
     )
     conn.commit()
 
@@ -152,7 +175,7 @@ def finish_run(conn, run_id: str, answer: dict, calls: list[dict]) -> None:
          answer.get("output_tokens", 0), answer.get("seconds", 0), run_id),
     )
     conn.commit()
-    trim(conn)
+    trim(conn, owner=_owner_of(conn, run_id))
 
 
 def save_evaluation(conn, run_id: str, evaluation: dict) -> None:
@@ -190,7 +213,7 @@ def _status(status: str, started_at) -> str:
 
 _COLUMNS = ("id, question, holdout, categories, model, prompt_hash, corpus_fingerprint,"
             " started_at, finished_at, status, state, input_tokens, output_tokens,"
-            " seconds, answer, calls, error, memory, log, evaluation")
+            " seconds, answer, calls, error, memory, log, evaluation, user_id")
 
 
 def _row(r) -> dict:
@@ -205,23 +228,36 @@ def _row(r) -> dict:
         "memory": r[17] or {},
         "log": r[18] or [],
         "evaluation": r[19] or {},
+        "user_id": r[20],
     }
 
 
-def get_run(conn, run_id: str) -> dict | None:
-    r = conn.execute(f"SELECT {_COLUMNS} FROM evidence_runs WHERE id = %s", (run_id,)).fetchone()
+def _owner_of(conn, run_id: str) -> int | None:
+    r = conn.execute("SELECT user_id FROM evidence_runs WHERE id = %s", (run_id,)).fetchone()
+    return r[0] if r else None
+
+
+def get_run(conn, run_id: str, owner: int | None = None) -> dict | None:
+    """The run, or None if it does not exist or is not `owner`'s (None: any)."""
+    where, args = auth_owned(owner)
+    r = conn.execute(f"SELECT {_COLUMNS} FROM evidence_runs WHERE id = %s{where}",
+                     (run_id, *args)).fetchone()
     return _row(r) if r else None
 
 
-def list_runs(conn, limit: int = 50) -> list[dict]:
+def list_runs(conn, limit: int = 50, owner: int | None = None) -> list[dict]:
     """The history strip: enough to recognise a question and decide whether to
     reopen it, without carrying every claim and quote of fifty runs."""
+    where, args = auth_owned(owner, "r")
     rows = conn.execute(
-        """SELECT id, question, holdout, status, state, started_at, finished_at,
-                  seconds, model, answer, jsonb_array_length(calls), categories,
-                  memory
-           FROM evidence_runs ORDER BY started_at DESC LIMIT %s""",
-        (limit,),
+        """SELECT r.id, r.question, r.holdout, r.status, r.state, r.started_at,
+                  r.finished_at, r.seconds, r.model, r.answer,
+                  jsonb_array_length(r.calls), r.categories, r.memory,
+                  r.user_id, u.username
+           FROM evidence_runs r LEFT JOIN users u ON u.id = r.user_id
+           WHERE true""" + where + """
+           ORDER BY r.started_at DESC LIMIT %s""",
+        (*args, limit),
     ).fetchall()
     out = []
     for r in rows:
@@ -246,6 +282,7 @@ def list_runs(conn, limit: int = 50) -> list[dict]:
             # anything. Truncated here rather than in the browser: there is no
             # reason to send 1,400 characters fifty times over.
             "summary": (answer.get("answer") or "")[:180],
+            "user_id": r[13], "owner": r[14],
         })
     return out
 
@@ -257,23 +294,28 @@ def list_runs(conn, limit: int = 50) -> list[dict]:
 RETENTION = int(os.environ.get("EVIDENCE_HISTORY_LIMIT", "200"))
 
 
-def trim(conn, keep: int = RETENTION) -> int:
-    """Drop the oldest runs beyond `keep`. Returns how many went."""
+def trim(conn, keep: int = RETENTION, owner: int | None = None) -> int:
+    """Drop `owner`'s oldest runs beyond `keep`. Returns how many went.
+
+    Per owner, so one busy user cannot push everyone else's history out."""
     if keep <= 0:
         return 0
     removed = conn.execute(
         """DELETE FROM evidence_runs WHERE id IN (
-               SELECT id FROM evidence_runs ORDER BY started_at DESC OFFSET %s
+               SELECT id FROM evidence_runs WHERE user_id IS NOT DISTINCT FROM %s
+               ORDER BY started_at DESC OFFSET %s
            ) RETURNING id""",
-        (keep,),
+        (owner, keep),
     ).fetchall()
     conn.commit()
     return len(removed)
 
 
-def delete_run(conn, run_id: str) -> bool:
+def delete_run(conn, run_id: str, owner: int | None = None) -> bool:
+    where, args = auth_owned(owner)
     removed = conn.execute(
-        "DELETE FROM evidence_runs WHERE id = %s RETURNING id", (run_id,)).fetchall()
+        f"DELETE FROM evidence_runs WHERE id = %s{where} RETURNING id",
+        (run_id, *args)).fetchall()
     conn.commit()
     return bool(removed)
 

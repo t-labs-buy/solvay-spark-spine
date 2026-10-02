@@ -245,3 +245,72 @@ export function AgreementMatrix({ matrix, buckets }: { matrix: number[][]; bucke
     </svg>
   );
 }
+
+/** Runs per day, stacked by tool, for the Admin usage dashboard.
+ *
+ *  Bars rather than lines: a day is a bucket, and an empty day should look
+ *  empty rather than be interpolated across. Each tool keeps one colour from
+ *  the theme everywhere it appears on the page, and every bar segment carries
+ *  a <title> with the day, the tool and the count. */
+export function DailyBars<K extends string>({ days, keys, colours, labels, height = 160 }: {
+  days: ({ day: string } & Record<K, number>)[];
+  keys: K[];
+  colours: Record<K, string>;
+  labels: Record<K, string>;
+  height?: number;
+}) {
+  const theme = useTheme();
+  const width = 720;
+  const pad = { top: 10, right: 8, bottom: 22, left: 30 };
+  const totals = days.map((d) => keys.reduce((n, k) => n + (d[k] || 0), 0));
+  const max = Math.max(1, ...totals);
+  const x = useMemo(() => d3.scaleBand<string>().domain(days.map((d) => d.day))
+    .range([pad.left, width - pad.right]).paddingInner(0.2), [days]);
+  const y = d3.scaleLinear().domain([0, max]).nice().range([height - pad.bottom, pad.top]);
+  const ticks = y.ticks(Math.min(4, max));
+  const every = Math.max(1, Math.ceil(days.length / 10));
+  const label = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  return (
+    <Box component="svg" viewBox={`0 0 ${width} ${height}`} role="img"
+         aria-label="Runs per day by tool" sx={{ width: "100%", height: "auto", display: "block" }}>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)}
+                stroke={alpha(theme.palette.text.primary, 0.08)} />
+          <text x={pad.left - 6} y={y(t)} dy="0.32em" textAnchor="end" fontSize={10}
+                fill={theme.palette.text.secondary}>{t}</text>
+        </g>
+      ))}
+      {days.map((d, i) => {
+        let base = 0;
+        return (
+          <g key={d.day}>
+            {keys.map((k) => {
+              const n = d[k] || 0;
+              if (!n) return null;
+              const y0 = y(base), y1 = y(base + n);
+              base += n;
+              return (
+                <rect key={k} x={x(d.day)} width={x.bandwidth()} y={y1} height={Math.max(0, y0 - y1)}
+                      fill={colours[k]}>
+                  <title>{`${label(d.day)} · ${labels[k]}: ${n} run${n === 1 ? "" : "s"}`}</title>
+                </rect>
+              );
+            })}
+            {totals[i] === 0 && (
+              <rect x={x(d.day)} width={x.bandwidth()} y={y(0) - 1} height={1}
+                    fill={alpha(theme.palette.text.primary, 0.15)}>
+                <title>{`${label(d.day)}: no runs`}</title>
+              </rect>
+            )}
+            {i % every === 0 && (
+              <text x={(x(d.day) ?? 0) + x.bandwidth() / 2} y={height - 6} textAnchor="middle"
+                    fontSize={10} fill={theme.palette.text.secondary}>{label(d.day)}</text>
+            )}
+          </g>
+        );
+      })}
+    </Box>
+  );
+}

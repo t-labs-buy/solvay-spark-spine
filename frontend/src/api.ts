@@ -1,5 +1,7 @@
 // Types and calls for the FastAPI endpoints in app.py.
 
+import { historyScope } from "./auth";
+
 export interface Upload {
   id: string;
   filename: string;
@@ -886,6 +888,8 @@ export interface FitGapPreview {
 }
 
 export interface FitGapRunSummary {
+  /** Who ran it. Listed only when an Admin is reading everyone's. */
+  owner?: string | null;
   id: string; mode: "A" | "B"; scope_bpml: string; scope_label: string; question: string;
   holdout: boolean; status: string; started_at: string | null; finished_at: string | null;
   model: string; entries: number; reuse_pct: number | null; coverage_pct: number | null;
@@ -1130,7 +1134,7 @@ export const fitgap = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => json<FitGapPreview>(r)),
-  runs: () => fetch("/api/fitgap/runs").then((r) => json<FitGapRunSummary[]>(r)),
+  runs: () => fetch(`/api/fitgap/runs?scope=${historyScope()}`).then((r) => json<FitGapRunSummary[]>(r)),
   run: (id: string) => fetch(`/api/fitgap/runs/${id}`).then((r) => json<FitGapRunDetail>(r)),
   exportUrl: (id: string, format: "md" | "json" | "xlsx") => `/api/fitgap/runs/${id}/export?format=${format}`,
   review: (entryId: number, body: { reviewer: string; verdict: string; corrected_classification?: string | null; comment?: string }) =>
@@ -1455,6 +1459,8 @@ export interface EvidenceStatus {
  *  a question and decide whether to reopen it, without carrying every claim
  *  and quote of fifty runs. */
 export interface EvidenceRunSummary {
+  /** Who ran it. Listed only when an Admin is reading everyone's. */
+  owner?: string | null;
   id: string;
   question: string;
   holdout: boolean;
@@ -1591,6 +1597,8 @@ export async function askEvidence(
 /** One row of the Ask history panel. Carries no excerpts and no full answer:
  *  those are fetched only when a question is reopened. */
 export interface AskRunSummary {
+  /** Who ran it. Listed only when an Admin is reading everyone's. */
+  owner?: string | null;
   id: string;
   question: string;
   mode: SearchMode;
@@ -1636,7 +1644,7 @@ export type QualityFilter = "" | "low" | "unfaithful" | "unsafe" | "unscored";
 
 export const askHistory = {
   runs: (limit = 50, search = "", quality: QualityFilter = "") =>
-    fetch(`/api/ask/runs?limit=${limit}&search=${encodeURIComponent(search)}`
+    fetch(`/api/ask/runs?limit=${limit}&scope=${historyScope()}&search=${encodeURIComponent(search)}`
           + `&quality=${encodeURIComponent(quality)}`)
       .then((r) => json<{
         runs: AskRunSummary[];
@@ -1684,7 +1692,8 @@ export interface MemoryReflection {
 export const evidence = {
   status: () => fetch("/api/evidence/status").then((r) => json<EvidenceStatus>(r)),
   runs: (limit = 50) =>
-    fetch(`/api/evidence/runs?limit=${limit}`).then((r) => json<EvidenceRunSummary[]>(r)),
+    fetch(`/api/evidence/runs?limit=${limit}&scope=${historyScope()}`)
+      .then((r) => json<EvidenceRunSummary[]>(r)),
   run: (id: string) =>
     fetch(`/api/evidence/runs/${encodeURIComponent(id)}`).then((r) => json<EvidenceRunDetail>(r)),
   /** Every claim traced to its passages, graph facts, the calls that returned
@@ -1898,6 +1907,8 @@ export interface RolloutRunBody {
 }
 
 export interface RolloutRunSummary {
+  /** Who ran it. Listed only when an Admin is reading everyone's. */
+  owner?: string | null;
   id: string; scope_bpml: string; scope_label: string; country: string; status: string;
   started_at: string | null; finished_at: string | null; model: string;
   categories: string[]; uploads: { session?: string; documents?: { name: string; role: string }[] };
@@ -2030,7 +2041,7 @@ export const rollout = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => json<RolloutPreview>(r)),
-  runs: () => fetch("/api/rollout/runs").then((r) => json<RolloutRunSummary[]>(r)),
+  runs: () => fetch(`/api/rollout/runs?scope=${historyScope()}`).then((r) => json<RolloutRunSummary[]>(r)),
   run: (id: string) => fetch(`/api/rollout/runs/${id}`).then((r) => json<RolloutRunDetail>(r)),
   deleteRun: (id: string) =>
     fetch(`/api/rollout/runs/${encodeURIComponent(id)}`, { method: "DELETE" })
@@ -2428,3 +2439,105 @@ export interface Lineage {
     template_process: string; started_at: string; finished_at: string; not_checked: string[];
   };
 }
+
+
+// --- the Admin area (backend/api/admin.py) ------------------------------------
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  role: "admin" | "user";
+  active: boolean;
+  created_at: string | null;
+  last_login_at: string | null;
+  last_seen_at: string | null;
+  runs: number;
+}
+
+export type UsageTool = "evidence" | "ask" | "fitgap" | "rollout";
+
+export interface UsageNumbers {
+  runs: number;
+  failed: number;
+  seconds: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface UsageRow extends UsageNumbers {
+  user_id: number;
+  username: string;
+  role: "admin" | "user";
+  active: boolean;
+  last_login_at: string | null;
+  last_seen_at: string | null;
+  tools: Record<UsageTool, UsageNumbers>;
+  logins: number;
+  failed_logins: number;
+}
+
+export interface UsageReport {
+  from: string;
+  to: string;
+  tools: UsageTool[];
+  totals: Omit<UsageNumbers, "runs"> & {
+    runs: number; logins: number; failed_logins: number; active_users: number;
+    by_tool: Record<UsageTool, number>;
+  };
+  users: UsageRow[];
+  daily: ({ day: string } & Record<UsageTool, number>)[];
+}
+
+export interface ActivityEvent {
+  id: number;
+  at: string;
+  user_id: number | null;
+  username: string;
+  action: string;
+  tool: string | null;
+  run_id: string | null;
+  detail: Record<string, unknown>;
+}
+
+const jsonBody = (method: string, body: unknown): RequestInit => ({
+  method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+export interface AdminRun {
+  tool: UsageTool;
+  id: string;
+  user_id: number | null;
+  username: string;
+  started_at: string | null;
+  status: string;
+  title: string;
+  seconds: number;
+  tokens: number;
+}
+
+export const admin = {
+  runs: (opts: { userId?: number | null; tool?: UsageTool | ""; before?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams({ limit: String(opts.limit ?? 50) });
+    if (opts.userId) q.set("user_id", String(opts.userId));
+    if (opts.tool) q.set("tool", opts.tool);
+    if (opts.before) q.set("before", opts.before);
+    return fetch(`/api/admin/runs?${q}`).then((r) => json<{ runs: AdminRun[]; more: boolean }>(r));
+  },
+  users: () => fetch("/api/admin/users").then((r) => json<{ users: AdminUser[] }>(r)),
+  createUser: (username: string, password: string, role: "admin" | "user") =>
+    fetch("/api/admin/users", jsonBody("POST", { username, password, role }))
+      .then((r) => json<AdminUser>(r)),
+  updateUser: (id: number, change: { role?: "admin" | "user"; active?: boolean; password?: string }) =>
+    fetch(`/api/admin/users/${id}`, jsonBody("PATCH", change)).then((r) => json<AdminUser>(r)),
+  usage: (from: string, to: string, userId?: number | null) =>
+    fetch(`/api/admin/usage?start=${from}&end=${to}${userId ? `&user_id=${userId}` : ""}`)
+      .then((r) => json<UsageReport>(r)),
+  activity: (opts: { before?: number; userId?: number | null; action?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams({ limit: String(opts.limit ?? 100) });
+    if (opts.before) q.set("before", String(opts.before));
+    if (opts.userId) q.set("user_id", String(opts.userId));
+    if (opts.action) q.set("action", opts.action);
+    return fetch(`/api/admin/activity?${q}`)
+      .then((r) => json<{ events: ActivityEvent[]; more: boolean; actions: string[] }>(r));
+  },
+};

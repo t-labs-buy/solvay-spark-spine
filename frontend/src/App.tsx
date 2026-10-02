@@ -1,9 +1,14 @@
-import { AppBar, Box, CssBaseline, GlobalStyles, IconButton, Tab, Tabs, ThemeProvider, Toolbar, Tooltip, Typography } from "@mui/material";
+import { AppBar, Box, Button, CssBaseline, GlobalStyles, IconButton, Tab, Tabs, ThemeProvider, Toolbar, Tooltip, Typography } from "@mui/material";
 import { alpha, type Theme } from "@mui/material/styles";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { Columns2, DatabaseZap, FileText, FlaskConical, FolderArchive, Gauge, Globe2, ListChecks, LogOut, MessageSquareText, Moon, Network, ScanEye, Scale, Sun } from "lucide-react";
+import { Columns2, DatabaseZap, FileText, FlaskConical, FolderArchive, Gauge, Globe2, ListChecks, MessageSquareText, Moon, Network, ScanEye, Scale, ShieldCheck, Sun } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { currentAccount, type Account } from "./auth";
+import AccountMenu from "./components/AccountMenu";
 import BrandLogo from "./components/BrandLogo";
+import AdminPage from "./pages/AdminPage";
+import type { UsageTool } from "./api";
+import type { RunRequest } from "./runRequest";
 import AddToKnowledgeBasePage from "./pages/AddToKnowledgeBasePage";
 import AskPage from "./pages/AskPage";
 import BatchConvertPage from "./pages/BatchConvertPage";
@@ -19,25 +24,29 @@ import QualityPage from "./pages/QualityPage";
 import RolloutPage from "./pages/RolloutPage";
 import { makeTheme, searchColors, type Mode } from "./theme";
 
-type Page = "ask" | "quality" | "graph" | "evidence" | "fitgap" | "rollout" | "extract" | "batch" | "add-kb" | "coverage" | "review" | "viewer" | "landing";
+type Page = "ask" | "quality" | "graph" | "evidence" | "fitgap" | "rollout" | "extract" | "batch" | "add-kb" | "coverage" | "review" | "viewer" | "admin" | "landing";
 /** The header reads left to right as the pipeline actually runs: ask the
  *  corpus, convert documents into it, index them, then check the conversion.
  *  Each stage carries its own accent so the bar can be scanned rather than
  *  read. */
-type TabGroup = "engine" | "convert" | "index" | "inspect";
+type TabGroup = "engine" | "convert" | "index" | "inspect" | "admin";
 
 // The product, named once. It reaches the browser tab through the effect
 // below and the masthead through the tooltip; index.html carries the same
 // string for the first paint, before React runs.
 const PRODUCT = "Spark AI Spine";
 
-const TABS: { value: Page; label: string; icon: ReactElement; group: TabGroup }[] = [
+/** `adminOnly` tabs are left out of the bar for a User. The server refuses
+ *  their data to a User anyway; hiding them is so nobody is offered a page
+ *  that can only say no. */
+const TABS: { value: Page; label: string; icon: ReactElement; group: TabGroup; adminOnly?: boolean }[] = [
   // The order a question escalates through them: one engine, the other
   // engine, an agent over both, then the agent that writes a register.
   { value: "ask", label: "Ask RAG", icon: <MessageSquareText size={16} />, group: "engine" },
   // Beside Ask rather than with the inspection tools: it grades what Ask
   // answered, and the two are used together.
-  { value: "quality", label: "RAG Metrics", icon: <Gauge size={16} />, group: "engine" },
+  // Admin only: its dashboards add up every user's questions.
+  { value: "quality", label: "RAG Metrics", icon: <Gauge size={16} />, group: "engine", adminOnly: true },
   { value: "graph", label: "Spine", icon: <Network size={16} />, group: "engine" },
   { value: "evidence", label: "Agent", icon: <FlaskConical size={16} />, group: "engine" },
   { value: "fitgap", label: "InsightLens", icon: <Scale size={16} />, group: "engine" },
@@ -48,6 +57,7 @@ const TABS: { value: Page; label: string; icon: ReactElement; group: TabGroup }[
   { value: "coverage", label: "Coverage", icon: <ListChecks size={16} />, group: "inspect" },
   { value: "review", label: "Doc vs MD", icon: <ScanEye size={16} />, group: "inspect" },
   { value: "viewer", label: "MD Viewer", icon: <Columns2 size={16} />, group: "inspect" },
+  { value: "admin", label: "Admin", icon: <ShieldCheck size={16} />, group: "admin", adminOnly: true },
 ];
 
 const groupOf = (p: Page): TabGroup | null =>
@@ -72,6 +82,7 @@ function groupAccent(th: Theme, group: TabGroup): string {
     convert: th.palette.warning.main,
     index: th.palette.success.main,
     inspect: purple,
+    admin: th.palette.text.secondary,
   }[group];
 }
 
@@ -82,6 +93,7 @@ const TINT: Record<TabGroup, number> = {
   convert: 0.05,
   index: 0.05,
   inspect: 0.06,
+  admin: 0.05,
 };
 
 /** Label opacity, per group and per theme. The dark palette's Yellow and Green
@@ -98,8 +110,8 @@ const TINT: Record<TabGroup, number> = {
  *  was. Frappé mixes its accents to a common weight, which is most of why.
  */
 const LABEL_ALPHA: Record<"light" | "dark", Record<TabGroup, number>> = {
-  light: { engine: 0.82, convert: 0.82, index: 0.82, inspect: 0.82 },
-  dark: { engine: 0.8, convert: 0.62, index: 0.62, inspect: 0.76 },
+  light: { engine: 0.82, convert: 0.82, index: 0.82, inspect: 0.82, admin: 0.9 },
+  dark: { engine: 0.8, convert: 0.62, index: 0.62, inspect: 0.76, admin: 0.9 },
 };
 
 const PATHS: Record<Page, string> = {
@@ -115,6 +127,7 @@ const PATHS: Record<Page, string> = {
   coverage: "/coverage",
   review: "/review",
   viewer: "/md-viewer",
+  admin: "/admin",
   landing: "/",
 };
 
@@ -131,6 +144,7 @@ const pageFromPath = (): Page => {
   if (location.pathname.startsWith("/md-viewer") || location.pathname.startsWith("/viewer")) return "viewer";
   if (location.pathname.startsWith("/coverage")) return "coverage";
   if (location.pathname.startsWith("/review") || location.pathname.startsWith("/doc-md-viewer")) return "review";
+  if (location.pathname.startsWith("/admin")) return "admin";
   if (location.pathname.startsWith("/about") || location.pathname.startsWith("/landing")) return "landing";
   return "landing";
 };
@@ -149,16 +163,23 @@ export default function App() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [page, setPage] = useState<Page>(pageFromPath);
   const theme = useMemo(() => makeTheme(mode), [mode]);
-  // Who is signed in, for the sign-out button. Absent when the server has
-  // the sign-in switched off (APP_LOGIN=off), and then there is no button.
-  const [signedIn, setSignedIn] = useState<string | null>(null);
+  // Who is signed in, and so which tabs to offer. Until it has loaded, the
+  // Admin-only tabs stay hidden rather than flashing up for a User.
+  const [account, setAccount] = useState<Account | null>(null);
   useEffect(() => {
-    fetch("/api/app/session").then((r) => r.json()).then((d) => setSignedIn(d.user ?? null)).catch(() => undefined);
+    currentAccount().then(setAccount);
   }, []);
+  const isAdmin = account?.role === "admin";
+  // The Admin page is not in the scrolling tab bar: as its last tab it sat
+  // off-screen on a laptop, behind the scroll arrow, and could not be found.
+  // It has a button of its own beside the account menu instead.
+  const tabs = TABS.filter((t) => t.group !== "admin" && (!t.adminOnly || isAdmin));
   const activeGroup = groupOf(page);
   // The Fit-Gap page hands a ticket or system name to the Graph page. The
   // nonce makes a repeat of the same text re-run the query.
   const [graphQuery, setGraphQuery] = useState<{ text: string; nonce: number } | null>(null);
+  // A run the Admin page asked a tool page to open, by page.
+  const [runRequests, setRunRequests] = useState<Partial<Record<Page, RunRequest>>>({});
 
   useEffect(() => {
     document.documentElement.dataset.theme = mode;
@@ -193,6 +214,13 @@ export default function App() {
     if (next === page) return;
     history.pushState(null, "", PATHS[next]);
     setPage(next);
+  };
+
+  const TOOL_PAGE: Record<UsageTool, Page> = { ask: "ask", evidence: "evidence", fitgap: "fitgap", rollout: "rollout" };
+  const openRunIn = (tool: UsageTool, id: string) => {
+    const target = TOOL_PAGE[tool];
+    setRunRequests((r) => ({ ...r, [target]: { id, nonce: Date.now() } }));
+    go(target);
   };
 
   const showInGraph = (text: string) => {
@@ -259,7 +287,7 @@ export default function App() {
                   surfaces are tinted and carry the accent; the document tools
                   stay neutral. A rule separates them. */}
               <Tabs
-                value={page === "landing" ? false : page}
+                value={page === "landing" || !tabs.some((t) => t.value === page) ? false : page}
                 onChange={(_, v) => go(v)}
                 variant="scrollable"
                 scrollButtons="auto"
@@ -277,8 +305,8 @@ export default function App() {
                   },
                 })}
               >
-                {TABS.map(({ value, label, icon, group }, i) => {
-                  const opensGroup = TABS[i - 1] && TABS[i - 1].group !== group;
+                {tabs.map(({ value, label, icon, group }, i) => {
+                  const opensGroup = tabs[i - 1] && tabs[i - 1].group !== group;
                   return (
                     <Tab
                       key={value}
@@ -323,16 +351,16 @@ export default function App() {
                   </AnimatePresence>
                 </IconButton>
               </Tooltip>
-              {signedIn && (
-                <Tooltip title={`Signed in as ${signedIn} — sign out`}>
-                  <IconButton aria-label="Sign out" onClick={async () => {
-                    await fetch("/api/app/logout", { method: "POST" }).catch(() => undefined);
-                    location.replace("/login");
-                  }}>
-                    <LogOut size={18} />
-                  </IconButton>
+              {isAdmin && (
+                <Tooltip title="Usage dashboard, accounts and the activity log">
+                  <Button size="small" onClick={() => go("admin")} startIcon={<ShieldCheck size={16} />}
+                          variant={page === "admin" ? "contained" : "outlined"}
+                          sx={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+                    Admin
+                  </Button>
                 </Tooltip>
               )}
+              <AccountMenu account={account} loginPath="/login" onAdmin={isAdmin ? () => go("admin") : undefined} />
             </Toolbar>
           </AppBar>
 
@@ -357,11 +385,11 @@ export default function App() {
                 ) : p === "graph" ? (
                   <KnowledgeGraphPage active={page === "graph"} onNavigate={(next) => go(next as Page)} incomingQuery={graphQuery} />
                 ) : p === "fitgap" ? (
-                  <FitGapPage active={page === "fitgap"} onShowInGraph={showInGraph} />
+                  <FitGapPage active={page === "fitgap"} onShowInGraph={showInGraph} openRun={runRequests.fitgap} />
                 ) : p === "rollout" ? (
-                  <RolloutPage active={page === "rollout"} />
+                  <RolloutPage active={page === "rollout"} openRun={runRequests.rollout} />
                 ) : p === "evidence" ? (
-                  <EvidencePage active={page === "evidence"} />
+                  <EvidencePage active={page === "evidence"} openRun={runRequests.evidence} />
                 ) : p === "coverage" ? (
                   <CoveragePage active={page === "coverage"} />
                 ) : p === "review" ? (
@@ -370,10 +398,12 @@ export default function App() {
                   <MdViewerPage />
                 ) : p === "quality" ? (
                   <QualityPage active={page === "quality"} />
+                ) : p === "admin" ? (
+                  <AdminPage active={page === "admin"} account={account} onOpenRun={openRunIn} />
                 ) : p === "landing" ? (
                   <LandingPage onNavigate={(next) => go(next)} />
                 ) : (
-                  <AskPage active={page === "ask"} />
+                  <AskPage active={page === "ask"} openRun={runRequests.ask} />
                 )}
               </Box>
             ))}

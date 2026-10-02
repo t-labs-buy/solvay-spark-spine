@@ -1,10 +1,11 @@
-"""The application's static sign-in: the credentials, the signed session, the
-page gate, and what it leaves open.
+"""The page gates in front of the application and Demo Mode.
 
 Run: python backend/tests/test_app_login.py
 
-No Postgres, no network, no model: the router and the gate are mounted on a
-bare FastAPI app with a few stand-in pages, so this checks app_login.py alone.
+No Postgres, no network, no model: the routers are mounted on a bare FastAPI
+app behind the auth middleware, and every request here is signed out, so the
+middleware never needs to look an account up. Signing in, roles and sessions
+are tested against a real database in test_auth.py.
 """
 
 from __future__ import annotations
@@ -18,8 +19,8 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.responses import HTMLResponse  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from backend.api import app_login  # noqa: E402
-from backend.api import demo_mode  # noqa: E402
+from backend.api import app_login, demo_mode  # noqa: E402
+from backend.auth import sessions  # noqa: E402
 
 app = FastAPI()
 app.include_router(demo_mode.router)
@@ -38,7 +39,12 @@ def rollout():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"status": "ok"}
+
+
+@app.get("/api/evidence/runs")
+def runs():
+    return []
 
 
 app_login.install(app)
@@ -48,99 +54,70 @@ def client() -> TestClient:
     return TestClient(app, follow_redirects=False)
 
 
-def login(c: TestClient, username="test", password="test"):
-    return c.post("/api/app/login", json={"username": username, "password": password})
-
-
-def test_defaults_are_test_and_test():
-    assert app_login.USERNAME == "test" and app_login.PASSWORD == "test"
-
-
 def test_a_page_redirects_to_sign_in_and_remembers_where_it_was_going():
-    res = client().get("/rollout?tab=brief")
+    res = client().get("/rollout?run=ro_1")
     assert res.status_code == 303
-    assert res.headers["location"] == "/login?next=/rollout%3Ftab%3Dbrief"
-    assert client().get("/").headers["location"] == "/login?next=/"
+    assert res.headers["location"] == "/login?next=/rollout%3Frun%3Dro_1"
 
 
-def test_the_right_credentials_open_the_pages():
+def test_a_demo_page_redirects_to_the_demos_own_sign_in():
+    res = client().get("/demo/fit-gap-copilot")
+    assert res.status_code == 303
+    assert res.headers["location"] == "/demo/login?next=/demo/fit-gap-copilot"
+
+
+def test_the_api_is_closed_too():
     c = client()
-    res = login(c)
-    assert res.status_code == 200 and res.json() == {"user": "test"}
-    assert "httponly" in res.headers["set-cookie"].lower()
-    assert c.get("/").status_code == 200
-    assert c.get("/rollout").status_code == 200
-    assert c.get("/api/app/session").json() == {"user": "test", "enabled": True}
+    assert c.get("/api/evidence/runs").status_code == 401
+    assert c.get("/api/health").status_code == 200
 
 
-def test_wrong_credentials_are_refused():
+def test_a_forged_cookie_opens_nothing():
     c = client()
-    for u, p in (("test", "nope"), ("nope", "test"), ("", ""), ("TEST", "test")):
-        assert login(c, u, p).status_code == 401, (u, p)
-    assert c.get("/").status_code == 303
+    c.cookies.set(sessions.COOKIE, "1|1|99999999999|deadbeef")
+    assert c.get("/api/evidence/runs").status_code == 401
+    assert c.get("/rollout").status_code == 303
 
 
-def test_a_forged_or_expired_session_does_not_open_a_page():
+def test_the_sign_in_pages_are_reachable_signed_out():
     c = client()
-    c.cookies.set(app_login.COOKIE, "test|9999999999|deadbeef")
-    assert c.get("/").status_code == 303
-    old = app_login.make_token("test", now=0)
-    assert app_login.session_user(old) is None
-    c.cookies.set(app_login.COOKIE, old)
-    assert c.get("/").status_code == 303
+    # 503 is "not built yet"; either way it was not a redirect.
+    assert c.get("/login").status_code in (200, 503)
+    assert c.get("/demo/login").status_code in (200, 503)
 
 
-def test_the_demo_session_does_not_open_the_application():
-    c = client()
-    assert c.post("/api/demo/login", json={"username": "solvay", "password": "solvay"}).status_code == 200
-    assert c.get("/").status_code == 303
-
-
-def test_the_api_and_the_demo_stay_as_they_were():
-    # The demo's pages call the same API, so gating it would lock them out.
-    assert client().get("/api/health").status_code == 200
-    assert "/demo" not in app_login.page_paths(app)
-    assert "/demo/login" not in app_login.page_paths(app)
-    assert {"/", "/rollout"} <= app_login.page_paths(app)
-
-
-def test_sign_in_page_sends_a_signed_in_reader_on():
-    c = client()
-    login(c)
-    res = c.get("/login?next=/rollout")
-    assert res.status_code == 303 and res.headers["location"] == "/rollout"
+def test_page_paths_finds_the_pages_and_not_the_sign_in_or_demo():
+    paths = app_login.page_paths(app)
+    assert {"/", "/rollout"} <= paths
+    assert "/login" not in paths and not any(p.startswith("/demo") for p in paths)
 
 
 def test_next_never_leaves_the_site():
-    for bad in ("https://evil.example", "//evil.example", "/login", "/login?next=/", "\\\\evil", ""):
-        assert app_login.safe_next(bad) == "/", bad
-    assert app_login.safe_next("/rollout?tab=brief") == "/rollout?tab=brief"
+    for bad in ("https://evil.example", "//evil.example", "/\\evil", "/login", "/demo/login", ""):
+        assert sessions.safe_next(bad) == "/", bad
+    assert sessions.safe_next("/rollout?x=1") == "/rollout?x=1"
 
 
-def test_sign_out_closes_the_pages_again():
-    c = client()
-    login(c)
-    assert c.get("/").status_code == 200
-    res = c.post("/api/app/logout")
-    assert res.status_code == 200
-    c.cookies.clear()
-    assert c.get("/").status_code == 303
+def test_the_demo_router_claims_only_demo_paths():
+    for r in demo_mode.router.routes:
+        assert r.path.startswith("/demo"), r.path
+
+
+TESTS = [v for k, v in dict(globals()).items() if k.startswith("test_")]
 
 
 def main() -> int:
-    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0
-    for fn in tests:
+    for t in TESTS:
         try:
-            fn()
+            t()
+            print(f"  ok   {t.__name__}")
         except Exception as exc:
             failed += 1
-            print(f"  FAIL {fn.__name__}: {exc.__class__.__name__}: {exc}")
-        else:
-            print(f"  ok   {fn.__name__}")
-    print(f"{len(tests) - failed}/{len(tests)} passed")
+            print(f"  FAIL {t.__name__}: {type(exc).__name__}: {exc}")
+    print(f"\n{len(TESTS) - failed}/{len(TESTS)} passed")
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

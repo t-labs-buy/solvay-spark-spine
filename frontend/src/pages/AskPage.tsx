@@ -25,6 +25,7 @@ import { MONO, RADIUS, usePremium } from "../components/rollout/premium";
 import { Section } from "../components/rollout/SummaryView";
 import { surface } from "../theme";
 import { clearAdornment } from "../components/ClearAdornment";
+import type { RunRequest } from "../runRequest";
 
 interface Step {
   key: StepKey;
@@ -82,8 +83,10 @@ const freshSteps = (mode: SearchMode): Step[] =>
   });
 
 
-export default function AskPage({ active, showTechDetails = true }: {
+export default function AskPage({ active, showTechDetails = true, openRun: request = null }: {
   active: boolean;
+  /** Open this recorded run, as the Admin page's run history asks. */
+  openRun?: RunRequest | null;
   /** Which models and how big a corpus: the line under the title, the model
    *  names in the pipeline and the judge model in the evaluation. Demo Mode
    *  turns it off -- a client is shown what the system does, not what it
@@ -300,6 +303,12 @@ export default function AskPage({ active, showTechDetails = true }: {
       setError((e as Error).message);
     }
   }, []);
+
+  useEffect(() => {
+    if (request) void openRun(request.id);
+    // Only when a new request arrives; openRun is stable enough for that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
 
   // Judging happens on the server after the answer has been streamed, so the
   // SSE connection is already closed by the time there is a score. Polling

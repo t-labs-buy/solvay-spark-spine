@@ -28,7 +28,7 @@ services:
       HINDSIGHT_URL: http://solvay-hindsight:8888
     ports:
       # Put a TLS reverse proxy in front before opening this beyond the host:
-      # /api/* has no authentication (see docs/deployment.md).
+      # the session cookie and passwords need HTTPS (see docs/deployment.md).
       - "${APP_PORT:-8000}:8000"
     volumes:
       - workdir:/app/.workdir

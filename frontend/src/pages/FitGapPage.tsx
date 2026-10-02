@@ -25,6 +25,9 @@ import {
 } from "../api";
 import { clearAdornment, clearOnEscape } from "../components/ClearAdornment";
 import RunHistoryDrawer, { type HistoryCard } from "../components/RunHistoryDrawer";
+import { currentAccount, ownerLabel } from "../auth";
+import useHistoryScope from "../useHistoryScope";
+import type { RunRequest } from "../runRequest";
 
 /* -------------------------------------------------------------- attachments */
 
@@ -707,13 +710,12 @@ function IssueRow({ issue }: { issue: FitGapIssue }) {
 }
 
 function EntryDetail({
-  entry, onReview, onGraph, reviewer, setReviewer,
+  entry, onReview, onGraph, reviewer,
 }: {
   entry: FitGapEntry;
   onReview: (verdict: "accept" | "reject" | "refine", corrected?: FitGapClass) => Promise<void>;
   onGraph: (text: string) => void;
   reviewer: string;
-  setReviewer: (v: string) => void;
 }) {
   const theme = useTheme();
   const [busy, setBusy] = useState<string | null>(null);
@@ -866,8 +868,8 @@ function EntryDetail({
           </Stack>
         )}
         <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-          <TextField size="small" placeholder="Your name" value={reviewer}
-                     onChange={(e) => setReviewer(e.target.value)} sx={{ flex: 1 }} />
+          <TextField size="small" placeholder="Your name" value={reviewer} label="Reviewing as"
+                     slotProps={{ input: { readOnly: true } }} sx={{ flex: 1 }} />
           <Select size="small" displayEmpty value={corrected}
                   onChange={(e) => setCorrected(e.target.value as FitGapClass | "")} sx={{ minWidth: 150 }}>
             <MenuItem value="">Keep classification</MenuItem>
@@ -887,7 +889,7 @@ function EntryDetail({
         </Stack>
         {!reviewer.trim() && (
           <Typography sx={{ fontSize: 11, color: "text.disabled", mt: 0.75 }}>
-            A verdict needs a name against it — that is the whole point of the review loop.
+            Waiting for your account — a verdict is recorded under the signed-in name.
           </Typography>
         )}
       </Box>
@@ -1459,9 +1461,11 @@ function QuestionBriefing({
 interface Props {
   active: boolean;
   onShowInGraph?: (text: string) => void;
+  /** Open this recorded run, as the Admin page's run history asks. */
+  openRun?: RunRequest | null;
 }
 
-export default function FitGapPage({ active, onShowInGraph }: Props) {
+export default function FitGapPage({ active, onShowInGraph, openRun: request = null }: Props) {
   const theme = useTheme();
   const [status, setStatus] = useState<FitGapStatus | null>(null);
   const [question, setQuestion] = useState("");
@@ -1496,9 +1500,9 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState(0);
   const [openEntry, setOpenEntry] = useState<string | null>(null);
-  const [reviewer, setReviewer] = useState(() => {
-    try { return localStorage.getItem("fitgap.reviewer") ?? ""; } catch { return ""; }
-  });
+  // Verdicts are recorded under the signed-in account; the server ignores any
+  // name sent with them. Shown so the page says whose decision it is.
+  const [reviewer, setReviewer] = useState("");
   // Documents attached to this session. The id is kept in localStorage so a
   // reload does not orphan a store the analyst is still working with; the
   // server sweeps it either way once it expires.
@@ -1512,18 +1516,20 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [history, setHistory] = useState<FitGapRunSummary[]>([]);
+  // Whose runs the history lists: an Admin can switch to everyone's.
+  const historyView = useHistoryScope();
   const [historyOpen, setHistoryOpen] = useState(false);
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    try { localStorage.setItem("fitgap.reviewer", reviewer); } catch { /* private mode */ }
-  }, [reviewer]);
+    currentAccount().then((a) => a && setReviewer(a.username));
+  }, []);
 
   useEffect(() => {
     if (!active) return;
     fitgap.status().then(setStatus).catch(() => setStatus(null));
     fitgap.runs().then(setHistory).catch(() => setHistory([]));
-  }, [active]);
+  }, [active, historyView]);
 
   const refreshUploads = useCallback(async (id: string) => {
     if (!id) { setUploads(null); setComparison(null); return; }
@@ -1718,6 +1724,7 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
         </>
       ),
       meta: [
+        ownerLabel(r.owner),
         plural(r.entries, "entry", "entries"),
         r.reuse_pct !== null ? `${r.reuse_pct}% reuse` : "",
         r.coverage_pct !== null ? `${r.coverage_pct}% covered` : "",
@@ -1725,6 +1732,11 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
     })),
     [history],
   );
+
+  useEffect(() => {
+    if (request) void loadRun(request.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
 
   async function loadRun(id: string) {
     try {
@@ -2142,7 +2154,6 @@ export default function FitGapPage({ active, onShowInGraph }: Props) {
           <EntryDetail
             entry={current.entry}
             reviewer={reviewer}
-            setReviewer={setReviewer}
             onReview={(v, c) => review(current.entry!, v, c)}
             onGraph={(text) => { onShowInGraph?.(text); setOpenEntry(null); }}
           />

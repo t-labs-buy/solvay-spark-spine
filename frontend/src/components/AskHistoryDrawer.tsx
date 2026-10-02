@@ -6,6 +6,8 @@ import { alpha, useTheme } from "@mui/material/styles";
 import { History, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { askHistory, type AskRunSummary, type QualityFilter } from "../api";
+import { ownerLabel } from "../auth";
+import useHistoryScope from "../useHistoryScope";
 import { clearAdornment } from "./ClearAdornment";
 // The same relative time the other three history panels show. It was
 // written out here and again in EvidencePage; the two had not drifted yet.
@@ -94,6 +96,7 @@ export default function AskHistoryDrawer({
   const [quality, setQuality] = useState<QualityFilter>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scope = useHistoryScope();
 
   useEffect(() => {
     if (!open) return;
@@ -116,7 +119,7 @@ export default function AskHistoryDrawer({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, search, quality, reloadKey]);
+  }, [open, search, quality, reloadKey, scope]);
 
   const remove = async (id: string) => {
     setRuns((rs) => rs.filter((r) => r.id !== id));
@@ -332,6 +335,7 @@ export default function AskHistoryDrawer({
                   {when(r.started_at)}
                 </Typography>
                 <Typography variant="caption" sx={{ fontSize: 11, color: "text.secondary" }}>
+                  {ownerLabel(r.owner) ? `· ${ownerLabel(r.owner)} ` : ""}
                   · {r.mode} · {plural(r.sources, "excerpt")}
                   {r.seconds ? ` · ${r.seconds}s` : ""}
                 </Typography>

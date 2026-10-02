@@ -31,7 +31,7 @@ from backend.core.paths import ROOT
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.responses import (FileResponse, HTMLResponse, Response,
                                StreamingResponse)
 from fastapi.staticfiles import StaticFiles
@@ -79,6 +79,16 @@ async def lifespan(_app: FastAPI):
     instead of a run that produces no trace and says nothing about why; a
     checkout with no Langfuse keys logs that tracing is off and carries on."""
     print(tracing.start())
+    # Accounts: the tables, the legacy owner of pre-account runs, and a first
+    # Admin from ADMIN_USERNAME / ADMIN_PASSWORD when there is none.
+    from backend.auth import store as auth_store
+
+    print(auth_store.bootstrap_admin())
+    # Every run table, brought up to date now rather than on its first request,
+    # so the owner column and the hand-over of older runs to `legacy` happen
+    # before the usage dashboard reads them. A store that cannot start is
+    # logged, not fatal: the others, and the pages, still work.
+    _ensure_run_tables()
     # The graph's Neo4j copy, for Cypher: refreshed in the background when it
     # holds an older build, and left alone (with a log line) when Neo4j is not
     # running -- the rest of the app does not need it.
@@ -147,11 +157,54 @@ from backend.api import demo_mode  # noqa: E402
 
 app.include_router(demo_mode.router)
 
-# The application's own static sign-in (test / test by default): the router
-# here, the page gate at the bottom of this file once every page exists.
+# Accounts (backend/auth/): sign-in, sign-out and the session for both the
+# application and Demo Mode, then the application's /login page. The gate on
+# every page and on /api/* is installed at the bottom of this file, once every
+# page exists.
 from backend.api import app_login  # noqa: E402
+from backend.auth import routes as auth_routes  # noqa: E402
+from backend.auth.deps import (  # noqa: E402
+    current_user, list_owner, read_owner, require_admin, write_owner)
+from backend.auth import store as auth_store  # noqa: E402
 
+app.include_router(auth_routes.router)
 app.include_router(app_login.router)
+
+from backend.api import admin as admin_api  # noqa: E402
+
+app.include_router(admin_api.router)
+
+
+def _ensure_run_tables() -> None:
+    from backend.agents.evidence import store as ev_store
+    from backend.agents.fitgap import store as fg_store
+    from backend.agents.rollout import store as ro_store
+
+    for name, mod in (("ask", ask_store), ("evidence", ev_store),
+                      ("fitgap", fg_store), ("rollout", ro_store)):
+        try:
+            mod.create_schema(mod.connect())
+        except Exception as exc:
+            print(f"auth: could not prepare the {name} run table: {exc}")
+    rag.close()
+
+
+def _own_upload(session: str | None, user: dict) -> None:
+    """Refuse an upload session that belongs to someone else.
+
+    An upload session id is twelve hex characters and was once the only thing
+    standing between a person and another's attachments. Now the session
+    records its owner, and a live session that is not this user's is answered
+    exactly as a missing one would be. An expired or unknown session is left
+    to each endpoint's own handling."""
+    if not session:
+        return
+    fg_uploads = _uploads()
+    try:
+        if fg_uploads.exists(session) and fg_uploads.owner(session) != user["id"]:
+            raise HTTPException(404, "This upload session has expired")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
 
 
 # One page app for both screens; it reads the path to pick Extract or Ask.
@@ -381,6 +434,13 @@ def review_page() -> HTMLResponse:
 @app.get("/about", response_class=HTMLResponse)
 @app.get("/landing", response_class=HTMLResponse)
 def about_page() -> HTMLResponse:
+    return _spa()
+
+
+# The Admin area. The page is served to anyone signed in, like every other;
+# its data comes from /api/admin/*, which only an Admin can read.
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page() -> HTMLResponse:
     return _spa()
 
 
@@ -1688,14 +1748,16 @@ class FitGapRun(BaseModel):
 
 
 class FitGapReview(BaseModel):
-    reviewer: str = Field(min_length=1, max_length=120)
+    # Ignored: the reviewer is the signed-in account. Kept so older pages that
+    # still send it are not refused.
+    reviewer: str = Field(default="", max_length=120)
     verdict: str
     corrected_classification: str | None = None
     comment: str = ""
 
 
 @app.post("/api/ask")
-def ask(body: Question) -> StreamingResponse:
+def ask(body: Question, user: dict = Depends(current_user)) -> StreamingResponse:
     """Run the pipeline and stream it as server-sent events: `stage` as each
     step starts and ends, `sources`, `token` while Claude writes, then `done`
     or `error`. A sync generator, so Starlette iterates it in the threadpool."""
@@ -1731,7 +1793,9 @@ def ask(body: Question) -> StreamingResponse:
                 "embed_model": rag.EMBED_MODEL,
                 "corpus_fingerprint": _corpus_fingerprint(categories),
                 "prompt_hash": rag.prompt_hash(),
+                "user_id": user["id"],
             })
+            auth_store.log_event(user, "run", tool="ask", run_id=run_id)
             yield sse("run", {"id": run_id})
         except Exception as exc:
             conn = None
@@ -1893,7 +1957,7 @@ def _fg_ancestry(p):
 
 
 @app.post("/api/fitgap/preview")
-def fitgap_preview(req: "FitGapRun") -> dict:
+def fitgap_preview(req: "FitGapRun", user: dict = Depends(current_user)) -> dict:
     from backend.agents.fitgap.orchestrator import preview as fg_preview
     from backend.agents.fitgap.schemas import RunRequest
 
@@ -1901,6 +1965,7 @@ def fitgap_preview(req: "FitGapRun") -> dict:
         categories = [rag.check_category(c) for c in req.categories]
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
+    _own_upload(req.upload_session, user)
     out = fg_preview(RunRequest(**{**req.model_dump(), "categories": categories}))
     if out.get("error"):
         raise HTTPException(400, out["error"])
@@ -1908,7 +1973,7 @@ def fitgap_preview(req: "FitGapRun") -> dict:
 
 
 @app.post("/api/fitgap/run")
-def fitgap_run(req: "FitGapRun") -> StreamingResponse:
+def fitgap_run(req: "FitGapRun", user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one map-reduce over a BPML scope as server-sent events:
     `scope`, `step_start`, `tool_call`, `entry`, `verify_fail`, `synthesis`,
     `done`. A sync generator, so Starlette iterates it in the threadpool."""
@@ -1919,7 +1984,9 @@ def fitgap_run(req: "FitGapRun") -> StreamingResponse:
         categories = [rag.check_category(c) for c in req.categories]
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
-    request = RunRequest(**{**req.model_dump(), "categories": categories})
+    _own_upload(req.upload_session, user)
+    request = RunRequest(**{**req.model_dump(), "categories": categories,
+                            "user_id": user["id"]})
 
     def sse(event: str, data) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
@@ -1927,6 +1994,8 @@ def fitgap_run(req: "FitGapRun") -> StreamingResponse:
     def events():
         try:
             for event, data in fg_run(request):
+                if event == "scope" and isinstance(data, dict) and data.get("run_id"):
+                    auth_store.log_event(user, "run", tool="fitgap", run_id=data["run_id"])
                 yield sse(event, data)
         except SystemExit as exc:
             yield sse("error", {"message": str(exc)})
@@ -1961,6 +2030,7 @@ def session_upload(
     files: list[UploadFile],
     session: str = Form(default=""),
     role: str = Form(default=""),
+    user: dict = Depends(current_user),
 ) -> StreamingResponse:
     """Convert, chunk, embed and graph one or more documents into a session.
 
@@ -1999,8 +2069,10 @@ def session_upload(
             sid = session.strip()
             if sid and not fg_uploads.exists(sid):
                 sid = ""  # expired while the page was open; start a fresh one
+            if sid and fg_uploads.owner(sid) != user["id"]:
+                sid = ""  # someone else's: never add to it, start a fresh one
             if not sid:
-                sid = fg_uploads.new_session()
+                sid = fg_uploads.new_session(user["id"])
             yield sse("session", {"session": sid})
         except Exception as exc:
             yield sse("error", {"message": f"{type(exc).__name__}: {exc}"})
@@ -2065,7 +2137,8 @@ def session_upload(
 
 
 @app.get("/api/uploads/{session}")
-def session_upload_status(session: str) -> dict:
+def session_upload_status(session: str, user: dict = Depends(current_user)) -> dict:
+    _own_upload(session, user)
     fg_uploads = _uploads()
     try:
         fg_uploads.sweep()
@@ -2077,9 +2150,11 @@ def session_upload_status(session: str) -> dict:
 
 
 @app.get("/api/uploads/{session}/files/{name}/markdown")
-def session_upload_markdown(session: str, name: str) -> Response:
+def session_upload_markdown(session: str, name: str,
+                            user: dict = Depends(current_user)) -> Response:
     """The converted Markdown of one attached document, so a citation from an
     attachment opens the same way a citation from the corpus does."""
+    _own_upload(session, user)
     fg_uploads = _uploads()
     try:
         text = fg_uploads.markdown(session, name)
@@ -2091,9 +2166,11 @@ def session_upload_markdown(session: str, name: str) -> Response:
 
 
 @app.get("/api/uploads/{session}/entities")
-def session_upload_entities(session: str, roles: list[str] | None = Query(default=None)) -> dict:
+def session_upload_entities(session: str, roles: list[str] | None = Query(default=None),
+                            user: dict = Depends(current_user)) -> dict:
     """What the attachment has in common with the corpus and what is only in
     it -- the same comparison the agent's upload_entities tool returns."""
+    _own_upload(session, user)
     fg_uploads = _uploads()
     try:
         if not fg_uploads.exists(session):
@@ -2104,7 +2181,8 @@ def session_upload_entities(session: str, roles: list[str] | None = Query(defaul
 
 
 @app.delete("/api/uploads/{session}")
-def session_upload_drop(session: str) -> dict:
+def session_upload_drop(session: str, user: dict = Depends(current_user)) -> dict:
+    _own_upload(session, user)
     fg_uploads = _uploads()
     try:
         fg_uploads.drop(session)
@@ -2114,7 +2192,9 @@ def session_upload_drop(session: str) -> dict:
 
 
 @app.patch("/api/uploads/{session}/files/{name}")
-def session_upload_retag(session: str, name: str, role: str = Query(...)) -> dict:
+def session_upload_retag(session: str, name: str, role: str = Query(...),
+                         user: dict = Depends(current_user)) -> dict:
+    _own_upload(session, user)
     """Change what a document is in the analysis. No re-conversion and no
     re-embedding: the role is metadata, the vectors do not depend on it."""
     fg_uploads = _uploads()
@@ -2128,7 +2208,8 @@ def session_upload_retag(session: str, name: str, role: str = Query(...)) -> dic
 
 
 @app.delete("/api/uploads/{session}/files/{name}")
-def session_upload_remove(session: str, name: str) -> dict:
+def session_upload_remove(session: str, name: str, user: dict = Depends(current_user)) -> dict:
+    _own_upload(session, user)
     fg_uploads = _uploads()
     try:
         out = fg_uploads.remove_file(session, name)
@@ -2140,27 +2221,29 @@ def session_upload_remove(session: str, name: str) -> dict:
 
 
 @app.get("/api/fitgap/runs")
-def fitgap_runs(limit: int = 40) -> list[dict]:
+def fitgap_runs(limit: int = 40, scope: str = "mine",
+                user: dict = Depends(current_user)) -> list[dict]:
     from backend.agents.fitgap import store as fg_store
 
     conn = fg_store.connect()  # shared; not ours to close
     fg_store.create_schema(conn)
-    return fg_store.list_runs(conn, limit)
+    return fg_store.list_runs(conn, limit, owner=list_owner(user, scope))
 
 
 @app.get("/api/fitgap/runs/{run_id}")
-def fitgap_get_run(run_id: str) -> dict:
+def fitgap_get_run(run_id: str, user: dict = Depends(current_user)) -> dict:
     from backend.agents.fitgap import store as fg_store
 
     conn = fg_store.connect()  # shared; not ours to close
-    run = fg_store.get_run(conn, run_id)
+    fg_store.create_schema(conn)
+    run = fg_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, f"run {run_id} not found")
     return run
 
 
 @app.get("/api/fitgap/runs/{run_id}/export")
-def fitgap_export(run_id: str, format: str = "md"):
+def fitgap_export(run_id: str, format: str = "md", user: dict = Depends(current_user)):
     """The register as a document. Markdown and JSON always; XLSX when
     openpyxl is installed, which it is because the converter needs it."""
     from backend.agents.fitgap import store as fg_store, synthesis as fg_synth
@@ -2168,9 +2251,11 @@ def fitgap_export(run_id: str, format: str = "md"):
     if format not in ("md", "json", "xlsx"):
         raise HTTPException(400, "format must be md, json or xlsx")
     conn = fg_store.connect()  # shared; not ours to close
-    run = fg_store.get_run(conn, run_id)
+    fg_store.create_schema(conn)
+    run = fg_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, f"run {run_id} not found")
+    auth_store.log_event(user, "export", tool="fitgap", run_id=run_id, detail={"format": format})
 
     results = fg_store.to_results(run["entries"])
     synth = run.get("synthesis") or fg_synth.synthesise(results)
@@ -2258,15 +2343,21 @@ def _fitgap_xlsx(run: dict, results, synth: dict, run_id: str) -> StreamingRespo
 
 
 @app.post("/api/fitgap/entries/{entry_id}/review")
-def fitgap_review(entry_id: int, body: "FitGapReview") -> dict:
+def fitgap_review(entry_id: int, body: "FitGapReview", user: dict = Depends(current_user)) -> dict:
     from backend.agents.fitgap import store as fg_store
     from backend.agents.fitgap.schemas import Review
 
     conn = fg_store.connect()  # shared; not ours to close
-    exists = conn.execute("SELECT 1 FROM fitgap_entries WHERE id = %s", (entry_id,)).fetchone()
-    if not exists:
+    fg_store.create_schema(conn)
+    found = fg_store.entry_owner(conn, entry_id)
+    if not found or found[1] != write_owner(user):
         raise HTTPException(404, f"entry {entry_id} not found")
-    return fg_store.add_review(conn, entry_id, Review(**body.model_dump()))
+    # The reviewer is whoever is signed in, not a name typed into the form.
+    review = Review(**{**body.model_dump(), "reviewer": user["username"]})
+    out = fg_store.add_review(conn, entry_id, review, user_id=user["id"])
+    auth_store.log_event(user, "review", tool="fitgap", run_id=found[0],
+                         detail={"entry": entry_id, "verdict": body.verdict})
+    return out
 
 
 
@@ -2301,7 +2392,8 @@ class RolloutRun(BaseModel):
 
 class RolloutDecision(BaseModel):
     gap_id: str = Field(min_length=1, max_length=40)
-    reviewer: str = Field(min_length=1, max_length=120)
+    # Ignored: the decision is recorded under the signed-in account.
+    reviewer: str = Field(default="", max_length=120)
     verdict: str
     disposition: str = ""
     # The old free-text field; "Option B: ..." in it is still read as a choice.
@@ -2311,7 +2403,7 @@ class RolloutDecision(BaseModel):
     session_id: str | None = Field(default=None, max_length=40)
 
 
-def _rollout_request(req: "RolloutRun"):
+def _rollout_request(req: "RolloutRun", user: dict):
     from backend.agents.rollout.schemas import SUBJECTS, RunRequest
 
     try:
@@ -2320,7 +2412,8 @@ def _rollout_request(req: "RolloutRun"):
         raise HTTPException(400, str(exc)) from None
     if req.subject not in SUBJECTS:
         raise HTTPException(400, f"subject must be one of {sorted(SUBJECTS)}")
-    return RunRequest(**{**req.model_dump(), "categories": categories})
+    _own_upload(req.upload_session, user)
+    return RunRequest(**{**req.model_dump(), "categories": categories, "user_id": user["id"]})
 
 
 @app.get("/rollout", response_class=HTMLResponse)
@@ -2395,22 +2488,22 @@ def rollout_status() -> dict:
 
 
 @app.post("/api/rollout/preview")
-def rollout_preview(req: "RolloutRun") -> dict:
+def rollout_preview(req: "RolloutRun", user: dict = Depends(current_user)) -> dict:
     from backend.agents.rollout.orchestrator import preview as ro_preview
 
-    out = ro_preview(_rollout_request(req))
+    out = ro_preview(_rollout_request(req, user))
     if out.get("error"):
         raise HTTPException(400, out["error"])
     return out
 
 
 @app.post("/api/rollout/run")
-def rollout_run(req: "RolloutRun") -> StreamingResponse:
+def rollout_run(req: "RolloutRun", user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one Fit-to-Standard analysis as server-sent events: `scope`,
     `stage`, `tool_call`, `asis`, `gate`, `analysis`, `scores`, `done`."""
     from backend.agents.rollout.orchestrator import run as ro_run
 
-    request = _rollout_request(req)
+    request = _rollout_request(req, user)
 
     def sse(event: str, data) -> str:
         return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
@@ -2418,6 +2511,8 @@ def rollout_run(req: "RolloutRun") -> StreamingResponse:
     def events():
         try:
             for event, data in ro_run(request):
+                if event == "scope" and isinstance(data, dict) and data.get("run_id"):
+                    auth_store.log_event(user, "run", tool="rollout", run_id=data["run_id"])
                 yield sse(event, data)
         except SystemExit as exc:
             yield sse("error", {"message": str(exc)})
@@ -2432,21 +2527,22 @@ def rollout_run(req: "RolloutRun") -> StreamingResponse:
 
 
 @app.get("/api/rollout/runs")
-def rollout_runs(limit: int = 40) -> list[dict]:
+def rollout_runs(limit: int = 40, scope: str = "mine",
+                 user: dict = Depends(current_user)) -> list[dict]:
     from backend.agents.rollout import store as ro_store
 
     conn = ro_store.connect()  # shared; not ours to close
     ro_store.create_schema(conn)
-    return ro_store.list_runs(conn, limit)
+    return ro_store.list_runs(conn, limit, owner=list_owner(user, scope))
 
 
 @app.get("/api/rollout/runs/{run_id}")
-def rollout_get_run(run_id: str) -> dict:
+def rollout_get_run(run_id: str, user: dict = Depends(current_user)) -> dict:
     from backend.agents.rollout import store as ro_store
 
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    run = ro_store.get_run(conn, run_id)
+    run = ro_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, "Run not found")
     from backend.agents import agent_eval
@@ -2455,7 +2551,8 @@ def rollout_get_run(run_id: str) -> dict:
 
 
 @app.get("/api/rollout/runs/{run_id}/attachments/{file}")
-def rollout_run_attachment(run_id: str, file: str) -> Response:
+def rollout_run_attachment(run_id: str, file: str,
+                           user: dict = Depends(current_user)) -> Response:
     """The Markdown of a document attached to this run, as the agent read it.
 
     `file` is the name the citation carries (`…Sample_txt.md`). Served from the
@@ -2465,7 +2562,7 @@ def rollout_run_attachment(run_id: str, file: str) -> Response:
 
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    found = ro_store.get_attachment(conn, run_id, file)
+    found = ro_store.get_attachment(conn, run_id, file, owner=read_owner(user))
     if found is None:
         raise HTTPException(404, "Run not found")
     kept, upload = found
@@ -2492,20 +2589,22 @@ def rollout_run_attachment(run_id: str, file: str) -> Response:
 
 
 @app.delete("/api/rollout/runs/{run_id}")
-def rollout_run_delete(run_id: str) -> dict:
+def rollout_run_delete(run_id: str, user: dict = Depends(current_user)) -> dict:
     """Remove one analysis. The same shape as the Evidence Agent's, because a
     person who has learned one history panel should not have to learn another."""
     from backend.agents.rollout import store as ro_store
 
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    if not ro_store.delete_run(conn, run_id):
+    if not ro_store.delete_run(conn, run_id, owner=write_owner(user)):
         raise HTTPException(404, f"No rollout analysis {run_id}")
+    auth_store.log_event(user, "delete", tool="rollout", run_id=run_id)
     return {"status": "deleted", "id": run_id}
 
 
 @app.post("/api/rollout/runs/{run_id}/decisions")
-def rollout_decide(run_id: str, body: "RolloutDecision") -> dict:
+def rollout_decide(run_id: str, body: "RolloutDecision",
+                   user: dict = Depends(current_user)) -> dict:
     """Record a human decision on one gap. The agent proposes; this is where a
     named person disposes, and the proposal is never overwritten."""
     from backend.agents.rollout import store as ro_store
@@ -2518,7 +2617,7 @@ def rollout_decide(run_id: str, body: "RolloutDecision") -> dict:
         raise HTTPException(400, "Say why: a deferred or rejected decision needs a rationale")
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    run = ro_store.get_run(conn, run_id, decisions_too=False)
+    run = ro_store.get_run(conn, run_id, decisions_too=False, owner=write_owner(user))
     if not run:
         raise HTTPException(404, "Run not found")
     if not any(d.get("gap_id") == body.gap_id for d in (run.get("analysis") or {}).get("deviations") or []):
@@ -2526,11 +2625,15 @@ def rollout_decide(run_id: str, body: "RolloutDecision") -> dict:
     if body.session_id and body.session_id not in {x["id"] for x in ro_store.get_sessions(conn, run_id)}:
         raise HTTPException(400, f"{body.session_id} is not a workshop session of this run")
     try:
-        return ro_store.save_decision(conn, run_id, body.gap_id, body.reviewer, body.verdict,
-                                      body.disposition, body.comment, option_index=body.option_index,
-                                      rationale=body.rationale, session_id=body.session_id)
+        out = ro_store.save_decision(conn, run_id, body.gap_id, user["username"], body.verdict,
+                                     body.disposition, body.comment, option_index=body.option_index,
+                                     rationale=body.rationale, session_id=body.session_id,
+                                     user_id=user["id"])
     except ValueError as e:
         raise HTTPException(400, str(e))
+    auth_store.log_event(user, "decision", tool="rollout", run_id=run_id,
+                         detail={"gap": body.gap_id, "verdict": body.verdict})
+    return out
 
 
 class WorkshopAnswer(BaseModel):
@@ -2541,31 +2644,40 @@ class WorkshopAnswer(BaseModel):
 
 
 class WorkshopSubmit(BaseModel):
-    facilitator: str = Field(min_length=1, max_length=120)
+    # Ignored: the facilitator is the signed-in account.
+    facilitator: str = Field(default="", max_length=120)
     attendees: list[str] = Field(default_factory=list, max_length=60)
     answers: list[WorkshopAnswer] = Field(min_length=1, max_length=200)
 
 
 @app.post("/api/rollout/runs/{run_id}/workshop")
-def rollout_workshop_submit(run_id: str, body: WorkshopSubmit) -> dict:
+def rollout_workshop_submit(run_id: str, body: WorkshopSubmit,
+                            user: dict = Depends(current_user)) -> dict:
     """Facilitator mode's Submit: one workshop sitting and every answer given
     in it, saved together or not at all."""
     from backend.agents.rollout import store as ro_store
 
     conn = ro_store.connect()
     ro_store.create_schema(conn)
+    if not ro_store.get_run(conn, run_id, decisions_too=False, owner=write_owner(user)):
+        raise HTTPException(404, "Run not found")
     try:
-        return ro_store.submit_workshop(conn, run_id, body.facilitator.strip(), body.attendees,
-                                        [a.model_dump() for a in body.answers])
+        out = ro_store.submit_workshop(conn, run_id, user["username"], body.attendees,
+                                       [a.model_dump() for a in body.answers],
+                                       user_id=user["id"])
     except LookupError:
         raise HTTPException(404, "Run not found")
     except ValueError as e:
         conn.rollback()
         raise HTTPException(400, str(e))
+    auth_store.log_event(user, "workshop", tool="rollout", run_id=run_id,
+                         detail={"answers": len(body.answers)})
+    return out
 
 
 @app.get("/api/rollout/runs/{run_id}/workshop/export")
-def rollout_workshop_export(run_id: str, format: str = "pdf", session: str = "") -> Response:
+def rollout_workshop_export(run_id: str, format: str = "pdf", session: str = "",
+                            user: dict = Depends(current_user)) -> Response:
     """The workshop's outcome as Markdown, PDF, Word or Excel. With `session`,
     what one sitting of facilitator mode submitted; without it, the current
     decision on every gap."""
@@ -2576,7 +2688,7 @@ def rollout_workshop_export(run_id: str, format: str = "pdf", session: str = "")
         raise HTTPException(400, f"format must be one of {', '.join(wx.FORMATS)}")
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    run = ro_store.get_run(conn, run_id)
+    run = ro_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, "Run not found")
     # Binary formats bypass the middleware's redaction, so redact the source.
@@ -2602,7 +2714,8 @@ def rollout_workshop_export(run_id: str, format: str = "pdf", session: str = "")
 
 
 @app.get("/api/rollout/runs/{run_id}/lineage", response_model=None)
-def rollout_lineage(run_id: str, format: str = "") -> dict | Response:
+def rollout_lineage(run_id: str, format: str = "",
+                    user: dict = Depends(current_user)) -> dict | Response:
     """Every claim of a run traced to its quotes, the calls that retrieved
     them and the reasoning behind those calls, with each quote checked
     against the text the call returned. `format=md|json` downloads it as an
@@ -2614,7 +2727,7 @@ def rollout_lineage(run_id: str, format: str = "") -> dict | Response:
         raise HTTPException(400, "format must be md or json")
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    run = ro_store.get_run(conn, run_id)
+    run = ro_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, "Run not found")
     if not format:
@@ -2632,7 +2745,8 @@ def rollout_lineage(run_id: str, format: str = "") -> dict | Response:
 
 @app.get("/api/rollout/decisions")
 def rollout_decisions_all(country: str = "", scope: str = "", type: str = "", verdict: str = "",
-                          history: bool = False, limit: int = 200) -> dict:
+                          history: bool = False, limit: int = 200,
+                          user: dict = Depends(current_user)) -> dict:
     """Workshop decisions across every run, the current one per gap unless
     `history=1`. Each row carries its own context, so this still answers for
     runs that have since been deleted."""
@@ -2647,7 +2761,8 @@ def rollout_decisions_all(country: str = "", scope: str = "", type: str = "", ve
 
 
 @app.get("/api/rollout/runs/{run_id}/export")
-def rollout_export(run_id: str, format: str = "md", client: bool = False):
+def rollout_export(run_id: str, format: str = "md", client: bool = False,
+                   user: dict = Depends(current_user)):
     """The analysis as a workshop pack: PDF, Markdown or JSON.
 
     All three are the same document. The PDF is rendered from the Markdown
@@ -2659,7 +2774,7 @@ def rollout_export(run_id: str, format: str = "md", client: bool = False):
 
     conn = ro_store.connect()
     ro_store.create_schema(conn)
-    run = ro_store.get_run(conn, run_id)
+    run = ro_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, "Run not found")
     # The middleware redacts text responses; a PDF is binary, so its source
@@ -2771,7 +2886,7 @@ class EvidenceQuestion(BaseModel):
 
 
 @app.post("/api/evidence/ask")
-def evidence_ask(body: EvidenceQuestion) -> StreamingResponse:
+def evidence_ask(body: EvidenceQuestion, user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one investigation as server-sent events: `run` with the id it is
     being recorded under, `tool_call` as each engine is queried, then `answer`
     or `error`. A sync generator, so Starlette iterates it in the threadpool.
@@ -2846,7 +2961,9 @@ def evidence_ask(body: EvidenceQuestion) -> StreamingResponse:
                 "categories": categories, "model": ev_agent.MODEL,
                 "prompt_hash": ev_agent.prompt_hash(),
                 "corpus_fingerprint": _corpus_fingerprint(categories),
+                "user_id": user["id"],
             })
+            auth_store.log_event(user, "run", tool="evidence", run_id=run_id)
             yield sse("run", {"id": run_id})
         except Exception as exc:
             # History is worth having, not worth refusing to answer over.
@@ -2934,23 +3051,26 @@ def _corpus_fingerprint(categories: list[str]) -> str:
 
 
 @app.get("/api/evidence/runs")
-def evidence_runs(limit: int = 50) -> list[dict]:
-    """Past investigations, newest first."""
+def evidence_runs(limit: int = 50, scope: str = "mine",
+                  user: dict = Depends(current_user)) -> list[dict]:
+    """Past investigations, newest first: one's own, or for an Admin with
+    scope=all, everyone's."""
     from backend.agents.evidence import store as ev_store
 
     conn = ev_store.connect()
     ev_store.create_schema(conn)
-    return ev_store.list_runs(conn, limit=max(1, min(limit, 200)))
+    return ev_store.list_runs(conn, limit=max(1, min(limit, 200)),
+                              owner=list_owner(user, scope))
 
 
 @app.get("/api/evidence/runs/{run_id}")
-def evidence_run(run_id: str) -> dict:
+def evidence_run(run_id: str, user: dict = Depends(current_user)) -> dict:
     """One investigation in full: the question, every tool call, the answer."""
     from backend.agents.evidence import store as ev_store
 
     conn = ev_store.connect()
     ev_store.create_schema(conn)
-    run = ev_store.get_run(conn, run_id)
+    run = ev_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, f"No investigation {run_id}")
     from backend.agents import agent_eval
@@ -2959,7 +3079,8 @@ def evidence_run(run_id: str) -> dict:
 
 
 @app.get("/api/evidence/runs/{run_id}/lineage", response_model=None)
-def evidence_lineage(run_id: str, format: str = "") -> dict | Response:
+def evidence_lineage(run_id: str, format: str = "",
+                     user: dict = Depends(current_user)) -> dict | Response:
     """Every claim of an investigation traced to its passages, graph facts,
     the calls that returned them and the reasoning behind those calls, each
     quote and graph element checked against what the call returned.
@@ -2971,7 +3092,7 @@ def evidence_lineage(run_id: str, format: str = "") -> dict | Response:
         raise HTTPException(400, "format must be md or json")
     conn = ev_store.connect()
     ev_store.create_schema(conn)
-    run = ev_store.get_run(conn, run_id)
+    run = ev_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, f"No investigation {run_id}")
     if not format:
@@ -2987,13 +3108,14 @@ def evidence_lineage(run_id: str, format: str = "") -> dict | Response:
 
 
 @app.delete("/api/evidence/runs/{run_id}")
-def evidence_run_delete(run_id: str) -> dict:
+def evidence_run_delete(run_id: str, user: dict = Depends(current_user)) -> dict:
     from backend.agents.evidence import store as ev_store
 
     conn = ev_store.connect()
     ev_store.create_schema(conn)
-    if not ev_store.delete_run(conn, run_id):
+    if not ev_store.delete_run(conn, run_id, owner=write_owner(user)):
         raise HTTPException(404, f"No investigation {run_id}")
+    auth_store.log_event(user, "delete", tool="evidence", run_id=run_id)
     return {"status": "deleted", "id": run_id}
 
 
@@ -3002,7 +3124,7 @@ class MemoryReflection(BaseModel):
 
 
 @app.post("/api/evidence/memory/reflect")
-def evidence_memory_reflect(body: MemoryReflection) -> dict:
+def evidence_memory_reflect(body: MemoryReflection, user: dict = Depends(require_admin)) -> dict:
     """Ask the memory bank a question about itself.
 
     Not part of an investigation, and deliberately reachable only from a
@@ -3037,7 +3159,8 @@ def evidence_memory_reflect(body: MemoryReflection) -> dict:
 
 
 @app.get("/api/ask/runs")
-def ask_runs(limit: int = 50, search: str = "", quality: str = "") -> dict:
+def ask_runs(limit: int = 50, search: str = "", quality: str = "", scope: str = "mine",
+             user: dict = Depends(current_user)) -> dict:
     """Past questions, newest first, optionally filtered by text and quality.
 
     `quality` is one of ask_store.QUALITY_FILTERS -- low, unfaithful, unsafe,
@@ -3047,7 +3170,8 @@ def ask_runs(limit: int = 50, search: str = "", quality: str = "") -> dict:
     ask_store.create_schema(conn)
     return {
         "runs": ask_store.list_runs(conn, limit=max(1, min(limit, 200)),
-                                    search=search, quality=quality),
+                                    search=search, quality=quality,
+                                    owner=list_owner(user, scope)),
         "retention": ask_store.RETENTION,
         "filters": list(ask_store.QUALITY_FILTERS),
         "low_quality_below": ask_store.LOW_QUALITY,
@@ -3055,14 +3179,14 @@ def ask_runs(limit: int = 50, search: str = "", quality: str = "") -> dict:
 
 
 @app.get("/api/ask/runs/{run_id}/evaluation")
-def ask_run_evaluation(run_id: str) -> dict:
+def ask_run_evaluation(run_id: str, user: dict = Depends(current_user)) -> dict:
     """The quality scores for one question, or why there are none.
 
     `status` is always present and is what the page branches on: none (never
     judged), running, done, failed, skipped, abandoned."""
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    if not ask_store.get_run(conn, run_id):
+    if not ask_store.get_run(conn, run_id, owner=read_owner(user)):
         raise HTTPException(404, f"No question {run_id}")
     found = ask_store.get_evaluation(conn, run_id)
     if found:
@@ -3075,7 +3199,7 @@ def ask_run_evaluation(run_id: str) -> dict:
 
 
 @app.post("/api/ask/runs/{run_id}/evaluation")
-def ask_run_rescore(run_id: str) -> dict:
+def ask_run_rescore(run_id: str, user: dict = Depends(current_user)) -> dict:
     """Judge this question again, or for the first time.
 
     Takes the same path the automatic scoring takes, which is the point: a
@@ -3084,7 +3208,7 @@ def ask_run_rescore(run_id: str) -> dict:
 
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    run = ask_store.get_run(conn, run_id)
+    run = ask_store.get_run(conn, run_id, owner=write_owner(user))
     if not run:
         raise HTTPException(404, f"No question {run_id}")
     if run["status"] != "done":
@@ -3101,11 +3225,11 @@ def ask_run_rescore(run_id: str) -> dict:
 
 
 @app.get("/api/ask/runs/{run_id}")
-def ask_run(run_id: str) -> dict:
+def ask_run(run_id: str, user: dict = Depends(current_user)) -> dict:
     """One question in full: the settings, every excerpt it read, the answer."""
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    run = ask_store.get_run(conn, run_id)
+    run = ask_store.get_run(conn, run_id, owner=read_owner(user))
     if not run:
         raise HTTPException(404, f"No question {run_id}")
     # Whether the corpus has changed since. A reopened answer is evidence of
@@ -3130,7 +3254,7 @@ class Review(BaseModel):
 
 
 @app.post("/api/ask/runs/{run_id}/review")
-def ask_run_review(run_id: str, body: Review) -> dict:
+def ask_run_review(run_id: str, body: Review, user: dict = Depends(current_user)) -> dict:
     """A person's verdict on whether this answer is grounded.
 
     The only evidence there will be that the judge agrees with people. Stored
@@ -3138,11 +3262,12 @@ def ask_run_review(run_id: str, body: Review) -> dict:
     Langfuse's own score analytics can set it against the judge's."""
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    run = ask_store.get_run(conn, run_id)
+    run = ask_store.get_run(conn, run_id, owner=write_owner(user))
     if not run:
         raise HTTPException(404, f"No question {run_id}")
     try:
-        ask_store.save_review(conn, run_id, body.verdict, body.reviewer, body.note)
+        ask_store.save_review(conn, run_id, body.verdict, user["username"], body.note,
+                              user_id=user["id"])
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
     if run.get("trace_id"):
@@ -3172,28 +3297,28 @@ def _window(days: int) -> int:
 
 
 @app.get("/api/quality/overview")
-def quality_overview(days: int = 28, half: str = "", mode: str = "") -> dict:
+def quality_overview(days: int = 28, half: str = "", mode: str = "", _admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import quality
 
     return quality.overview(ask_store.connect(), days=_window(days), half_=half, mode=mode)
 
 
 @app.get("/api/quality/explorer")
-def quality_explorer(days: int = 28, half: str = "", mode: str = "") -> dict:
+def quality_explorer(days: int = 28, half: str = "", mode: str = "", _admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import quality
 
     return quality.explorer(ask_store.connect(), days=_window(days), half_=half, mode=mode)
 
 
 @app.get("/api/quality/judge")
-def quality_judge() -> dict:
+def quality_judge(_admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import quality
 
     return quality.judge(ask_store.connect())
 
 
 @app.get("/api/quality/experiments")
-def quality_experiments() -> dict:
+def quality_experiments(_admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import experiment_store
 
     conn = experiment_store.connect()
@@ -3202,7 +3327,7 @@ def quality_experiments() -> dict:
 
 
 @app.get("/api/quality/experiments/compare")
-def quality_compare(base: str, cand: str) -> dict:
+def quality_compare(base: str, cand: str, _admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import experiment_store
     from backend.rag import quality
 
@@ -3215,7 +3340,7 @@ def quality_compare(base: str, cand: str) -> dict:
 
 
 @app.get("/api/quality/experiments/{experiment_id}/items/{item_id}")
-def quality_experiment_item(experiment_id: str, item_id: str) -> dict:
+def quality_experiment_item(experiment_id: str, item_id: str, _admin: dict = Depends(require_admin)) -> dict:
     """One answered question from a run, with its judged working."""
     from backend.rag import experiment_store
 
@@ -3229,7 +3354,7 @@ def quality_experiment_item(experiment_id: str, item_id: str) -> dict:
 
 
 @app.post("/api/quality/experiments/{experiment_id}/baseline")
-def quality_set_baseline(experiment_id: str) -> dict:
+def quality_set_baseline(experiment_id: str, _admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import experiment_store
 
     conn = experiment_store.connect()
@@ -3240,7 +3365,7 @@ def quality_set_baseline(experiment_id: str) -> dict:
 
 
 @app.delete("/api/quality/experiments/{experiment_id}")
-def quality_delete_experiment(experiment_id: str) -> dict:
+def quality_delete_experiment(experiment_id: str, _admin: dict = Depends(require_admin)) -> dict:
     from backend.rag import experiment_store
 
     conn = experiment_store.connect()
@@ -3251,19 +3376,22 @@ def quality_delete_experiment(experiment_id: str) -> dict:
 
 
 @app.delete("/api/ask/runs/{run_id}")
-def ask_run_delete(run_id: str) -> dict:
+def ask_run_delete(run_id: str, user: dict = Depends(current_user)) -> dict:
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    if not ask_store.delete_run(conn, run_id):
+    if not ask_store.delete_run(conn, run_id, owner=write_owner(user)):
         raise HTTPException(404, f"No question {run_id}")
     return {"status": "deleted", "id": run_id}
 
 
 @app.delete("/api/ask/runs")
-def ask_runs_clear() -> dict:
+def ask_runs_clear(user: dict = Depends(current_user)) -> dict:
+    """Clear one's own question history -- never anyone else's, Admin or not."""
     conn = ask_store.connect()
     ask_store.create_schema(conn)
-    return {"status": "cleared", "removed": ask_store.clear(conn)}
+    removed = ask_store.clear(conn, owner=write_owner(user))
+    auth_store.log_event(user, "clear_history", tool="ask", detail={"removed": removed})
+    return {"status": "cleared", "removed": removed}
 
 
 # Hashed JS/CSS bundles of the built front end. check_dir=False so the API

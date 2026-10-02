@@ -71,7 +71,7 @@ docker compose logs -f app             # wait for "Application startup complete"
 curl -s localhost:8000/api/health      # soffice and pdftoppm should both be set
 ```
 
-Then open `http://<server>:8000` and sign in with the `APP_USERNAME` / `APP_PASSWORD` from `.env`.
+Then open `http://<server>:8000` and sign in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env`. Create everyone else's account from the **Admin** tab.
 
 ## Updating
 
@@ -86,8 +86,15 @@ When the corpus or `knowledge_base/` changes on your machine, copy it again
 with the `rsync` lines from step 3 and rebuild the graph:
 
 ```bash
-curl -s -X POST localhost:8000/api/graph/rebuild >/dev/null    # on the server (use your APP_PORT)
+# on the server (use your APP_PORT). The API needs a signed-in account, so sign
+# in first and keep the session cookie for the call that follows.
+curl -s -c /tmp/spark.cookie -H 'content-type: application/json' \
+     -d '{"username":"<admin>","password":"<password>"}' localhost:8000/api/auth/login >/dev/null
+curl -s -b /tmp/spark.cookie -X POST localhost:8000/api/graph/rebuild >/dev/null
+rm /tmp/spark.cookie
 ```
+
+Or press the rebuild button on the Knowledge Graph page while signed in.
 
 The graph's counts on the Knowledge Graph page should then match your
 machine's. If they do not, compare the two folders first: the graph is built
@@ -96,10 +103,10 @@ and a file missing from any of them changes the counts.
 
 ## Security
 
-- **The API is open.** The sign-in guards the pages only. Every `/api/*` endpoint answers without it (see `backend/api/app_login.py`). Do not publish port 8000 to the internet as it is:
-  - Put it behind a reverse proxy with TLS and real authentication, or a VPN or IP allowlist.
+- **Accounts guard the pages and the API.** Every `/api/*` endpoint needs a signed-in account (see [sign-in-and-demo-mode.md](sign-in-and-demo-mode.md)). The session cookie and passwords still travel in clear over plain HTTP, so do not publish port 8000 to the internet as it is:
+  - Put it behind a reverse proxy with TLS, or a VPN or IP allowlist.
   - Or set `APP_PORT=127.0.0.1:8000` and reach it through the proxy only.
-- **Set sign-in secrets.** Set `APP_SECRET` and `DEMO_SECRET`, and replace the default passwords.
+- **Set the first Admin and the session secret.** Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET` in `.env` before the first start. Then sign in, create everyone else's account from the **Admin** tab, and change the Admin password from the account menu.
 - **Data leaves the server** as it does locally. Questions and retrieved excerpts go to Anthropic, and so do documents converted with a cloud vision provider.
 - **Nothing is published except the app.** Postgres, Ollama, Neo4j and Hindsight publish no ports; they are reachable only from containers on `ivolve-network`.
 

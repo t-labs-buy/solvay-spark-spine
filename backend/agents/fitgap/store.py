@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 
+from backend.auth.store import owned as auth_owned  # noqa: E402
 from backend.rag import rag  # noqa: E402
 
 from .schemas import FitGapEntry, Review, VerifiedEntry  # noqa: E402
@@ -41,8 +43,26 @@ def connect():
     return rag.connection(schema=False)
 
 
+# Once per process per database: see ask_store.py for the deadlock that
+# running ALTER TABLE on every request caused.
+_ready: set[str] = set()
+_ready_lock = threading.Lock()
+
+
 def create_schema(conn=None) -> None:
-    conn = conn or connect()
+    key = database_url()
+    if key in _ready:
+        return
+    with _ready_lock:
+        if key in _ready:
+            return
+        _create_schema(conn or connect())
+        _ready.add(key)
+
+
+def _create_schema(conn) -> None:
+    from backend.auth import store as auth_store
+
     with conn.transaction():
         conn.execute(
             """
@@ -113,6 +133,10 @@ def create_schema(conn=None) -> None:
         conn.execute(
             "ALTER TABLE fitgap_runs ADD COLUMN IF NOT EXISTS uploads jsonb NOT NULL DEFAULT '{}'::jsonb"
         )
+        # Who ran it, and who reviewed. Rows from before accounts belong to
+        # `legacy`; a review's free-text reviewer name stays as it was typed.
+        auth_store.own_table(conn, "fitgap_runs")
+        auth_store.own_table(conn, "fitgap_reviews", "created_at")
 
 
 def corpus_fingerprint(conn=None, categories: list[str] | None = None) -> str:
@@ -146,16 +170,17 @@ def start_run(conn, run: dict) -> None:
     conn.execute(
         """INSERT INTO fitgap_runs
            (id, mode, scope_bpml, scope_label, question, country, model, prompt_hash,
-            params, holdout, corpus_fingerprint, categories, uploads)
+            params, holdout, corpus_fingerprint, categories, uploads, user_id)
            VALUES (%(id)s, %(mode)s, %(scope_bpml)s, %(scope_label)s, %(question)s, %(country)s,
                    %(model)s, %(prompt_hash)s, %(params)s, %(holdout)s, %(corpus_fingerprint)s,
-                   %(categories)s, %(uploads)s)
+                   %(categories)s, %(uploads)s, %(user_id)s)
            ON CONFLICT (id) DO NOTHING""",
         {**run,
          "country": json.dumps(run.get("country")) if run.get("country") else None,
          "params": json.dumps(run.get("params", {})),
          "categories": json.dumps(run.get("categories") or []),
-         "uploads": json.dumps(run.get("uploads") or {})},
+         "uploads": json.dumps(run.get("uploads") or {}),
+         "user_id": run.get("user_id")},
     )
     conn.commit()
 
@@ -189,14 +214,17 @@ def finish_run(conn, run_id: str, synthesis: dict, tokens: tuple[int, int], stat
     conn.commit()
 
 
-def list_runs(conn, limit: int = 40) -> list[dict]:
+def list_runs(conn, limit: int = 40, owner: int | None = None) -> list[dict]:
+    where, args = auth_owned(owner, "r")
     rows = conn.execute(
         """SELECT r.id, r.mode, r.scope_bpml, r.scope_label, r.question, r.holdout, r.status,
                   r.started_at, r.finished_at, r.model,
                   (SELECT count(*) FROM fitgap_entries e WHERE e.run_id = r.id) AS entries,
-                  r.synthesis, r.categories, r.uploads
-           FROM fitgap_runs r ORDER BY r.started_at DESC LIMIT %s""",
-        (limit,),
+                  r.synthesis, r.categories, r.uploads, r.user_id, u.username
+           FROM fitgap_runs r LEFT JOIN users u ON u.id = r.user_id
+           WHERE true""" + where + """
+           ORDER BY r.started_at DESC LIMIT %s""",
+        (*args, limit),
     ).fetchall()
     out = []
     for r in rows:
@@ -217,6 +245,7 @@ def list_runs(conn, limit: int = 40) -> list[dict]:
             "model": r[9], "entries": r[10],
             "reuse_pct": (synth.get("reuse") or {}).get("reuse_pct"),
             "coverage_pct": (synth.get("reuse") or {}).get("coverage_pct"),
+            "user_id": r[14], "owner": r[15],
         })
     return out
 
@@ -230,13 +259,15 @@ def _stale(started_at) -> bool:
     return datetime.now(timezone.utc) - started_at > timedelta(minutes=STALE_AFTER_MINUTES)
 
 
-def get_run(conn, run_id: str) -> dict | None:
+def get_run(conn, run_id: str, owner: int | None = None) -> dict | None:
+    """The run, or None if it does not exist or is not `owner`'s (None: any)."""
+    where, args = auth_owned(owner)
     r = conn.execute(
         """SELECT id, mode, scope_bpml, scope_label, question, country, model, prompt_hash,
                   params, holdout, corpus_fingerprint, started_at, finished_at, status,
-                  input_tokens, output_tokens, synthesis, categories, uploads
-           FROM fitgap_runs WHERE id = %s""",
-        (run_id,),
+                  input_tokens, output_tokens, synthesis, categories, uploads, user_id
+           FROM fitgap_runs WHERE id = %s""" + where,
+        (run_id, *args),
     ).fetchone()
     if not r:
         return None
@@ -248,6 +279,7 @@ def get_run(conn, run_id: str) -> dict | None:
         "finished_at": r[12].isoformat() if r[12] else None,
         "status": r[13], "input_tokens": r[14], "output_tokens": r[15],
         "synthesis": r[16] or {},
+        "user_id": r[19],
     }
     run["entries"] = get_entries(conn, run_id)
     return run
@@ -275,11 +307,21 @@ def get_entries(conn, run_id: str) -> list[dict]:
     return out
 
 
-def add_review(conn, entry_id: int, review: Review) -> dict:
+def entry_owner(conn, entry_id: int) -> tuple[str, int | None] | None:
+    """(run id, run owner) for an entry, or None if there is no such entry."""
+    r = conn.execute(
+        "SELECT e.run_id, r.user_id FROM fitgap_entries e JOIN fitgap_runs r ON r.id = e.run_id"
+        " WHERE e.id = %s", (entry_id,)).fetchone()
+    return (r[0], r[1]) if r else None
+
+
+def add_review(conn, entry_id: int, review: Review, user_id: int | None = None) -> dict:
     row = conn.execute(
-        """INSERT INTO fitgap_reviews (entry_id, reviewer, verdict, corrected_classification, comment)
-           VALUES (%s,%s,%s,%s,%s) RETURNING id, created_at""",
-        (entry_id, review.reviewer, review.verdict, review.corrected_classification, review.comment),
+        """INSERT INTO fitgap_reviews
+           (entry_id, reviewer, verdict, corrected_classification, comment, user_id)
+           VALUES (%s,%s,%s,%s,%s,%s) RETURNING id, created_at""",
+        (entry_id, review.reviewer, review.verdict, review.corrected_classification,
+         review.comment, user_id),
     ).fetchone()
     conn.commit()
     return {"id": int(row[0]), "created_at": row[1].isoformat(), **review.model_dump()}

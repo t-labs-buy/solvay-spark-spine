@@ -32,6 +32,9 @@ import InvestigationView from "../components/InvestigationView";
 import ObjectHeader, { BandButton } from "../components/rollout/ObjectHeader";
 import { MONO, RADIUS, usePremium } from "../components/rollout/premium";
 import { Section } from "../components/rollout/SummaryView";
+import { ownerLabel } from "../auth";
+import useHistoryScope from "../useHistoryScope";
+import type { RunRequest } from "../runRequest";
 
 /* ------------------------------------------------------------------- states */
 
@@ -572,8 +575,10 @@ function PastInvestigation({ run, showModel = true }: { run: EvidenceRunDetail; 
 
 /* --------------------------------------------------------------------- page */
 
-export default function EvidencePage({ active, showTechDetails = true }: {
+export default function EvidencePage({ active, showTechDetails = true, openRun: request = null }: {
   active: boolean;
+  /** Open this recorded run, as the Admin page's run history asks. */
+  openRun?: RunRequest | null;
   /** The model name and the corpus internals (tool count, filtered graph
    *  hubs, duplicate groups). Demo Mode turns it off: a client is shown what
    *  the agent does, not what it runs on. */
@@ -614,6 +619,8 @@ export default function EvidencePage({ active, showTechDetails = true }: {
   // so this survives a reload, a restart and a closed tab -- which is the
   // whole point: an answer nobody can go back to is one nobody can check.
   const [history, setHistory] = useState<EvidenceRunSummary[]>([]);
+  // Whose runs the history lists: an Admin can switch to everyone's.
+  const historyView = useHistoryScope();
   // Anchored to the header button rather than expanded in the page, the way
   // the Fit-Gap Copilot does it: past runs are a thing you go and get, not a
   // thing that sits between the question and the answer.
@@ -765,7 +772,7 @@ export default function EvidencePage({ active, showTechDetails = true }: {
     if (!active) return;
     evidence.status().then(setStatus).catch(() => setStatus(null));
     loadHistory();
-  }, [active, loadHistory]);
+  }, [active, loadHistory, historyView]);
 
   // The toggle is offered only when there is something to offer. A switch that
   // silently does nothing is worse than one that is visibly unavailable and
@@ -855,6 +862,7 @@ export default function EvidencePage({ active, showTechDetails = true }: {
         </>
       ),
       meta: [
+        ownerLabel(h.owner),
         plural(h.tool_calls, "call"),
         h.claims ? plural(h.claims, "claim") : "",
         h.sources ? plural(h.sources, "source") : "",
@@ -867,6 +875,11 @@ export default function EvidencePage({ active, showTechDetails = true }: {
   /** Reopen a past investigation: the question, every tool call in the order
    *  it happened, and the answer as it was verified at the time. Nothing is
    *  re-run -- and nothing is re-billed. */
+  useEffect(() => {
+    if (request) void open(request.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+
   async function open(id: string) {
     if (running) return;
     setError(null);

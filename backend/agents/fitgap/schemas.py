@@ -138,6 +138,9 @@ class RunRequest(BaseModel):
     # Their chunks live in that session's Postgres schema and are reached by a
     # tool of their own -- never by search_corpus.
     upload_session: str | None = None
+    # The account the run belongs to. Set by the server from the session,
+    # never by the browser (the API's request models do not have this field).
+    user_id: int | None = None
 
 
 class Review(BaseModel):

@@ -468,5 +468,8 @@ class RunRequest(BaseModel):
     # The session holding the As-Is (and optionally template / SAP BP)
     # documents. Without it there is nothing to analyse.
     upload_session: str = ""
+    # The account the run belongs to. Set by the server from the session,
+    # never by the browser (the API's request models do not have this field).
+    user_id: int | None = None
     # Corpus categories that stand for the Global Template. Empty is all.
     categories: list[str] = Field(default_factory=list)

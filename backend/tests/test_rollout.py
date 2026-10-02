@@ -1257,6 +1257,177 @@ def test_too_few_sap_searches_are_sent_back_while_there_is_budget():
     assert out is not None and not turns
 
 
+def _scripted_client(turns, seen=None):
+    """A client whose stream() plays back `turns`: (content, stop_reason) pairs."""
+    import types
+
+    usage = types.SimpleNamespace(input_tokens=10, output_tokens=5)
+
+    class Stream:
+        def __init__(self, turn):
+            self.turn = turn
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def get_final_message(self):
+            content, stop = self.turn
+            return types.SimpleNamespace(content=content, usage=usage, stop_reason=stop)
+
+    class Client:
+        class messages:
+            @staticmethod
+            def stream(**kw):
+                if seen is not None:
+                    seen.append([dict(m) for m in kw["messages"]])
+                return Stream(turns.pop(0))
+
+    return Client()
+
+
+def test_a_submission_cut_off_at_the_output_limit_is_not_accepted():
+    """Three submit_analysis calls in one run stopped at max_tokens. The SDK
+    parses streamed tool input leniently, so the cut-off register arrived as
+    a valid one without its backlog and open questions -- and was accepted.
+    A cut-off call is now sent back, and kept in the history only as an
+    outline."""
+    import types
+
+    from backend.agents.rollout import agent
+
+    def block(**kw):
+        return types.SimpleNamespace(**kw)
+
+    whole = analysis(deviations=[dev(gap_id="G1", as_is_step_id="5.1")],
+                     open_questions=["Who issues the e-way bill?"]).model_dump()
+    cut = {k: v for k, v in whole.items() if k not in ("backlog", "open_questions")}
+    turns = [([block(type="tool_use", id="t1", name="submit_analysis", input=cut)], "max_tokens"),
+             ([block(type="tool_use", id="t2", name="submit_analysis", input=whole)], "tool_use")]
+    seen, notes = [], []
+    real = agent._client
+    agent._client = lambda: _scripted_client(turns, seen)
+    try:
+        out, _ = agent._run("sys", "ctx", "compare", ftools.Session(), "submit_analysis", Analysis,
+                            None, lambda kind, data: notes.append(data), step_ids=["5.1"])
+    finally:
+        agent._client = real
+    assert out is not None and out.open_questions == ["Who issues the e-way bill?"]
+    assert [n for n in notes if n.get("kind") == "rejected" and "output limit" in n["title"]]
+    # The second request carries the cut-off call as an outline, not in full.
+    kept = seen[1][-2]["content"][0]
+    assert kept["id"] == "t1" and "_omitted" in kept["input"]
+    assert kept["input"]["deviations"][0]["gap_id"] == "G1"
+    assert "output limit" in seen[1][-1]["content"][0]["content"]
+
+    # Cut off every time: the pass fails rather than publish part of a register.
+    turns[:] = [([block(type="tool_use", id=f"c{i}", name="submit_analysis", input=cut)],
+                 "max_tokens") for i in range(agent.MAX_CUT_OFFS)]
+    agent._client = lambda: _scripted_client(turns)
+    try:
+        out, _ = agent._run("sys", "ctx", "compare", ftools.Session(), "submit_analysis", Analysis,
+                            None, step_ids=["5.1"])
+    finally:
+        agent._client = real
+    assert out is None and not turns
+
+
+def test_a_schema_error_and_a_content_check_are_sent_back_together():
+    """A headline over its limit was sent back on its own; the missing SAP
+    searches surfaced only on the next submission -- two full rewrites of the
+    register where one would have done."""
+    import types
+
+    from backend.agents.rollout import agent
+
+    def block(**kw):
+        return types.SimpleNamespace(**kw)
+
+    good = analysis(deviations=[dev(gap_id="G1", as_is_step_id="5.1")]).model_dump()
+    long = {**good, "headline": "x" * (agent.HEADLINE_MAX + 1)}
+    turns = [
+        ([block(type="tool_use", id="t1", name="submit_analysis", input=long)], "tool_use"),
+        ([block(type="tool_use", id="t2", name="search_sap_best_practice", input={"query": "q"})],
+         "tool_use"),
+        ([block(type="tool_use", id="t3", name="submit_analysis", input=good)], "tool_use"),
+    ]
+    seen, notes = [], []
+    real_client, real_search = agent._client, agent.tools.DISPATCH["search_sap_best_practice"]
+    agent._client = lambda: _scripted_client(turns, seen)
+    agent.tools.DISPATCH["search_sap_best_practice"] = lambda session, **kw: {"results": []}
+    try:
+        out, _ = agent._run("sys", "ctx", "compare", ftools.Session(), "submit_analysis", Analysis,
+                            None, lambda kind, data: notes.append(data), step_ids=["5.1"],
+                            min_sap_searches=1)
+    finally:
+        agent._client = real_client
+        agent.tools.DISPATCH["search_sap_best_practice"] = real_search
+    sent = [n for n in notes if n.get("kind") == "rejected"]
+    assert len(sent) == 1, sent
+    assert "headline" in sent[0]["text"] and "SAP Best Practice" in sent[0]["text"]
+    assert out is not None and not turns
+    # The rejected register is outlined in the history, not replayed in full.
+    assert "_omitted" in seen[1][-2]["content"][0]["input"]
+
+
+def test_the_pass_is_told_its_sap_search_count_while_it_reads():
+    """The count was checked only against a finished register. It is now said
+    after each turn of reading, until the minimum is met."""
+    import types
+
+    from backend.agents.rollout import agent
+
+    def block(**kw):
+        return types.SimpleNamespace(**kw)
+
+    def search(i):
+        return ([block(type="tool_use", id=f"s{i}", name="search_sap_best_practice",
+                       input={"query": f"q{i}"})], "tool_use")
+
+    good = analysis(deviations=[dev(gap_id="G1", as_is_step_id="5.1")]).model_dump()
+    turns = [search(1), search(2),
+             ([block(type="tool_use", id="t3", name="submit_analysis", input=good)], "tool_use")]
+    seen, notes = [], []
+    real_client, real_search = agent._client, agent.tools.DISPATCH["search_sap_best_practice"]
+    agent._client = lambda: _scripted_client(turns, seen)
+    agent.tools.DISPATCH["search_sap_best_practice"] = lambda session, **kw: {"results": []}
+    try:
+        out, _ = agent._run("sys", "ctx", "compare", ftools.Session(), "submit_analysis", Analysis,
+                            None, lambda kind, data: notes.append(data), step_ids=["5.1"],
+                            min_sap_searches=2)
+    finally:
+        agent._client = real_client
+        agent.tools.DISPATCH["search_sap_best_practice"] = real_search
+    after_first, after_second = seen[1][-1]["content"], seen[2][-1]["content"]
+    assert after_first[-1]["type"] == "text" and "1 of the 2" in after_first[-1]["text"]
+    assert all(b["type"] == "tool_result" for b in after_second), "minimum met: no reminder"
+    assert out is not None and not [n for n in notes if n.get("kind") == "rejected"]
+
+
+def test_the_comparison_starts_with_its_fixed_calls_already_made():
+    """Every run spent its first turns on list_sources, get_scope and
+    compare_entities with the same arguments. They are made before the first
+    turn, recorded like any call, and handed to the agent."""
+    import types
+
+    from backend.agents.rollout import agent
+
+    names = ("list_sources", "get_scope", "compare_entities")
+    real = {n: agent.tools.DISPATCH[n] for n in names}
+    for n in names:
+        agent.tools.DISPATCH[n] = (lambda n: lambda session, **kw: {"ran": n, **kw})(n)
+    logged = []
+    try:
+        text = agent._prefetched(types.SimpleNamespace(code="4.10.2"), ftools.Session(),
+                                 lambda call, stage: logged.append((call.name, stage)))
+        unscoped = agent._prefetched(None, ftools.Session(), None)
+    finally:
+        agent.tools.DISPATCH.update(real)
+    assert logged == [(n, "compare") for n in names]
+    assert "do not call these again" in text
+    assert "get_scope(bpml_code='4.10.2')" in text and '"bpml_code": "4.10.2"' in text
+    assert "get_scope" not in unscoped and "compare_entities" in unscoped
+
+
 def test_the_prompt_asks_the_agent_to_narrate():
     from backend.agents.rollout import agent
     from backend.agents.rollout.schemas import SUBJECTS

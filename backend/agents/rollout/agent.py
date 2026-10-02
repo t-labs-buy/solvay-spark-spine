@@ -57,7 +57,13 @@ MAX_INPUT_TOKENS = int(os.environ.get("ROLLOUT_MAX_INPUT_TOKENS", "150000"))
 MAX_TOTAL_INPUT_TOKENS = int(os.environ.get("ROLLOUT_MAX_BILLED_TOKENS", "220000"))
 # The register is the output. A budget that leaves no room to write it out is
 # not a budget, it is a way of producing a confident-looking empty analysis.
-MAX_TOKENS_OUT = 24000
+# 24k was not room: a fifteen-deviation register is ~20k tokens of JSON, and
+# the model's thinking is drawn from the same allowance. Three submissions in
+# a row stopped at it. The model allows 128k on a streamed request.
+MAX_TOKENS_OUT = int(os.environ.get("ROLLOUT_MAX_TOKENS_OUT", "64000"))
+# How many responses may end at that limit before the pass gives up. A run
+# that cannot fit its register fails; it does not publish part of one.
+MAX_CUT_OFFS = 2
 
 # §26, verbatim in substance. These are the rules that make the output usable
 # by a rollout team, so the hash of this text is stored on every run.
@@ -384,6 +390,7 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
     in_tokens = out_tokens = last_in = 0
     submitted = None
     sent_back = False
+    cut_offs = 0
     sap_searches = 0
     started = time.time()
     turns = 0
@@ -447,132 +454,155 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
             calls += 1
             continue
 
+        # A response stopped at max_tokens ends in a tool call the model never
+        # finished. The SDK still hands it over -- it assembles streamed tool
+        # input with a partial-JSON parser -- so a register cut off after its
+        # localization section arrived as a valid submission whose backlog
+        # and open questions were simply absent, and the schema's defaults
+        # filled them with nothing. Nothing in a cut-off response is acted on.
+        cut_off = getattr(response, "stop_reason", None) == "max_tokens"
+        if cut_off:
+            cut_offs += 1
+            calls += 1
+            note("note", {"kind": "rejected",
+                          "title": f"Cut off at the {MAX_TOKENS_OUT:,}-token output limit, sent back",
+                          "text": "", "detail": {"turn": turns, "cut_offs": cut_offs}})
+
         results = []
+        stubbed: dict[str, dict] = {}
+        searched = False
         for use in uses:
+            if cut_off:
+                if use.name == submit:
+                    stubbed[use.id] = dict(use.input)
+                results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
+                                "content": _cut_off_text(use.name, submit)})
+                continue
             if use.name == submit:
-                try:
-                    candidate = model_cls(**dict(use.input))
-                    # Once per pass, and only while there is budget to act on
-                    # it: an SAP rating with no SAP quote behind it would be
-                    # stripped by the gates, so the agent is asked to find the
-                    # quote or clear the rating while it still can.
-                    unquoted = _unquoted_sap_ratings(candidate, sess)
-                    unplaced = _unplaced_deviations(candidate, step_ids)
-                    unadvised = _unadvised_localization(candidate) if need_advisory else []
-                    sap_short = (isinstance(candidate, Analysis) and sap_searches < min_sap_searches
-                                 and calls + (min_sap_searches - sap_searches) <= MAX_TOOL_CALLS[stage])
-                    if (unquoted or unplaced or unadvised or sap_short) and not sent_back \
-                            and calls < MAX_TOOL_CALLS[stage]:
-                        sent_back = True
-                        calls += 1
-                        asks, titles = [], []
-                        if unquoted:
-                            asks.append(
-                                "These deviations carry an sap_bp_fit_rating with no SAP Best Practice "
-                                f"quote in their evidence: {', '.join(unquoted)}. A rating without a quote "
-                                "is removed automatically. For each one, either run "
-                                "search_sap_best_practice and add a verbatim quote with side sap_bp, or "
-                                "set sap_bp_fit_rating to null and say in sap_bp_reference that the SAP "
-                                "documents do not cover it.")
-                            titles.append(f"{len(unquoted)} SAP rating(s) without an SAP quote")
-                        if unplaced:
-                            asks.append(
-                                "These deviations name no As-Is step: "
-                                f"{', '.join(unplaced)}. Set as_is_step_id to the step id(s) each one "
-                                "concerns, exactly as written in the process model (for example "
-                                f"{step_ids[0]!r}); leave it empty only for a deviation that concerns "
-                                "no single step.")
-                            titles.append(f"{len(unplaced)} deviation(s) with no As-Is step")
-                        if unadvised:
-                            asks.append(
-                                "The localization list is empty, but these deviations are marked as a "
-                                f"possible or confirmed localization: {', '.join(unadvised)}. Add one "
-                                "localization item for each topic they raise -- status Confirmed only "
-                                "where an explicit statutory source says so, otherwise Candidate -- with "
-                                "the requirement, what SAP and the template offer, and an owner.")
-                            titles.append(f"{len(unadvised)} localization deviation(s) with no advisory")
-                        if sap_short:
-                            asks.append(
-                                f"You searched SAP Best Practice {sap_searches} time(s); this process needs "
-                                f"at least {min_sap_searches} -- one per stage of the As-Is (request and "
-                                "order, approval, delivery and receipt, inspection, refund or credit, "
-                                "closure). Run search_sap_best_practice for the stages you have not "
-                                "searched, and rate or quote SAP from what they return.")
-                            titles.append(f"only {sap_searches} SAP Best Practice search(es)")
-                        text = " ".join(asks) + f" Then call {submit} again."
-                        results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
-                                        "content": text})
-                        note("note", {"kind": "rejected", "title": "Sent back: " + "; ".join(titles),
-                                      "text": text, "detail": {"gaps": unquoted, "unplaced": unplaced,
-                                                               "unadvised": unadvised,
-                                                               "sap_searches": sap_searches}})
-                        continue
+                payload = dict(use.input)
+                candidate, exc = _validate(model_cls, payload)
+                # The content checks run on what did validate, so a headline a
+                # few characters over its limit no longer hides a missing SAP
+                # search until the next submission: one send-back names both,
+                # and every send-back costs a full rewrite of the register.
+                # Once per pass, and only while there is budget to act on it.
+                asks, titles, detail = ([], [], {})
+                if candidate is not None and not sent_back and calls < MAX_TOOL_CALLS[stage]:
+                    asks, titles, detail = _send_back_asks(
+                        candidate, sess, step_ids, need_advisory, sap_searches,
+                        min_sap_searches, calls, MAX_TOOL_CALLS[stage])
+                if exc is None and not asks:
                     submitted = candidate
                     results.append({"type": "tool_result", "tool_use_id": use.id,
                                     "content": "Accepted."})
                     note("note", {"kind": "submitted", "title": _submitted_title(submitted),
                                   "text": "", "detail": {"turn": turns, "tool_calls": calls}})
-                except pydantic.ValidationError as exc:
-                    results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
-                                    "content": "Rejected:\n" + _errors(exc) +
-                                               f"\nCorrect it and call {submit} again."})
-                    note("note", {"kind": "rejected",
-                                  "title": "Submission rejected, sent back for correction",
-                                  "text": _errors(exc), "detail": {"errors": len(exc.errors())}})
-                    calls += 1
+                    continue
+                calls += 1
+                if asks:
+                    sent_back = True
+                parts = []
+                if exc is not None:
+                    parts.append("Rejected:\n" + _errors(exc))
+                    titles.insert(0, f"{len(exc.errors())} schema error(s)")
+                    detail["errors"] = len(exc.errors())
+                parts += asks
+                text = "\n".join(parts) + f"\nCorrect it and call {submit} again."
+                results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
+                                "content": text})
+                note("note", {"kind": "rejected", "title": "Sent back: " + "; ".join(titles),
+                              "text": text, "detail": detail})
+                stubbed[use.id] = payload
                 continue
 
             calls += 1
             if use.name == "search_sap_best_practice":
                 sap_searches += 1
-            t0 = time.time()
-            fn = tools.DISPATCH.get(use.name)
-            args = dict(use.input)
-            from backend.agents.fitgap.tools import OBSERVATION_TYPE, ToolCall
-            from backend.agents.fitgap import trace
-
-            # The observation records what the tool returned, not the truncated
-            # copy handed to the model on the next turn; what the model read is
-            # already visible in that turn's generation.
-            with tracing.observation(use.name, as_type=OBSERVATION_TYPE.get(use.name, "tool"),
-                                     input=args) as observed:
-                if fn is None:
-                    result: dict = {"error": f"unknown tool {use.name}"}
-                else:
-                    try:
-                        result = fn(sess, **args)
-                    except TypeError as exc:
-                        result = {"error": f"bad arguments: {exc}"}
-                    except Exception as exc:
-                        result = {"error": f"{type(exc).__name__}: {exc}"}
-
-                call = ToolCall(
-                    name=use.name, arguments=args,
-                    summary=tools.summarise(use.name, args, result),
-                    ms=int((time.time() - t0) * 1000), error=result.get("error"),
-                    sources=tools.describe_sources(use.name, args, result, sess),
-                    # The summary says a search ran; the trace says which
-                    # passages came back and at what rank. Without it a reader
-                    # can see the shape of the run and not check any of it.
-                    trace=trace.of(use.name, args, result, sess),
-                )
-                observed.update(output=result,
-                                metadata={"summary": call.summary, "sources": call.sources,
-                                          "stage": stage})
-                if call.error:
-                    observed.update(level="ERROR", status_message=call.error)
-            sess.record(call)
-            if on_tool:
-                on_tool(call, stage)
+            result = _execute(sess, use.name, dict(use.input), stage, on_tool)
             results.append({"type": "tool_result", "tool_use_id": use.id,
                             "content": json.dumps(result, default=str)[:30000]})
+            searched = True
 
+        # Said while the pass is still reading, not after the register is
+        # written: a run searched SAP Best Practice twice, wrote its register,
+        # and was sent back to search four more times -- a full rewrite spent
+        # on an instruction the prompt had already given. A text block after
+        # the tool results, so the history stays append-only.
+        # Only while the budget can still pay for the rest; past that, the
+        # pass is being told to submit, and this would say the opposite.
+        if (searched and sap_searches < min_sap_searches
+                and calls + (min_sap_searches - sap_searches) <= MAX_TOOL_CALLS[stage]):
+            results.append({"type": "text", "text": (
+                f"SAP Best Practice searches so far: {sap_searches} of the {min_sap_searches} "
+                "this process needs, one per stage of the As-Is. Run the rest before you "
+                f"call {submit}.")})
+
+        # A sent-back submission stays in the history only as an outline. The
+        # register is rewritten in full either way, and two rejected copies
+        # of it -- 50k tokens -- were what pushed one pass over its context
+        # limit and forced it to submit before it had searched SAP. Replaced
+        # before the next request, so no later turn ever saw the original.
+        if stubbed:
+            messages[-1] = {"role": "assistant", "content": [
+                _outline(b, stubbed[b.id]) if b.type == "tool_use" and b.id in stubbed else b
+                for b in messages[-1]["content"]]}
         messages.append({"role": "user", "content": results})
+        if submitted is None and cut_offs >= MAX_CUT_OFFS:
+            note("note", {"kind": "budget", "title": "Submission cut off repeatedly — pass stopped",
+                          "text": (f"{cut_offs} responses reached the {MAX_TOKENS_OUT:,}-token output "
+                                   "limit; an incomplete analysis is not accepted."),
+                          "detail": {"cut_offs": cut_offs}})
+            break
         if submitted is None and over and not any(r.get("is_error") for r in results):
             break
 
     return submitted, {"tool_calls": calls, "input_tokens": in_tokens,
                        "output_tokens": out_tokens, "seconds": round(time.time() - started, 2)}
+
+
+def _execute(sess: tools.Session, name: str, args: dict, stage: str,
+             on_tool: Callable | None) -> dict:
+    """Run one tool and record it -- in the trace, the session and the
+    investigation log -- whether the model asked for it or the pass did."""
+    from backend.agents.fitgap.tools import OBSERVATION_TYPE, ToolCall
+    from backend.agents.fitgap import trace
+
+    t0 = time.time()
+    fn = tools.DISPATCH.get(name)
+    # The observation records what the tool returned, not the truncated
+    # copy handed to the model on the next turn; what the model read is
+    # already visible in that turn's generation.
+    with tracing.observation(name, as_type=OBSERVATION_TYPE.get(name, "tool"),
+                             input=args) as observed:
+        if fn is None:
+            result: dict = {"error": f"unknown tool {name}"}
+        else:
+            try:
+                result = fn(sess, **args)
+            except TypeError as exc:
+                result = {"error": f"bad arguments: {exc}"}
+            except Exception as exc:
+                result = {"error": f"{type(exc).__name__}: {exc}"}
+
+        call = ToolCall(
+            name=name, arguments=args,
+            summary=tools.summarise(name, args, result),
+            ms=int((time.time() - t0) * 1000), error=result.get("error"),
+            sources=tools.describe_sources(name, args, result, sess),
+            # The summary says a search ran; the trace says which
+            # passages came back and at what rank. Without it a reader
+            # can see the shape of the run and not check any of it.
+            trace=trace.of(name, args, result, sess),
+        )
+        observed.update(output=result,
+                        metadata={"summary": call.summary, "sources": call.sources,
+                                  "stage": stage})
+        if call.error:
+            observed.update(level="ERROR", status_message=call.error)
+    sess.record(call)
+    if on_tool:
+        on_tool(call, stage)
+    return result
 
 
 _PASS_NAME = {"asis": "reading the subject", "compare": "comparing with the template"}
@@ -585,6 +615,99 @@ def _submitted_title(model) -> str:
         return (f"Analysis submitted: {len(model.deviations)} deviations, "
                 f"{len(model.fit_areas)} fit areas")
     return "Submitted"
+
+
+def _validate(model_cls, payload: dict):
+    """The submission as a model, and the schema errors against it. On errors,
+    the model is rebuilt without the top-level fields they name -- so the
+    content checks can still read the rest -- or None if even that fails."""
+    try:
+        return model_cls(**payload), None
+    except pydantic.ValidationError as exc:
+        bad = {e["loc"][0] for e in exc.errors() if e["loc"]}
+        try:
+            return model_cls(**{k: v for k, v in payload.items() if k not in bad}), exc
+        except pydantic.ValidationError:
+            return None, exc
+
+
+def _send_back_asks(candidate, sess: tools.Session, step_ids: list[str] | None,
+                    need_advisory: bool, sap_searches: int, min_sap_searches: int,
+                    calls: int, budget: int) -> tuple[list[str], list[str], dict]:
+    """What a submission is sent back for beyond its schema: an SAP rating with
+    no SAP quote behind it would be stripped by the gates, so the agent is
+    asked to find the quote or clear the rating while it still can; and so on
+    for each check. Returns the asks, their log titles and the log detail."""
+    unquoted = _unquoted_sap_ratings(candidate, sess)
+    unplaced = _unplaced_deviations(candidate, step_ids)
+    unadvised = _unadvised_localization(candidate) if need_advisory else []
+    sap_short = (isinstance(candidate, Analysis) and sap_searches < min_sap_searches
+                 and calls + (min_sap_searches - sap_searches) <= budget)
+    asks, titles = [], []
+    if unquoted:
+        asks.append(
+            "These deviations carry an sap_bp_fit_rating with no SAP Best Practice "
+            f"quote in their evidence: {', '.join(unquoted)}. A rating without a quote "
+            "is removed automatically. For each one, either run "
+            "search_sap_best_practice and add a verbatim quote with side sap_bp, or "
+            "set sap_bp_fit_rating to null and say in sap_bp_reference that the SAP "
+            "documents do not cover it.")
+        titles.append(f"{len(unquoted)} SAP rating(s) without an SAP quote")
+    if unplaced:
+        asks.append(
+            "These deviations name no As-Is step: "
+            f"{', '.join(unplaced)}. Set as_is_step_id to the step id(s) each one "
+            "concerns, exactly as written in the process model (for example "
+            f"{step_ids[0]!r}); leave it empty only for a deviation that concerns "
+            "no single step.")
+        titles.append(f"{len(unplaced)} deviation(s) with no As-Is step")
+    if unadvised:
+        asks.append(
+            "The localization list is empty, but these deviations are marked as a "
+            f"possible or confirmed localization: {', '.join(unadvised)}. Add one "
+            "localization item for each topic they raise -- status Confirmed only "
+            "where an explicit statutory source says so, otherwise Candidate -- with "
+            "the requirement, what SAP and the template offer, and an owner.")
+        titles.append(f"{len(unadvised)} localization deviation(s) with no advisory")
+    if sap_short:
+        asks.append(
+            f"You searched SAP Best Practice {sap_searches} time(s); this process needs "
+            f"at least {min_sap_searches} -- one per stage of the As-Is (request and "
+            "order, approval, delivery and receipt, inspection, refund or credit, "
+            "closure). Run search_sap_best_practice for the stages you have not "
+            "searched, and rate or quote SAP from what they return.")
+        titles.append(f"only {sap_searches} SAP Best Practice search(es)")
+    detail = {"gaps": unquoted, "unplaced": unplaced, "unadvised": unadvised,
+              "sap_searches": sap_searches} if asks else {}
+    return asks, titles, detail
+
+
+def _cut_off_text(name: str, submit: str) -> str:
+    if name != submit:
+        return ("Not run: your response reached the output limit before it was complete, so "
+                "none of its tool calls were acted on. Call it again.")
+    return (f"Not received: your response reached the {MAX_TOKENS_OUT:,}-token output limit "
+            f"before the {submit} call was complete, and an incomplete submission is not "
+            f"accepted. Call {submit} again, written more tightly: one quote per point -- the "
+            "sentence that proves it -- and each statement only as long as the workshop needs. "
+            "Leave out nothing you found; shorten how you say it.")
+
+
+def _outline(block, payload: dict) -> dict:
+    """A sent-back submission as it is kept in the history: its id and name,
+    so the tool result still answers it, and what the send-back refers to --
+    each deviation's gap id and step, and how long each list was -- in place
+    of the full text the model will write again anyway."""
+    outline: dict[str, Any] = {"_omitted": "Full submission removed from the history after it "
+                                           "was sent back; submit it again in full."}
+    for key, value in payload.items():
+        if isinstance(value, list):
+            outline[key] = f"{len(value)} item(s)"
+    if isinstance(payload.get("deviations"), list):
+        outline["deviations"] = [
+            {k: str(d.get(k, ""))[:160] for k in ("gap_id", "as_is_step_id", "exact_difference")}
+            for d in payload["deviations"] if isinstance(d, dict)]
+    return {"type": "tool_use", "id": block.id, "name": block.name, "input": outline}
 
 
 def _unplaced_deviations(model, step_ids: list[str] | None) -> list[str]:
@@ -660,6 +783,7 @@ def compare(req: RunRequest, scope, asis: AsIsModel, sess: tools.Session,
         _context(req, scope)
         + f"\n\nThe {subject.label} process you read, as {len(asis.steps)} atomic steps:\n\n"
         + steps + notes
+        + _prefetched(scope, sess, on_tool)
         + "\n\nNow run the comparison and submit the analysis. You can still call "
           f"read_sources to re-read any {subject.label} detail you need to quote."
     )
@@ -667,6 +791,27 @@ def compare(req: RunRequest, scope, asis: AsIsModel, sess: tools.Session,
                 Analysis, on_tool, on_note, step_ids=[s.step_id for s in asis.steps],
                 need_advisory=subject.localization,
                 min_sap_searches=min_sap_searches(subject, asis, sess))
+
+
+def _prefetched(scope, sess: tools.Session, on_tool: Callable | None) -> str:
+    """The comparison's opening calls, made before its first turn. Every run
+    spent its first turns on list_sources, get_scope on the named process and
+    compare_entities -- the same calls with the same arguments, none of which
+    depend on what the agent has read -- each a round trip of four to eight
+    seconds. They are recorded like any other call, so the log and the trace
+    still show them; the agent is handed their results rather than asking."""
+    calls = [("list_sources", {})]
+    if scope:
+        calls.append(("get_scope", {"bpml_code": scope.code}))
+    calls.append(("compare_entities", {}))
+    out = []
+    for name, args in calls:
+        result = _execute(sess, name, args, "compare", on_tool)
+        shown = ", ".join(f"{k}={v!r}" for k, v in args.items())
+        out.append(f"{name}({shown}):\n{json.dumps(result, default=str)[:30000]}")
+    return ("\n\nAlready run for you before this pass -- do not call these again with the same "
+            "arguments: " + ", ".join(n for n, _ in calls) + ". Their results:\n\n"
+            + "\n\n".join(out))
 
 
 def min_sap_searches(subject, asis: AsIsModel, sess: tools.Session) -> int:

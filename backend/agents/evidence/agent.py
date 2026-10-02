@@ -589,6 +589,7 @@ def run(question: str, holdout: bool = False,
             in_tokens += last_in
             out_tokens += response.usage.output_tokens
             messages.append({"role": "assistant", "content": response.content})
+            cut_off = getattr(response, "stop_reason", None) == "max_tokens"
 
             # The model reasons out loud between tool calls. Those blocks went
             # back into `messages` -- the model has always seen them -- and were
@@ -623,6 +624,17 @@ def run(question: str, holdout: bool = False,
             results = []
             for use in uses:
                 if use.name == "submit_answer":
+                    # Stopped at max_tokens, the call is incomplete -- and the
+                    # SDK still returns what it has as if it were whole.
+                    if cut_off:
+                        results.append({"type": "tool_result", "tool_use_id": use.id,
+                                        "is_error": True,
+                                        "content": "Not received: your response reached the "
+                                                   "output limit before the answer was complete. "
+                                                   "Call submit_answer again, more briefly."})
+                        calls += 1
+                        rejections += 1
+                        continue
                     try:
                         payload = dict(use.input)
                         payload["question"] = question
@@ -688,7 +700,9 @@ def run(question: str, holdout: bool = False,
                                 "content": json.dumps(result, default=str)[:24000]})
 
             messages.append({"role": "user", "content": results})
-            if submitted is None and over and not any(r.get("is_error") for r in results):
+            # Over budget, a cut-off submission is not retried: it ends the pass.
+            if submitted is None and over and (
+                    cut_off or not any(r.get("is_error") for r in results)):
                 break
 
         raw = submitted.model_dump() if submitted is not None else None

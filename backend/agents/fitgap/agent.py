@@ -253,6 +253,7 @@ def run_step(
         in_tokens += last_in_tokens
         out_tokens += response.usage.output_tokens
         messages.append({"role": "assistant", "content": response.content})
+        cut_off = getattr(response, "stop_reason", None) == "max_tokens"
 
         uses = [b for b in response.content if b.type == "tool_use"]
         if not uses:
@@ -268,6 +269,16 @@ def run_step(
         results = []
         for use in uses:
             if use.name == "submit_entry":
+                # Stopped at max_tokens, the call is incomplete -- and the SDK
+                # still returns what it has as if it were whole.
+                if cut_off:
+                    results.append({
+                        "type": "tool_result", "tool_use_id": use.id, "is_error": True,
+                        "content": "Not received: your response reached the output limit before "
+                                   "the entry was complete. Call submit_entry again, more briefly.",
+                    })
+                    calls += 1
+                    continue
                 try:
                     payload = dict(use.input)
                     payload["run_id"] = run_id
@@ -321,7 +332,9 @@ def run_step(
 
         messages.append({"role": "user", "content": results})
 
-        if submitted is None and over_budget and not any(r.get("is_error") for r in results):
+        # Over budget, a cut-off submission is not retried: it ends the pass.
+        if submitted is None and over_budget and (
+                cut_off or not any(r.get("is_error") for r in results)):
             break
 
     if submitted is None:

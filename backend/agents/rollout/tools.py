@@ -374,6 +374,41 @@ def definitions(stage: str) -> list[dict]:
             ),
             "input_schema": Analysis.model_json_schema(),
         },
+        {
+            "name": "amend_analysis",
+            "description": (
+                "Correct an analysis that was sent back, without writing it out again. Send only "
+                "what changes; everything else is kept as you submitted it, and the result is "
+                "checked again exactly like a full submission. Use it only after a send-back.\n\n"
+                "- headline, template_process, sap_bp_note: replace the text.\n"
+                "- dimension_ratings, fit_areas: replace the whole list.\n"
+                "- deviations: each item names a gap_id. For an existing gap, the fields you give "
+                "replace that gap's fields, except evidence, which is ADDED to its quotes. A "
+                "gap_id that does not exist yet is added as a new, complete deviation.\n"
+                "- remove_deviations: gap_ids to delete from the register.\n"
+                "- localization, backlog, open_questions: items are ADDED to the lists.\n"
+                "Fields and allowed values are those of submit_analysis."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "headline": {"type": "string"},
+                    "template_process": {"type": "string"},
+                    "sap_bp_note": {"type": "string"},
+                    "dimension_ratings": {"type": "array", "items": {"type": "object"}},
+                    "fit_areas": {"type": "array", "items": {"type": "object"}},
+                    "deviations": {
+                        "type": "array",
+                        "items": {"type": "object", "properties": {"gap_id": {"type": "string"}},
+                                  "required": ["gap_id"]},
+                    },
+                    "remove_deviations": {"type": "array", "items": {"type": "string"}},
+                    "localization": {"type": "array", "items": {"type": "object"}},
+                    "backlog": {"type": "array", "items": {"type": "object"}},
+                    "open_questions": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
     ]
 
 

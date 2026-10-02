@@ -17,10 +17,13 @@ ratings and the model's classifications, done in scoring.py.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
+import re
 import time
+import typing
 from typing import Any, Callable
 
 import pydantic
@@ -368,7 +371,8 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
          on_note: Callable | None = None,
          step_ids: list[str] | None = None,
          need_advisory: bool = False,
-         min_sap_searches: int = 0) -> tuple[Any, dict]:
+         min_sap_searches: int = 0,
+         amend: str | None = None) -> tuple[Any, dict]:
     """One bounded pass. Returns the submitted model (or None) and its cost.
 
     `on_note(kind, data)` receives what is not a tool call: the context the
@@ -391,6 +395,8 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
     submitted = None
     sent_back = False
     cut_offs = 0
+    # The last submission sent back, as received: what an amend call corrects.
+    held: dict | None = None
     sap_searches = 0
     started = time.time()
     turns = 0
@@ -469,17 +475,42 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
                           "text": "", "detail": {"turn": turns, "cut_offs": cut_offs}})
 
         results = []
-        stubbed: dict[str, dict] = {}
+        stubbed: dict[str, tuple[dict, bool]] = {}
         searched = False
         for use in uses:
             if cut_off:
                 if use.name == submit:
-                    stubbed[use.id] = dict(use.input)
+                    stubbed[use.id] = (dict(use.input), False)
                 results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
                                 "content": _cut_off_text(use.name, submit)})
                 continue
-            if use.name == submit:
+            if use.name == submit or (amend and use.name == amend):
+                amending = use.name == amend
+                if amending and held is None:
+                    calls += 1
+                    results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
+                                    "content": (f"Nothing to amend: {amend} corrects a submission "
+                                                f"that was sent back. Call {submit} first.")})
+                    continue
+                # A send-back used to cost a full rewrite of the register --
+                # 20-35k tokens, three to four minutes -- for a fix as small as
+                # one over-long headline. An amend call carries only the fix,
+                # merged into the submission the harness kept; the result is
+                # checked exactly like a full one.
                 payload = dict(use.input)
+                if amending:
+                    payload = _merge(held, _repair_lists(model_cls, payload)[0])
+                payload, repaired = _repair_lists(model_cls, payload)
+                if repaired:
+                    note("note", {"kind": "repaired",
+                                  "title": f"Repaired {', '.join(repaired)}: sent as text, read as a list",
+                                  "text": "", "detail": {"fields": repaired, "turn": turns}})
+                payload, shortened = _shorten_quotes(payload)
+                if shortened:
+                    note("note", {"kind": "repaired",
+                                  "title": (f"Shortened {shortened} quote(s) to {QUOTE_MAX} characters "
+                                            "at a word boundary"),
+                                  "text": "", "detail": {"quotes": shortened, "turn": turns}})
                 candidate, exc = _validate(model_cls, payload)
                 # The content checks run on what did validate, so a headline a
                 # few characters over its limit no longer hides a missing SAP
@@ -495,8 +526,10 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
                     submitted = candidate
                     results.append({"type": "tool_result", "tool_use_id": use.id,
                                     "content": "Accepted."})
-                    note("note", {"kind": "submitted", "title": _submitted_title(submitted),
-                                  "text": "", "detail": {"turn": turns, "tool_calls": calls}})
+                    note("note", {"kind": "submitted",
+                                  "title": _submitted_title(submitted) + (" (amended)" if amending else ""),
+                                  "text": "", "detail": {"turn": turns, "tool_calls": calls,
+                                                         "amended": amending}})
                     continue
                 calls += 1
                 if asks:
@@ -507,12 +540,17 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
                     titles.insert(0, f"{len(exc.errors())} schema error(s)")
                     detail["errors"] = len(exc.errors())
                 parts += asks
-                text = "\n".join(parts) + f"\nCorrect it and call {submit} again."
+                text = "\n".join(parts) + (
+                    f"\nCorrect it with {amend}: send only what changes, and the rest of your "
+                    f"analysis is kept as submitted. Call {submit} again only to rewrite it in full."
+                    if amend else f"\nCorrect it and call {submit} again.")
                 results.append({"type": "tool_result", "tool_use_id": use.id, "is_error": True,
                                 "content": text})
                 note("note", {"kind": "rejected", "title": "Sent back: " + "; ".join(titles),
-                              "text": text, "detail": detail})
-                stubbed[use.id] = payload
+                              "text": text, "detail": {**detail, "amended": amending}})
+                held = payload
+                if not amending:
+                    stubbed[use.id] = (payload, amend is not None)
                 continue
 
             calls += 1
@@ -544,7 +582,7 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
         # before the next request, so no later turn ever saw the original.
         if stubbed:
             messages[-1] = {"role": "assistant", "content": [
-                _outline(b, stubbed[b.id]) if b.type == "tool_use" and b.id in stubbed else b
+                _outline(b, *stubbed[b.id]) if b.type == "tool_use" and b.id in stubbed else b
                 for b in messages[-1]["content"]]}
         messages.append({"role": "user", "content": results})
         if submitted is None and cut_offs >= MAX_CUT_OFFS:
@@ -615,6 +653,35 @@ def _submitted_title(model) -> str:
         return (f"Analysis submitted: {len(model.deviations)} deviations, "
                 f"{len(model.fit_areas)} fit areas")
     return "Submitted"
+
+
+# A leaked tool-call tag at the start of a value, and its closing tag.
+_PARAM_OPEN = re.compile(r'^\s*<parameter name="[^"]*">\s*')
+_PARAM_CLOSE = re.compile(r'\s*</parameter>\s*$')
+
+
+def _repair_lists(model_cls, payload: dict) -> tuple[dict, list[str]]:
+    """List fields that arrived as text, parsed back into lists.
+
+    A Sonnet run sent fit_areas as the string '<parameter name="fit_areas">[…]'
+    -- its own tool-call markup leaked into the value, around a list that was
+    otherwise valid -- and the whole register, 20k tokens, was sent back and
+    rewritten for it. Only a value that parses to a list is replaced; anything
+    else is left for validation to reject as before."""
+    repaired = []
+    out = dict(payload)
+    for name, field in model_cls.model_fields.items():
+        value = out.get(name)
+        if not isinstance(value, str) or typing.get_origin(field.annotation) is not list:
+            continue
+        try:
+            parsed = json.loads(_PARAM_CLOSE.sub("", _PARAM_OPEN.sub("", value)))
+        except ValueError:
+            continue
+        if isinstance(parsed, list):
+            out[name] = parsed
+            repaired.append(name)
+    return out, repaired
 
 
 def _validate(model_cls, payload: dict):
@@ -693,21 +760,103 @@ def _cut_off_text(name: str, submit: str) -> str:
             "Leave out nothing you found; shorten how you say it.")
 
 
-def _outline(block, payload: dict) -> dict:
+def _outline(block, payload: dict, amendable: bool = False) -> dict:
     """A sent-back submission as it is kept in the history: its id and name,
-    so the tool result still answers it, and what the send-back refers to --
-    each deviation's gap id and step, and how long each list was -- in place
-    of the full text the model will write again anyway."""
-    outline: dict[str, Any] = {"_omitted": "Full submission removed from the history after it "
-                                           "was sent back; submit it again in full."}
+    so the tool result still answers it, and what a correction refers to --
+    each deviation's gap id, step, dimension and SAP rating, the dimension
+    ratings, and how long each list was -- in place of the full text."""
+    outline: dict[str, Any] = {"_omitted": (
+        "Full submission removed from the history after it was sent back. The harness kept "
+        "it: send corrections with amend_analysis." if amendable else
+        "Full submission removed from the history; it was not complete, so submit it again "
+        "in full.")}
     for key, value in payload.items():
         if isinstance(value, list):
             outline[key] = f"{len(value)} item(s)"
+    if isinstance(payload.get("dimension_ratings"), list):
+        outline["dimension_ratings"] = [
+            {k: r.get(k) for k in ("dimension", "gt_rating", "sap_bp_rating")}
+            for r in payload["dimension_ratings"] if isinstance(r, dict)]
     if isinstance(payload.get("deviations"), list):
         outline["deviations"] = [
-            {k: str(d.get(k, ""))[:160] for k in ("gap_id", "as_is_step_id", "exact_difference")}
+            {"gap_id": d.get("gap_id"), "as_is_step_id": d.get("as_is_step_id"),
+             "dimension": d.get("dimension"), "sap_bp_fit_rating": d.get("sap_bp_fit_rating"),
+             "evidence": f"{len(d.get('evidence') or [])} quote(s)",
+             "exact_difference": str(d.get("exact_difference", ""))[:160]}
             for d in payload["deviations"] if isinstance(d, dict)]
     return {"type": "tool_use", "id": block.id, "name": block.name, "input": outline}
+
+
+# How an amend call changes a kept submission: these fields are replaced,
+# these lists are added to, and deviations are matched by gap_id.
+_REPLACED = ("headline", "template_process", "sap_bp_note", "dimension_ratings", "fit_areas")
+_APPENDED = ("localization", "backlog", "open_questions")
+
+
+def _merge(held: dict, patch: dict) -> dict:
+    """The kept submission with an amend call's corrections applied. A
+    deviation named by gap_id takes the patch's fields, except evidence,
+    which is added to its quotes -- the agent sees only an outline of what it
+    sent, so it cannot resend the full list. A gap_id not in the register is
+    added as a new deviation; validation decides whether it is complete."""
+    out = copy.deepcopy(held)
+    patch = copy.deepcopy(patch)
+    for key in _REPLACED:
+        if key in patch:
+            out[key] = patch[key]
+    for key in _APPENDED:
+        if key in patch:
+            add = patch[key] if isinstance(patch[key], list) else [patch[key]]
+            out[key] = list(out.get(key) or []) + add
+    remove = set(patch.get("remove_deviations") or [])
+    register = [d for d in out.get("deviations") or []
+                if not (isinstance(d, dict) and d.get("gap_id") in remove)]
+    by_id = {d.get("gap_id"): d for d in register if isinstance(d, dict)}
+    for change in patch.get("deviations") or []:
+        if not isinstance(change, dict):
+            continue
+        current = by_id.get(change.get("gap_id"))
+        if current is None:
+            register.append(change)
+            by_id[change.get("gap_id")] = change
+            continue
+        for key, value in change.items():
+            if key == "evidence":
+                add = value if isinstance(value, list) else [value]
+                current["evidence"] = list(current.get("evidence") or []) + add
+            else:
+                current[key] = value
+    out["deviations"] = register
+    return out
+
+
+def _shorten_quotes(payload: dict) -> tuple[dict, int]:
+    """Quotes over QUOTE_MAX cut back to a word boundary within it. The start
+    of a verbatim quote is itself verbatim, so it still passes the quote check;
+    sending it back instead cost a full rewrite of the register."""
+    count = 0
+
+    def cut(quote: str) -> str:
+        head = quote[:QUOTE_MAX]
+        space = head.rfind(" ")
+        return (head[:space] if space > QUOTE_MAX // 2 else head).rstrip()
+
+    def walk(value):
+        nonlocal count
+        if isinstance(value, dict):
+            out = {}
+            for key, item in value.items():
+                if key == "quote" and isinstance(item, str) and len(item) > QUOTE_MAX:
+                    out[key] = cut(item)
+                    count += 1
+                else:
+                    out[key] = walk(item)
+            return out
+        if isinstance(value, list):
+            return [walk(item) for item in value]
+        return value
+
+    return walk(payload), count
 
 
 def _unplaced_deviations(model, step_ids: list[str] | None) -> list[str]:
@@ -790,7 +939,8 @@ def compare(req: RunRequest, scope, asis: AsIsModel, sess: tools.Session,
     return _run(system_compare(subject), user, "compare", sess, "submit_analysis",
                 Analysis, on_tool, on_note, step_ids=[s.step_id for s in asis.steps],
                 need_advisory=subject.localization,
-                min_sap_searches=min_sap_searches(subject, asis, sess))
+                min_sap_searches=min_sap_searches(subject, asis, sess),
+                amend="amend_analysis")
 
 
 def _prefetched(scope, sess: tools.Session, on_tool: Callable | None) -> str:

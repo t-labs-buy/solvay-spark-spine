@@ -1369,6 +1369,130 @@ def test_a_schema_error_and_a_content_check_are_sent_back_together():
     assert "_omitted" in seen[1][-2]["content"][0]["input"]
 
 
+def test_an_amend_changes_only_what_it_names():
+    """A send-back cost a full rewrite of the register for fixes as small as
+    one headline. amend_analysis carries only the fix: fields it names replace
+    the kept ones, a deviation's new evidence is added to its quotes, and the
+    lists it adds to keep what was there."""
+    from backend.agents.rollout import agent
+
+    held = analysis(deviations=[dev(gap_id="G1", as_is_step_id="", evidence=[ev("country does X")]),
+                                dev(gap_id="G2", as_is_step_id="5.2"),
+                                dev(gap_id="G3", as_is_step_id="5.3")],
+                    open_questions=["Who signs?"]).model_dump()
+    before = repr(held)
+    extra = ev("SAP standard does Z", side="sap_bp", chunk="SAP:7").model_dump()
+    new = dev(gap_id="G9", as_is_step_id="5.9").model_dump()
+    out = agent._merge(held, {
+        "headline": "Shorter.",
+        "deviations": [{"gap_id": "G1", "as_is_step_id": "5.1", "evidence": [extra]}, new],
+        "remove_deviations": ["G3"],
+        "open_questions": ["Who issues the e-way bill?"],
+    })
+    assert repr(held) == before, "the kept submission must not change"
+    assert out["headline"] == "Shorter."
+    assert [d["gap_id"] for d in out["deviations"]] == ["G1", "G2", "G9"]
+    g1 = out["deviations"][0]
+    assert g1["as_is_step_id"] == "5.1"
+    assert [e["quote"] for e in g1["evidence"]] == ["country does X", "SAP standard does Z"]
+    assert out["deviations"][1] == held["deviations"][1], "an unnamed deviation is untouched"
+    assert out["open_questions"] == ["Who signs?", "Who issues the e-way bill?"]
+    assert out["fit_areas"] == held["fit_areas"] and out["dimension_ratings"] == held["dimension_ratings"]
+    assert Analysis(**out).deviations[2].gap_id == "G9"
+
+
+def test_an_over_long_quote_is_cut_to_a_verbatim_prefix():
+    """The start of a verbatim quote is verbatim, so a quote over the limit is
+    cut at a word boundary rather than sent back for a full rewrite."""
+    from backend.agents.fitgap.verifier import quote_in_chunk
+    from backend.agents.rollout import agent
+
+    chunk = " ".join(f"word{i}" for i in range(200))
+    long_quote = chunk[:agent.QUOTE_MAX + 60]
+    payload = analysis(deviations=[dev(gap_id="G1", evidence=[ev("short one")])]).model_dump()
+    payload["deviations"][0]["evidence"].append({**payload["deviations"][0]["evidence"][0],
+                                                 "quote": long_quote})
+    out, n = agent._shorten_quotes(payload)
+    quotes = [e["quote"] for e in out["deviations"][0]["evidence"]]
+    assert n == 1 and quotes[0] == "short one"
+    assert len(quotes[1]) <= agent.QUOTE_MAX and long_quote.startswith(quotes[1])
+    assert not quotes[1].endswith(" ") and long_quote[len(quotes[1])] == " ", "cut at a word boundary"
+    assert quote_in_chunk(quotes[1], chunk)
+    assert agent._validate(Analysis, out)[1] is None
+
+
+def test_a_sent_back_analysis_is_corrected_with_an_amend():
+    """End to end: a headline over its limit is sent back; the agent amends
+    the headline alone, and the analysis it had already written is kept --
+    including a quote the harness shortened rather than sent back."""
+    import types
+
+    from backend.agents.rollout import agent
+
+    def block(**kw):
+        return types.SimpleNamespace(**kw)
+
+    sess = session_with("country does X")
+    good = analysis(deviations=[dev(gap_id="G1", as_is_step_id="5.1",
+                                    evidence=[ev("country does X")])]).model_dump()
+    first = {**good, "headline": "x" * (agent.HEADLINE_MAX + 1)}
+    first["deviations"][0]["evidence"][0]["quote"] = "country does X " + "y " * 300
+    turns = [
+        ([block(type="tool_use", id="a0", name="amend_analysis", input={"headline": "early"})],
+         "tool_use"),
+        ([block(type="tool_use", id="t1", name="submit_analysis", input=first)], "tool_use"),
+        ([block(type="tool_use", id="t2", name="amend_analysis", input={"headline": "Fixed."})],
+         "tool_use"),
+    ]
+    seen, notes = [], []
+    real = agent._client
+    agent._client = lambda: _scripted_client(turns, seen)
+    try:
+        out, _ = agent._run("sys", "ctx", "compare", sess, "submit_analysis", Analysis, None,
+                            lambda kind, data: notes.append(data), step_ids=["5.1"],
+                            amend="amend_analysis")
+    finally:
+        agent._client = real
+    assert "Nothing to amend" in seen[1][-1]["content"][0]["content"]
+    sent = [n for n in notes if n.get("kind") == "rejected"]
+    assert len(sent) == 1 and "headline" in sent[0]["text"] and "amend_analysis" in sent[0]["text"]
+    assert [n for n in notes if n.get("kind") == "repaired" and "quote" in n["title"]]
+    assert "amend_analysis" in seen[2][-2]["content"][0]["input"]["_omitted"]
+    assert out is not None and out.headline == "Fixed." and out.deviations[0].gap_id == "G1"
+    assert len(out.deviations[0].evidence[0].quote) <= agent.QUOTE_MAX
+    assert notes[-1]["kind"] == "submitted" and notes[-1]["detail"]["amended"] is True
+
+
+def test_a_list_sent_as_text_is_read_as_a_list():
+    """A Sonnet run sent fit_areas as '<parameter name="fit_areas">[...]' --
+    its tool-call markup leaked into the value around a valid list -- and the
+    register was sent back and rewritten for it. Such a value is now parsed;
+    anything that is not a list stays as sent, for validation to reject."""
+    import json
+
+    from backend.agents.rollout import agent
+
+    fit = [{"statement": "Returns order with reference", "as_is_step_id": "5.1"}]
+    base = analysis(deviations=[dev(gap_id="G1", as_is_step_id="5.1")]).model_dump()
+
+    leaked = {**base, "fit_areas": '\n<parameter name="fit_areas">' + json.dumps(fit, indent=1)}
+    fixed, repaired = agent._repair_lists(Analysis, leaked)
+    assert repaired == ["fit_areas"] and fixed["fit_areas"] == fit
+    assert agent._validate(Analysis, fixed)[1] is None
+
+    closed = {**base, "fit_areas": json.dumps(fit) + "</parameter>"}
+    assert agent._repair_lists(Analysis, closed)[1] == ["fit_areas"]
+
+    # Not a list, or not JSON: left alone, and still rejected.
+    for bad in ('{"statement": "one"}', "<parameter name=\"fit_areas\">not json", "six fit areas"):
+        out, repaired = agent._repair_lists(Analysis, {**base, "fit_areas": bad})
+        assert repaired == [] and out["fit_areas"] == bad
+        assert agent._validate(Analysis, out)[1] is not None
+    # A text field is never touched, whatever it holds.
+    out, repaired = agent._repair_lists(Analysis, {**base, "headline": "[1, 2]"})
+    assert repaired == [] and out["headline"] == "[1, 2]"
+
+
 def test_the_pass_is_told_its_sap_search_count_while_it_reads():
     """The count was checked only against a finished register. It is now said
     after each turn of reading, until the minimum is met."""

@@ -11,10 +11,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Where the agent logs come from — Client Q&amp;A</title>
+    <title>Agent logs and retrieval — Client Q&amp;A</title>
     <!-- One sentence: shown under the link when the page is shared in chat or
          email, and in search results. -->
-    <meta name="description" content="How the Evidence Agent, the Fit-Gap Copilot and the RAG assistant capture traces and logs, and what the application and Langfuse each record." />
+    <meta name="description" content="How the Evidence Agent, the Fit-Gap Copilot and the RAG assistant capture traces and logs, what the application and Langfuse each record, and how the Fit-Gap Copilot finds information." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -1658,10 +1658,11 @@
     </button>
     <main>
       <p class="eyebrow">Client Q&amp;A</p>
-      <h1>Where the agent logs come from</h1>
+      <h1>Agent logs and retrieval</h1>
       <p class="lede">
         How the Evidence Agent, the Fit-Gap Copilot and the RAG assistant record
-        what they do, and where the logs on screen come from.
+        what they do, where the logs on screen come from, and how the Fit-Gap
+        Copilot finds the information it compares.
       </p>
       <div class="meta-strip">
         <span><strong>Audience</strong> — client and delivery team</span>
@@ -1824,8 +1825,83 @@
             </div>
           </section>
 
+          <section class="phase" id="finding-information" data-nav-label="How the Copilot finds information">
+            <span class="phase-tag">Part 4 · Fit-Gap Copilot</span>
+            <h2>How the Fit-Gap Copilot finds information</h2>
+            <p>
+              Think of the agent as a researcher in a library, comparing how
+              India handles customer returns with the company's standard way
+              (the Global Template) and with SAP's recommended way.
+            </p>
+
+            <div class="qa">
+              <p class="q">How does the Fit-Gap Copilot use search and the knowledge graph to find information?</p>
+              <p>It has two ways to look things up:</p>
+              <ul>
+                <li>
+                  <strong>A smart search engine (RAG).</strong> The agent types
+                  a question and gets back the most relevant passages from the
+                  documents. It searches two ways at once: by meaning
+                  ("refund" also finds "credit memo") and by exact words
+                  ("4.10.2" finds that exact code). It then merges both result
+                  lists into one ranking.
+                </li>
+                <li>
+                  <strong>A map of connections (the knowledge graph).</strong>
+                  Instead of text, this is a map of what is linked to what:
+                  this document mentions SAP S/4HANA, this ticket belongs to
+                  that process. It helps the agent decide where to look, but it
+                  holds no text the agent can quote.
+                </li>
+              </ul>
+            </div>
+
+            <div class="qa">
+              <p class="q">Does the agent always use vector search before the graph?</p>
+              <p>
+                No. The agent decides, step by step, which one to use; nothing
+                forces a fixed order. Its instructions say to check the map
+                first, to spot familiar names, and then search for the text,
+                and that map check now always happens automatically at the start
+                of the comparison. Every claim in the final report must quote,
+                word for word, a passage the search engine returned: the map
+                only points the way, and the search engine supplies the proof.
+              </p>
+            </div>
+
+            <div class="qa">
+              <p class="q">Which one did the work in the India returns run?</p>
+              <p>
+                The search engine did nearly all of it. The map found only two
+                very general links (SAP S/4HANA and the eCommerce system), and
+                no documents on the map are connected to the returns process.
+                The map becomes more useful when documents mention specific
+                ticket numbers, codes or system names that other documents also
+                mention.
+              </p>
+            </div>
+
+            <div class="qa">
+              <p class="q">Can I ask the map questions in plain English?</p>
+              <p>
+                Yes, on the Spine page. Ask something like "which documents
+                mention both SOVOS and CPI?" and AI turns the question into a
+                database query and shows you the answer. That feature is for
+                people using the app; the Fit-Gap agent does not use it.
+              </p>
+            </div>
+
+            <div class="win">
+              <span class="label">In one line</span>
+              <p>
+                The map of connections suggests where to look; the search
+                engine finds the passages that every finding must quote.
+              </p>
+            </div>
+          </section>
+
           <footer>
-            <p>Based on the code as of 30 September 2026. Application records: <code>backend/agents/*/store.py</code> and <code>backend/rag/ask_store.py</code>; Langfuse tracing: <code>backend/core/tracing.py</code>.</p>
+            <p>Based on the code as of 30 September 2026. Application records: <code>backend/agents/*/store.py</code> and <code>backend/rag/ask_store.py</code>; Langfuse tracing: <code>backend/core/tracing.py</code>. Fit-Gap Copilot retrieval: <code>backend/agents/rollout/tools.py</code>, <code>backend/rag/rag.py</code> and <code>backend/graph/knowledge_graph.py</code>; plain-English graph questions: <code>backend/graph/kg_nl2cypher.py</code>. Part 4 added 2 October 2026.</p>
             <p>Related: <a href="presentation-qa-prep.html">Presentation Q&amp;A prep</a>.</p>
           </footer>
         </div>

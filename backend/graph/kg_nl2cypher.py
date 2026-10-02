@@ -59,6 +59,7 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 QUESTIONS: list[dict[str, Any]] = [
     {"group": "Systems and integrations", "questions": [
         "Which systems are mentioned most often, and in how many documents?",
+        "Which documents mention both SOVOS and CPI?",
         "Which documents mention both SOVOS and SAP CPI, and in which passages?",
         "Which third-party systems appear in the DR documents?",
         "Which documents mention Salesforce but not SAP S/4HANA?",

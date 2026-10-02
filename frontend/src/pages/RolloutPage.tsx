@@ -39,6 +39,7 @@ import { MONO, RADIUS, usePremium } from "../components/rollout/premium";
 import ProcessAlignmentView from "../components/rollout/ProcessAlignmentView";
 import ScoreCards from "../components/rollout/ScoreCards";
 import SummaryView, { Section } from "../components/rollout/SummaryView";
+import { duration, elapsed, runTiming } from "../components/rollout/timing";
 
 /** A log for a run recorded before the reasoning was kept: its tool calls,
  *  in order, under a note that says that is all there is. */
@@ -854,6 +855,11 @@ interface Props {
   showTechDetails?: boolean;
 }
 
+/** The tabs drawn inside the shared outlined panel. A tab rendered there and
+ *  missing from this list draws nothing: the Evaluation tab was added inside
+ *  the panel and left out of the list, and showed blank for every run. */
+const PANEL_TABS = ["localization", "dimensions", "backlog", "asis", "gates", "sources", "evaluation"];
+
 export default function RolloutPage({ active, showTechDetails = true }: Props) {
   const theme = useTheme();
   const semantic = useSemantic();
@@ -1168,6 +1174,8 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
         r.harmonization_potential !== null ? `harm ${r.harmonization_potential}%` : "",
         r.deviations ? plural(r.deviations, "deviation") : "",
         r.must_discuss ? `${r.must_discuss} must discuss` : "",
+        r.status === "done" && elapsed(r.started_at, r.finished_at) !== null
+          ? `took ${duration(elapsed(r.started_at, r.finished_at)!)}` : "",
       ].filter(Boolean).join(" · "),
     })),
     [history],
@@ -1302,6 +1310,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
   const ready = !!plan?.ready && !scopeUnknown && !!status?.anthropic_key;
 
   const workspace = !!(analysis && scores) && !composing;
+  const timing = useMemo(() => runTiming(log), [log]);
   const templateName = scope ? `${scope.code} ${scope.name}`
     : (analysis?.template_process ?? "").split(" (")[0] || "Global Template";
   const decided = new Set(decisions.map((d) => d.gap_id)).size;
@@ -1345,7 +1354,9 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
             badge={decided ? `${decided} of ${analysis.deviations.length} decided` : "Proposed · awaiting workshop"}
             meta={`${subject.label} compared with the Global Template${
               scope ? "" : analysis.template_process ? " · template process identified by the agent" : ""}${
-              question ? ` · “${question.length > 90 ? question.slice(0, 90) + "…" : question}”` : ""}`}
+              question ? ` · “${question.length > 90 ? question.slice(0, 90) + "…" : question}”` : ""}${
+              timing ? ` · Completed in ${duration(timing.total)} (${
+                timing.passes.map((p) => `${p.label} ${duration(p.seconds)}`).join(", ")})` : ""}`}
             actions={
               <>
                 {historyButton}
@@ -1559,7 +1570,7 @@ export default function RolloutPage({ active, showTechDetails = true }: Props) {
                              analysis={analysis} scores={scores} subject={subject} country={country}
                              decisions={decisionsByGap} reviewer={reviewer} onReviewer={setReviewer}
                              drafts={drafts} onDraft={draft} onSubmit={runId ? submitWorkshop : undefined} runId={runId} />
-            {["localization", "dimensions", "backlog", "asis", "gates", "sources"].includes(tab) && (
+            {PANEL_TABS.includes(tab) && (
               <Paper variant="outlined" sx={{ borderRadius: RADIUS }}>
             <Box sx={{ p: 2 }}>
               {/* ------------------------------------------------ workshop scope */}

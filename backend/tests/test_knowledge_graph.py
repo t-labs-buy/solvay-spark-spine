@@ -12,7 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import re  # noqa: E402
+
 from backend.graph import knowledge_graph as kg  # noqa: E402
+from backend.ingestion import bpml_markdown  # noqa: E402
 
 G = kg.extract_graph()
 NODES = {n["id"]: n for n in G["nodes"]}
@@ -59,6 +62,69 @@ def test_the_ancestry_walks_up_to_the_value_chain():
         node = up[0]
         chain.append(NODES[node]["code"])
     assert chain == ["4.5.2.4", "4.5.2", "4.5", "4.0"]
+
+
+def test_a_step_hangs_off_the_lettered_process_it_belongs_to():
+    # These sections are lettered processes filed under a numbered process
+    # ("T-050-050 ..." under 8.0, "DC-050-090 ..." under 9.2.3). Their steps
+    # used to be parented to that numbered process -- siblings of their own
+    # parent -- 337 of them, 285 under 8.0 alone.
+    for step, parent in (("T-050-050-020", "T-050-050"), ("EW-230-030-030", "EW-230-030"),
+                         ("DC-050-090-010", "DC-050-090"), ("T-070-070-050", "T-070-070")):
+        assert has_edge(f"proc:{step}", f"proc:{parent}", "subprocess_of"), step
+
+
+def test_a_section_does_not_adopt_another_process_s_step():
+    # Only a step whose code extends the section's own code moves under it.
+    text = (
+        "### T-050-050 Event is updated in Freight Booking document\n\n"
+        "- **Path:** 8.0 Inventory to Deliver > TEMP Folder\n\n"
+        "**Activities:**\n\n"
+        "- T-050-050-020 Post Event in Freigth Booking Document (task)\n\n"
+        "- T-040-010-010 Another process's step (task)\n"
+    )
+    h = bpml_markdown.hierarchy(text)
+    assert h["parent"].get("T-050-050-020") == "T-050-050"
+    assert h["parent"].get("T-040-010-010") != "T-050-050"
+
+
+def test_an_ocr_misread_code_is_repaired_or_dropped():
+    # "O0-160-070" and "Q-130-160-040" are OCR of "O-160-070" and a code that
+    # does not exist; neither is a process of its own.
+    assert "proc:O0-160-070" not in NODES and "proc:Q-130-160-040" not in NODES
+    assert not [n for n in NODES.values() if n["type"] == "process"
+                and n["code"][0].isalpha() and re.search(r"\d|^Q$", n["code"].split("-")[0])]
+    assert kg.process_codes('n2["O0-160-070: Release"]', {"O-160-070"}) == [("O-160-070", 4)]
+    assert kg.process_codes("Q-130-160-040 Validate", {"O-160-070"}) == []
+    commissions = "doc:L2C-WS017 - 11.06.2025 - Commissions & Rebates_pptx.md"
+    assert has_edge(commissions, "proc:O-160-070", "specifies_process")
+
+
+def test_a_ticket_id_in_a_purchase_order_field_is_not_a_ticket():
+    # "Purch. Order No. | ITC - SPARK-60938" is a test value in a VA02 screenshot.
+    assert "spec:SPARK-60938" not in NODES
+    assert kg.ticket_numbers("Purch. Order No. | ITC - SPARK-60938") == []
+    assert kg.ticket_numbers("GAP/ WRICEF ID | SPARK-21199") == [("21199", 17)]
+
+
+def test_a_process_name_carries_no_markup():
+    # Names read off flow diagrams kept Mermaid, box-drawing and label syntax.
+    junk = re.compile(r'"\]|<br|-->|[─━┐┘│└┌↗]|^[\]\)—–/|]|\s-\s?FIT$|\((?:task|ev\w+)\)$')
+    bad = [(n["code"], n["description"]) for n in NODES.values()
+           if n["type"] == "process" and junk.search(n.get("description", ""))]
+    assert not bad, bad[:5]
+    for code, name in (("P-120-050-030", "Display List of service entry sheets"),
+                       ("D-160-010-010", "Customer/Distributor Rebate Type"),
+                       ("O-140-045", "Manage Bank Draft")):
+        assert NODES[f"proc:{code}"]["description"] == name, NODES[f"proc:{code}"]["description"]
+
+
+def test_a_name_is_not_the_next_step_s_code():
+    # "P-120-040-010 ──> P-120-060" on a diagram line made "P-120-060" its name;
+    # the table row further down names it properly.
+    assert NODES["proc:P-120-040-010"]["description"] == "Inspect material for damage (Prior to receipt)"
+    assert kg.name_after("P-120-040-010 ──> P-120-060", 13) == ""
+    assert kg.name_after("DM-270-030-[illegible]", 10) == ""
 
 
 def test_a_code_missing_from_the_hierarchy_gets_no_invented_parent():
@@ -198,7 +264,9 @@ def test_the_register_document_is_no_longer_the_largest_node():
 
 # --- the system list the design brief names ----------------------------------
 
-BRIEF_SYSTEMS = {"S4HANA", "ECC", "WP1", "PF1", "M3", "Salesforce", "ESKER", "Elemica",
+# The brief also named "M3"; the corpus does not bear it out (see
+# test_m3_is_an_order_type_not_a_system).
+BRIEF_SYSTEMS = {"S4HANA", "ECC", "WP1", "PF1", "Salesforce", "ESKER", "Elemica",
                  "SOVOS", "Coface", "CPI", "eCommerce", "OMP", "SAPTM", "EWM", "GTS", "MDG"}
 
 
@@ -211,10 +279,19 @@ def test_every_system_pattern_has_a_label_and_a_kind():
     assert set(kg.SYSTEMS) == set(kg.SYSTEM_RE) == set(kg.SYSTEM_KIND)
 
 
-def test_a_cubic_metre_is_not_the_m3_erp():
-    # "m3" is a unit before it is an ERP, so that pattern stays case-sensitive.
-    assert not kg.SYSTEM_RE["M3"].search("volume 12 m3 per batch")
-    assert kg.SYSTEM_RE["M3"].search("removal of M3 orders management")
+def test_m3_is_an_order_type_not_a_system():
+    # The corpus never names Infor or Movex. "M3" is a sales order type ("M3
+    # order types are not in scope for S4 Hana", "M3 Order (for PF1)") or a
+    # cubic metre, so the "Infor M3 ERP" node linked 15 documents to nothing.
+    assert "M3" not in kg.SYSTEMS
+    assert "system:M3" not in NODES
+
+
+def test_cpi_data_services_is_not_cpi():
+    # The spec template's unticked "BTP  CPI-DS" box linked a pure BAdI
+    # enhancement to the CPI middleware.
+    assert not kg.SYSTEM_RE["CPI"].search("S/4HANA\t BTP \t CPI-DS\t  Legacy/Non-SAP System")
+    assert kg.SYSTEM_RE["CPI"].search("Coface will make a Std API call to CPI")
 
 
 def test_the_short_system_acronyms_stay_word_bounded():

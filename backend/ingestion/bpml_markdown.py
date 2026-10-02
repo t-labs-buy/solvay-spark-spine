@@ -380,6 +380,7 @@ def hierarchy(text: str) -> dict:
                 # Named in a path only: a name, and the weakest one.
                 found[m.group(1)].append((9, order, None, m.group(2).strip()))
         own = CODE_LINE.match(section["heading"])
+        lettered = None  # the lettered process this section describes, if any
         if own:
             host = own.group(1)
             found[host].append((0, order, numbered[-1] if numbered else None, own.group(2).strip()))
@@ -387,7 +388,8 @@ def hierarchy(text: str) -> dict:
             host = numbered[-1] if numbered else None
             obj = BPMN_CODE.match(section["heading"])
             if obj:
-                found[obj.group(1)].append((1, order, host, _KIND.sub("", obj.group(2)).strip()))
+                lettered = obj.group(1)
+                found[lettered].append((1, order, host, _KIND.sub("", obj.group(2)).strip()))
         for activity in section["activities"]:
             order += 1
             m = BPMN_CODE.match(activity)
@@ -395,7 +397,14 @@ def hierarchy(text: str) -> dict:
                 continue
             kind = _KIND.search(m.group(2))
             performed = kind is not None and kind.group(1) in ("task", "subProcess")
-            found[m.group(1)].append((0 if performed else 2, order, host, _KIND.sub("", m.group(2)).strip()))
+            # A step of the lettered process this section describes belongs to
+            # that process, not to the numbered ancestor the section sits under:
+            # "T-050-050-020" in the "T-050-050 ..." section filed under "8.0"
+            # was hung off 8.0, a sibling of its own parent. Only a step whose
+            # code extends the section's code is placed there; another process's
+            # step that the section merely uses keeps the numbered host.
+            step_host = lettered if lettered and m.group(1).startswith(lettered + "-") else host
+            found[m.group(1)].append((0 if performed else 2, order, step_host, _KIND.sub("", m.group(2)).strip()))
 
     parent: dict[str, str] = {}
     name: dict[str, str] = {}

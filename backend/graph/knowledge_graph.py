@@ -219,11 +219,14 @@ def _index_chunks() -> tuple[dict[str, list[dict[str, Any]]], str]:
     return dict(out), ""
 
 
-def _chunk_mentions(chunks: list[dict[str, Any]], register_keys: set[str]
+def _chunk_mentions(chunks: list[dict[str, Any]], register_keys: set[str],
+                    known_codes: frozenset[str] | set[str] = frozenset()
                     ) -> tuple[dict[str, list[str]], dict[str, dict[str, list[int]]]]:
     """Which chunks name which entity, by the patterns the document-level
     extraction uses. Returns entity -> chunk keys in document order, and
-    chunk key -> entity -> match positions (whose length is the count)."""
+    chunk key -> entity -> match positions (whose length is the count).
+    `known_codes` lets an OCR-misread process code count for the code it
+    stands for (see canonical_code)."""
     by_entity: dict[str, list[str]] = defaultdict(list)
     by_chunk: dict[str, dict[str, list[int]]] = {}
     for ch in chunks:
@@ -234,11 +237,11 @@ def _chunk_mentions(chunks: list[dict[str, Any]], register_keys: set[str]
             found[f"stream:{sid}"] += [m.start() for m in pattern.finditer(opened)]
         for key, pattern in SYSTEM_RE.items():
             found[f"system:{key}"] += [m.start() for m in pattern.finditer(opened)]
-        for m in CODE_RE.finditer(text):
-            found[f"proc:{m.group(1)}-{m.group(2)}"].append(m.start())
-        for m in TICKET_RE.finditer(opened):
-            if f"SPARK-{m.group(1)}" not in register_keys:
-                found[f"spec:SPARK-{m.group(1)}"].append(m.start())
+        for code, pos in process_codes(text, known_codes):
+            found[f"proc:{code}"].append(pos)
+        for number, pos in ticket_numbers(opened):
+            if f"SPARK-{number}" not in register_keys:
+                found[f"spec:SPARK-{number}"].append(pos)
         found = {k: v for k, v in found.items() if v}
         by_chunk[ch["key"]] = found
         for entity in found:
@@ -370,10 +373,6 @@ SYSTEMS = {
         "label": "PF1 (Legacy ERP)",
         "desc": "Legacy SAP instance carrying order and delivery flows ahead of migration.",
     },
-    "M3": {
-        "label": "M3 (Legacy ERP)",
-        "desc": "Infor M3 ERP used by parts of the business, with order management being retired.",
-    },
     "ESKER": {
         "label": "Esker",
         "desc": "Document delivery and order-intake automation partner.",
@@ -417,6 +416,65 @@ SYSTEMS = {
 CODE_RE = re.compile(r"(?<![A-Za-z0-9-])([A-Za-z][A-Za-z0-9]{0,3})-(\d{2,3}(?:-\d{2,3})+)\b")
 TICKET_RE = re.compile(r"\bSPARK[-_ ]?(\d{4,6})\b", re.I)
 
+# OCR of process diagrams misreads a code's prefix: "O0-160-070" (a stray
+# digit), "Q-130-160-040" (Q for O). No real prefix carries a digit or is a
+# bare Q, so such a code is read as the O code it was meant to be -- and kept
+# only when that code is a known process, since a guess is not an entity.
+_OCR_PREFIX = re.compile(r"\d|^Q$")
+
+
+def canonical_code(prefix: str, number: str, known: set[str]) -> str | None:
+    """The process code a CODE_RE match stands for, or None for OCR noise."""
+    if not _OCR_PREFIX.search(prefix):
+        return f"{prefix}-{number}"
+    fixed = f"{re.sub(r'[0-9]', '', prefix.replace('Q', 'O'))}-{number}"
+    return fixed if fixed in known else None
+
+
+def process_codes(text: str, known: set[str]) -> list[tuple[str, int]]:
+    """Every process code in `text` with its position, OCR misreads repaired."""
+    out = []
+    for m in CODE_RE.finditer(text):
+        code = canonical_code(m.group(1), m.group(2), known)
+        if code:
+            out.append((code, m.start()))
+    return out
+
+
+# A ticket id typed into a purchase-order field is a test value, not a
+# reference to the ticket: "Purch. Order No. | ITC - SPARK-60938" in a VA02
+# screenshot made a spec node of it.
+_PO_FIELD = re.compile(r"\b(?:purch(?:ase)?\.?\s*order|PO)\s*(?:no\b\.?|number\b|#)", re.I)
+
+
+def ticket_numbers(text: str) -> list[tuple[str, int]]:
+    """Every SPARK ticket number in `text` with its position, skipping ids
+    that fill a purchase-order field."""
+    return [(m.group(1), m.start()) for m in TICKET_RE.finditer(text)
+            if not _PO_FIELD.search(text[max(0, m.start() - 40):m.start()])]
+
+
+# Where a code's name ends when it is read off the line the code is on. The
+# corpus draws flows as Mermaid ('n2["P-120-050-030 Display list"] --> n3'),
+# as box-drawing art and as "[D-160-010-010] Name" labels, so the name stops
+# at the first piece of markup, a table cell, or an arrow.
+_NAME_LEAD = re.compile(r"^(?:\s|<br\s*/?>|[\]\)\"'|#*:\-–—/↗])+")
+_NAME_END = re.compile(r"\"\]|\"|<br|\||-->|->|[─━┐┘│└┌┬┴├┤↗→\[\]]")
+_NAME_STATUS = re.compile(r"\s*-\s*(?:FIT|GAP)\s*$")
+
+
+def name_after(line: str, end: int) -> str:
+    """The process name that follows a code ending at `end` on `line`, or ""
+    when what follows is not a usable name (empty, illegible, or another code)."""
+    tail = _NAME_END.split(_NAME_LEAD.sub("", line[end:]), 1)[0]
+    tail = re.sub(r"^\d{1,2}['’]\s+", "", tail)       # OCR step numbers: "7' Process ..."
+    tail = bpml_markdown._KIND.sub("", tail)            # BPMN kinds: "(evEnd)", "(task)"
+    tail = _NAME_STATUS.sub("", tail)                   # FIT register status: "... - FIT"
+    name = re.sub(r"\s+", " ", tail).strip(" -–—:;,.")
+    if not re.search(r"[A-Za-z]{2}", name) or name.lower() == "[illegible]" or CODE_RE.search(name):
+        return ""
+    return name
+
 # Word-bounded, case-insensitive system fingerprints. Bare substring tests used to
 # link documents to systems via customer names ("ADECCO", "CECCHETTO"), acronyms
 # ("ECCN" = Export Control Classification Number) and Salesforce record ids
@@ -428,12 +486,18 @@ SYSTEM_RE = {
     "SOVOS": re.compile(r"\bsovos\b", re.I),
     "Fiori": re.compile(r"\bfiori\b", re.I),
     "eCommerce": re.compile(r"\be[-\s]?commerce\b", re.I),
-    # Short acronyms stay case-sensitive: "m3" is also a cubic metre and "gts"
-    # turns up inside ordinary words once the case guard is dropped.
+    # Short acronyms stay case-sensitive: "gts" turns up inside ordinary words
+    # once the case guard is dropped.
+    #
+    # There is no "M3". It used to be an "Infor M3 ERP" node, but the corpus
+    # never names Infor or Movex: M3 is a sales order type ("M3 order types are
+    # not in scope for S4 Hana", "M3 Order (for PF1)") or a cubic metre, so
+    # every one of its edges said a document mentioned a system it did not.
     "WP1": re.compile(r"\bWP1\b"),
     "PF1": re.compile(r"\bPF1\b"),
-    "M3": re.compile(r"\bM3\b"),
-    "CPI": re.compile(r"\bCPI\b"),
+    # Not "CPI-DS": Cloud Platform Integration - Data Services is another product,
+    # and the unticked "CPI-DS" box of the spec template is where it turns up.
+    "CPI": re.compile(r"\bCPI\b(?!-DS)"),
     "OMP": re.compile(r"\bOMP\b"),
     "EWM": re.compile(r"\bEWM\b"),
     "GTS": re.compile(r"\bGTS\b"),
@@ -452,7 +516,7 @@ SYSTEM_RE = {
 SYSTEM_KIND = {
     "S4HANA": "sap", "ECC": "legacy_erp", "Salesforce": "crm", "SOVOS": "third_party",
     "Fiori": "sap_ui", "eCommerce": "portal", "WP1": "legacy_erp", "PF1": "legacy_erp",
-    "M3": "legacy_erp", "EWM": "sap", "GTS": "sap", "MDG": "sap", "SAPTM": "sap",
+    "EWM": "sap", "GTS": "sap", "MDG": "sap", "SAPTM": "sap",
     "CPI": "middleware", "ESKER": "third_party", "Elemica": "third_party",
     "Coface": "third_party", "OMP": "third_party",
 }
@@ -677,6 +741,9 @@ def extract_graph(
     # "Lowest Level Key" -- instead of becoming a spec node of its own.
     register = load_process_register()
     register_keys: set[str] = register["keys"]
+    # Every process code the BPML hierarchy or the register vouches for: what an
+    # OCR-misread code may be repaired to.
+    known_codes = set(bpml_name) | set(register["steps"])
     for step_code, step in sorted(register["steps"].items()):
         add_node(
             f"proc:{step_code}",
@@ -737,7 +804,7 @@ def extract_graph(
         # The document's chunks as retrieval indexed them, and which of them
         # mention what -- so a relationship can say where it came from.
         doc_chunks = indexed.get(str(path.resolve()), [])
-        chunk_hits, chunk_counts = _chunk_mentions(doc_chunks, register_keys)
+        chunk_hits, chunk_counts = _chunk_mentions(doc_chunks, register_keys, known_codes)
         if doc_chunks:
             passage_docs.append((doc_id, [{**ch, "mentions": {e: len(v) for e, v in
                                                                chunk_counts.get(ch["key"], {}).items()}}
@@ -777,28 +844,21 @@ def extract_graph(
         # diff in a tracked file that said nothing. Rebuilding has to be a pure
         # function of the corpus, or you cannot diff two builds to see what a
         # change to an extraction rule actually did.
-        code_counts = Counter(f"{a}-{b}" for a, b in CODE_RE.findall(content))
-        found_codes = sorted(set(CODE_RE.findall(content)))
-        for prefix, code_num in found_codes:
-            full_code = f"{prefix}-{code_num}"
+        code_counts = Counter(code for code, _ in process_codes(content, known_codes))
+        for full_code in sorted(code_counts):
             proc_id = f"proc:{full_code}"
 
             # Prefer the official name. Otherwise take the text that follows the code
             # on its own line, matched on a boundary so that "DM-270-030" does not
-            # pick up the row belonging to "DM-270-030-010".
+            # pick up the row belonging to "DM-270-030-010". The first line that
+            # yields a clean name wins: a flow-diagram line that only offers
+            # markup or the next step's code gives way to a later table row.
             match_line = ""
             boundary = re.compile(rf"{re.escape(full_code)}(?!-?\d)")
             for line in content.splitlines():
                 m = boundary.search(line)
-                if m:
-                    # Drop the separator that follows the code, then stop at the next
-                    # table cell so a neighbouring column is not pulled in as the name.
-                    tail = line[m.end():].lstrip(" \t|#*-–:")
-                    tail = re.sub(r"\s*\|.*$", "", tail)
-                    candidate = re.sub(r"\s+", " ", tail).strip()
-                    if candidate and candidate.lower() != "[illegible]":
-                        match_line = candidate
-                        break
+                if m and (match_line := name_after(line, m.end())):
+                    break
 
             add_node(
                 proc_id,
@@ -823,7 +883,8 @@ def extract_graph(
         # Extract Tickets / Functional Specifications. The filename is included
         # because some documents never repeat their own ticket in the body, e.g.
         # "SPARK-51136 - ATP and TRS check.docx".
-        found_tickets = sorted(set(TICKET_RE.findall(haystack)))
+        ticket_counts = Counter(number for number, _ in ticket_numbers(haystack))
+        found_tickets = sorted(ticket_counts)
         for t_num in found_tickets:
             ticket_id = f"SPARK-{t_num}"
             # A Lowest Level Key names a process step, not a functional spec.
@@ -851,7 +912,7 @@ def extract_graph(
                 t_node,
                 "implements_ticket" if is_primary else "references_ticket",
                 "Primary Specification" if is_primary else "References Ticket",
-                **evidence(t_node, len(re.findall(rf"\bSPARK[-_ ]?{t_num}\b", haystack, re.I)),
+                **evidence(t_node, ticket_counts[t_num],
                            "ticket_in_filename" if is_primary else "ticket_match"),
             )
 

@@ -2891,6 +2891,57 @@ docker compose up -d</pre>
                 again.
               </p>
             </div>
+
+            <h3 id="view-accounts">View the user accounts in the database</h3>
+            <p>
+              Accounts live in the <code>users</code> table of the <code>solvay</code>
+              database, inside the <code>solvay-postgres</code> container (user
+              <code>spark</code>). On the server, list them:
+            </p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose exec solvay-postgres psql -U spark -d solvay -c "SELECT id, username, role, active, created_at, last_login_at, last_seen_at FROM users ORDER BY id;"</pre>
+            <p>Each account with how many runs it owns in each tool:</p>
+            <pre class="language-bash">
+docker compose exec solvay-postgres psql -U spark -d solvay -c "
+SELECT u.id, u.username, u.role, u.active,
+  (SELECT count(*) FROM fitgap_runs   r WHERE r.user_id = u.id) AS fitgap,
+  (SELECT count(*) FROM rollout_runs  r WHERE r.user_id = u.id) AS copilot,
+  (SELECT count(*) FROM evidence_runs r WHERE r.user_id = u.id) AS evidence,
+  (SELECT count(*) FROM ask_runs      r WHERE r.user_id = u.id) AS ask
+FROM users u ORDER BY u.id;"</pre>
+            <p>
+              <code>legacy</code> appears as an inactive account. Any runs it owns are
+              from before accounts existed; to move them into a real account, see
+              <a href="#reassign-legacy">Give pre-account runs to an account</a>.
+            </p>
+            <p>The latest sign-ins and runs, newest first:</p>
+            <pre class="language-bash">
+docker compose exec solvay-postgres psql -U spark -d solvay -c "SELECT at, username, action, tool, run_id FROM activity_events ORDER BY at DESC LIMIT 30;"</pre>
+            <p>
+              To browse on your own, open a <code>psql</code> prompt. Inside it,
+              <code>\d users</code> shows the table's columns and <code>\q</code> quits.
+            </p>
+            <pre class="language-bash">
+docker compose exec solvay-postgres psql -U spark -d solvay</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Without SQL</th><th>How</th></tr></thead>
+                <tbody>
+                  <tr><td>In the app</td><td>The <strong>Admin</strong> tab lists every account with its role, status, last sign-in and usage.</td></tr>
+                  <tr><td>From the app container</td><td><code>docker compose exec app python -m backend.auth.store list</code> prints id, username, role and active or inactive.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="warn">
+              <span class="label">Passwords cannot be read, and should not be edited here</span>
+              <p>
+                The queries above leave out the <code>password_hash</code> column on
+                purpose. Passwords are stored as one-way hashes, so they cannot be read
+                back. Reset a password from the Admin tab rather than by changing the
+                table.
+              </p>
+            </div>
           </section>
 
           <!-- ═══════════════════════════════ 11. Update -->

@@ -1582,6 +1582,21 @@ export async function askEvidence(
     body: JSON.stringify(body),
     signal,
   });
+  await dispatchEvidence(res, on);
+}
+
+/** Reopen an investigation still in progress -- after a dropped connection, a
+ *  closed tab, or from another one -- replaying every event it has sent so
+ *  far before following it. False when it is no longer live, and only the
+ *  stored record is left. */
+export async function followEvidence(id: string, on: EvidenceHandlers, signal: AbortSignal): Promise<boolean> {
+  const res = await fetch(`/api/evidence/runs/${encodeURIComponent(id)}/stream`, { signal });
+  if (res.status === 404) return false;
+  await dispatchEvidence(res, on);
+  return true;
+}
+
+async function dispatchEvidence(res: Response, on: EvidenceHandlers) {
   if (!res.ok || !res.body) await json(res);
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
@@ -1715,6 +1730,10 @@ export const evidence = {
       .then((r) => json<EvidenceRunSummary[]>(r)),
   run: (id: string) =>
     fetch(`/api/evidence/runs/${encodeURIComponent(id)}`).then((r) => json<EvidenceRunDetail>(r)),
+  /** End a live investigation after the model turn in flight. */
+  stop: (id: string) =>
+    fetch(`/api/evidence/runs/${encodeURIComponent(id)}/stop`, { method: "POST" })
+      .then((r) => json<{ stopping: boolean }>(r)),
   /** Every claim traced to its passages, graph facts, the calls that returned
    *  them and the reasoning behind them; `lineageExportUrl` downloads it. */
   lineage: (id: string) =>

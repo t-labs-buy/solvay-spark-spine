@@ -543,6 +543,23 @@ def test_a_quiet_run_sends_keepalives_so_a_proxy_keeps_the_stream_open():
     assert got[0] == "scope" and got[-1] == "done" and live.PING in got[1:-1]
 
 
+def test_a_live_run_sees_the_signed_in_user():
+    """The user reaches the trace through a context variable. A bare thread
+    starts with an empty context, and for one commit every InsightLens and
+    Copilot trace went to Langfuse with no user on it."""
+    from backend.core import tracing
+
+    def events():
+        yield "scope", {"run_id": "fg_live000005", "user": tracing.USER.get()}
+
+    token = tracing.USER.set("analyst")
+    try:
+        got = _drain(_live_run(events()))
+    finally:
+        tracing.USER.reset(token)
+    assert got[0][1]["user"] == "analyst"
+
+
 if __name__ == "__main__":
     import traceback
 

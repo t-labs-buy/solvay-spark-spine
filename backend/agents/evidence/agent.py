@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -452,10 +453,15 @@ def worth_remembering(answer: Answer) -> str:
 _ID = re.compile(r"\b(?:SPARK-\d{4,6}|[A-Z]-\d{2,3}(?:-\d{2,3})+|\d+(?:\.\d+){2,})\b")
 
 
+class Stopped(Exception):
+    """The investigation was stopped from the page."""
+
+
 def run(question: str, holdout: bool = False,
         on_event: Callable[[str, dict], None] | None = None,
         categories: list[str] | None = None,
-        memory: bool = False) -> Iterator[tuple[str, dict]]:
+        memory: bool = False,
+        stop: threading.Event | None = None) -> Iterator[tuple[str, dict]]:
     """Answer one question. Yields ('tool_call'|'memory'|'answer'|'error', payload).
 
     `categories` restricts which document categories the run may read. It is
@@ -466,6 +472,9 @@ def run(question: str, holdout: bool = False,
     this one concludes. It is ignored under holdout: holdout hides the fit
     registers to measure the agent against a corpus it cannot look the answer up
     in, and a previous run's answer arriving through memory would hand it back.
+
+    Setting `stop` ends the investigation after the model turn in flight,
+    with an `error`.
     """
     import anthropic
 
@@ -561,6 +570,9 @@ def run(question: str, holdout: bool = False,
 
     try:
         while submitted is None:
+            # Checked between turns: a turn in flight is paid for either way.
+            if stop is not None and stop.is_set():
+                raise Stopped("stopped before it finished")
             over = (calls >= MAX_TOOL_CALLS or last_in >= MAX_INPUT_TOKENS
                     or in_tokens >= MAX_TOTAL_INPUT_TOKENS)
             if over:

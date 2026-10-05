@@ -1,6 +1,6 @@
 """Agent runs kept alive past the connection that started them.
 
-InsightLens and the Fit-Gap Copilot each used to be driven by their HTTP
+InsightLens, the Fit-Gap Copilot and the Evidence Agent each used to be driven by their HTTP
 response: the endpoint iterated the orchestrator as it streamed. Two things
 followed. Closing the tab left the generator suspended at its last yield, so
 the run never finished and there was nothing to reopen. And while the model
@@ -17,6 +17,7 @@ is the whole story.
 """
 from __future__ import annotations
 
+import contextvars
 import threading
 import time
 from typing import Any, Iterator
@@ -31,7 +32,7 @@ PING_SECONDS = 15
 PING = "__ping__"
 
 # Keyed by (engine, run id): "fitgap" for InsightLens, "rollout" for the
-# Fit-Gap Copilot.
+# Fit-Gap Copilot, "evidence" for the Evidence Agent.
 _runs: dict[tuple[str, str], "LiveRun"] = {}
 _lock = threading.Lock()
 
@@ -75,12 +76,17 @@ class LiveRun:
 
 
 def start(kind: str, events: Iterator[tuple[str, Any]], owner: int | None,
-          stop: threading.Event) -> LiveRun:
+          stop: threading.Event, run_id: str | None = None) -> LiveRun:
     """Drain `events` on a thread of its own and register the run under its
-    id once the `scope` event names it. `stop` is the event the generator
-    behind `events` watches."""
+    id: `run_id` when the caller already has it, otherwise once the `scope`
+    event names it. `stop` is the event the generator behind `events`
+    watches."""
     _prune()
     live = LiveRun(owner, stop)
+    if run_id:
+        live.run_id = run_id
+        with _lock:
+            _runs[(kind, run_id)] = live
 
     def drain() -> None:
         try:
@@ -95,7 +101,12 @@ def start(kind: str, events: Iterator[tuple[str, Any]], owner: int | None,
         finally:
             live._finish()
 
-    threading.Thread(target=drain, daemon=True, name=f"{kind}-live").start()
+    # Run in a copy of the request's context: the signed-in user reaches the
+    # trace through a context variable (tracing.USER), and a bare thread
+    # starts with an empty context. The threadpool that used to iterate the
+    # run copied it; this must too.
+    ctx = contextvars.copy_context()
+    threading.Thread(target=ctx.run, args=(drain,), daemon=True, name=f"{kind}-live").start()
     return live
 
 

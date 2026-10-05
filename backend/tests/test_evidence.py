@@ -1254,6 +1254,20 @@ def test_the_trail_credits_graph_calls_and_the_audit_file_says_so():
     assert "call 1 `search_corpus`" in md and "3/3 seen in calls" in md
 
 
+def test_a_stopped_investigation_makes_no_model_call():
+    """Stop from the page ends the investigation before its next turn. The
+    run no longer ends with its stream, so without this a Stop would leave it
+    going -- and billing -- on the server."""
+    import threading
+
+    stop = threading.Event()
+    stop.set()
+    events = _drive("Which middleware carries the Zeta interface?", stop=stop)
+    kinds = [k for k, _ in events]
+    assert "answer" not in kinds and "tool_call" not in kinds, kinds
+    assert kinds[-1] == "error" and "Stopped" in events[-1][1]["message"]
+
+
 if __name__ == "__main__":
     import traceback
 

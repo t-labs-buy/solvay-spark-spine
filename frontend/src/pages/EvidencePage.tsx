@@ -8,10 +8,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Ban, BookOpen, Brain, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleHelp, Copy, Dices, FileText, FlaskConical, GitBranch, Globe, History as HistoryIcon, Lightbulb, Network, Quote, ScanLine, Search, SendHorizontal, Sigma, Square, Target, Terminal, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from "react";
 import {
-  api, askEvidence, evidence,
+  api, askEvidence, evidence, followEvidence,
   type EvidenceToolSources,
   type AnswerState, type EvidenceAnswer, type EvidenceSource,
-  type EvidenceLogEntry, type EvidenceMemory,
+  type EvidenceHandlers, type EvidenceLogEntry, type EvidenceMemory,
   type EvidenceRunDetail, type EvidenceRunSummary, type EvidenceStatus,
   type EvidenceToolCall, type ScoreTerm,
   type EvidenceRagHit,
@@ -37,6 +37,10 @@ import useHistoryScope from "../useHistoryScope";
 import type { RunRequest } from "../runRequest";
 
 /* ------------------------------------------------------------------- states */
+
+// How many times a dropped stream is reopened before the page gives up and
+// points at History. The investigation carries on on the server either way.
+const RECONNECTS = 5;
 
 const STATES: Record<AnswerState, { label: string; blurb: string; hue: string; icon: ReactElement }> = {
   supported: { label: "Supported", hue: "success", icon: <CircleCheck size={16} />,
@@ -614,6 +618,9 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
   const [evaluation, setEvaluation] = useState<AgentEvaluation | Record<string, never> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
+  // The investigation the live stream belongs to, from its first `run`
+  // event: what a dropped connection reopens, and what Stop stops.
+  const liveRun = useRef<string | null>(null);
 
   // Past investigations. Every run is written to evidence_runs as it happens,
   // so this survives a reload, a restart and a closed tab -- which is the
@@ -803,25 +810,64 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
     return c;
   }, [calls]);
 
-  async function run(text?: string) {
-    const q = (text ?? question).trim();
-    if (!q || running) return;
-    setRunning(true); setCalls([]); setAnswer(null); setEvaluation(null); setError(null); setTab("investigation");
-    setRunId(null); setViewing(null); setNotSaved(null); setMemory(null); setLog([]);
+  /** Empty every panel a live stream fills, before it fills them. */
+  function clearLive() {
+    setCalls([]); setAnswer(null); setEvaluation(null); setError(null);
+    setNotSaved(null); setMemory(null); setLog([]); setTab("investigation");
+  }
+
+  /** What a live stream does with its events. `ended` is set by the two
+   *  events an investigation always finishes with, so a stream that closes
+   *  without either is known to have been cut. */
+  function liveHandlers(ended: { value: boolean }): EvidenceHandlers {
+    return {
+      run: (r) => { liveRun.current = r.id; setRunId(r.id); setNotSaved(r.not_saved ?? null); },
+      memory: setMemory,
+      log: (e) => setLog((es) => [...es, e]),
+      toolCall: (c) => setCalls((cs) => [...cs, c]),
+      answer: (a) => { ended.value = true; setAnswer(a); setTab("answer"); },
+      evaluation: setEvaluation,
+      error: (m) => { ended.value = true; setError(m); },
+    };
+  }
+
+  /** Follow an investigation until it finishes. `first` opens the stream;
+   *  without it, the one in `liveRun` is reopened. A connection that drops
+   *  before it ends -- a proxy, a flaky network -- is reopened and replayed
+   *  from the top, since the investigation carries on on the server. */
+  async function follow(first: ((on: EvidenceHandlers, signal: AbortSignal) => Promise<unknown>) | null) {
+    setRunning(true);
     const ctrl = new AbortController();
     controller.current = ctrl;
+    const ended = { value: false };
+    let start = first;
     try {
-      await askEvidence({ question: q, holdout, categories: [], memory: useMemory }, {
-        run: (r) => { setRunId(r.id); setNotSaved(r.not_saved ?? null); },
-        memory: setMemory,
-        log: (e) => setLog((es) => [...es, e]),
-        toolCall: (c) => setCalls((cs) => [...cs, c]),
-        answer: (a) => { setAnswer(a); setTab("answer"); },
-        evaluation: setEvaluation,
-        error: setError,
-      }, ctrl.signal);
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (start) {
+            await start(liveHandlers(ended), ctrl.signal);
+          } else {
+            const id = liveRun.current;
+            clearLive();
+            if (!id || !(await followEvidence(id, liveHandlers(ended), ctrl.signal))) {
+              // No longer live: it finished, or the server restarted. The
+              // store has whatever it got to.
+              if (id) await open(id, false);
+              return;
+            }
+          }
+          if (ended.value || ctrl.signal.aborted) return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError" || ctrl.signal.aborted) return;
+          if (!liveRun.current) { setError((e as Error).message); return; }
+        }
+        if (attempt >= RECONNECTS) {
+          setError("Lost the connection to this investigation. It is still running on the server: reopen it from History.");
+          return;
+        }
+        start = null;
+        await new Promise((r) => setTimeout(r, 1000 * Math.min(attempt + 1, 5)));
+      }
     } finally {
       setRunning(false);
       controller.current = null;
@@ -829,6 +875,24 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
       // list should show it in the state it actually reached.
       loadHistory();
     }
+  }
+
+  async function run(text?: string) {
+    const q = (text ?? question).trim();
+    if (!q || running) return;
+    clearLive();
+    setRunId(null); setViewing(null);
+    liveRun.current = null;
+    await follow((on, signal) =>
+      askEvidence({ question: q, holdout, categories: [], memory: useMemory }, on, signal));
+  }
+
+  /** Stop on the server as well: the investigation no longer ends with the
+   *  stream. */
+  function stop() {
+    if (liveRun.current) evidence.stop(liveRun.current).catch(() => undefined);
+    controller.current?.abort();
+    setRunning(false);
   }
 
   /** The history summaries as the drawer's cards. Every badge this panel
@@ -880,8 +944,8 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
-  async function open(id: string) {
-    if (running) return;
+  async function open(id: string, attach = true) {
+    if (running && attach) return;
     setError(null);
     try {
       const run = await evidence.run(id);
@@ -902,6 +966,12 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
       if (run.status === "abandoned") {
         setError("This investigation was interrupted — the browser went away before it finished. "
                  + "What it had done by then is below.");
+      }
+      // Still going -- the stream was cut, the tab was closed, or it was
+      // started in another one. Follow it live from its first event.
+      if (attach && run.status === "running") {
+        liveRun.current = run.id;
+        await follow(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open that investigation.");
@@ -1064,7 +1134,7 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
             </Tooltip>
             {running ? (
               <Button variant="outlined" color="error" startIcon={<Square size={15} />}
-                      onClick={() => controller.current?.abort()}>Stop</Button>
+                      onClick={stop}>Stop</Button>
             ) : (
               <Button variant="contained" disabled={!question.trim() || !!blocked}
                       startIcon={<SendHorizontal size={16} />} onClick={() => run()}>Investigate</Button>
@@ -1363,8 +1433,9 @@ export default function EvidencePage({ active, showTechDetails = true, openRun: 
           deleteLabel="Delete this investigation"
           fetchDetail={evidence.run}
           renderDetail={(run) => <PastInvestigation run={run} showModel={showTechDetails} />}
-          onLoadIntoPage={open}
+          onLoadIntoPage={(id) => void open(id)}
           loadDisabled={running}
+          opensInPage={(id) => history.some((r) => r.id === id && r.status === "running")}
           filterPlaceholder="Filter by question or answer…"
           emptyText="Nothing investigated yet. Ask a question and it will appear here."
         />

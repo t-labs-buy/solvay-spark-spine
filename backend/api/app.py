@@ -2990,17 +2990,16 @@ class EvidenceQuestion(BaseModel):
 def evidence_ask(body: EvidenceQuestion, user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one investigation as server-sent events: `run` with the id it is
     being recorded under, `tool_call` as each engine is queried, then `answer`
-    or `error`. A sync generator, so Starlette iterates it in the threadpool.
+    or `error`.
 
-    The run is written to evidence_runs as it goes rather than at the end, so
-    an investigation whose stream is dropped -- the tab closed, the browser
-    gone -- still leaves behind what it had done by then."""
+    The run is written to evidence_runs as it goes rather than at the end, and
+    driven on a thread of its own (core/live.py) rather than by this
+    response: a stream that is dropped -- the tab closed, a proxy closing a
+    connection that sat quiet through a long model turn -- does not end the
+    investigation, and /api/evidence/runs/{id}/stream reopens it."""
     import uuid
 
     from backend.agents.evidence import agent as ev_agent, store as ev_store
-
-    def sse(event: str, data) -> str:
-        return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
     try:
         categories = [rag.check_category(c) for c in body.categories]
@@ -3065,22 +3064,22 @@ def evidence_ask(body: EvidenceQuestion, user: dict = Depends(current_user)) -> 
                 "user_id": user["id"],
             })
             auth_store.log_event(user, "run", tool="evidence", run_id=run_id)
-            yield sse("run", {"id": run_id})
+            yield "run", {"id": run_id}
         except Exception as exc:
             # History is worth having, not worth refusing to answer over.
             conn = None
-            yield sse("run", {"id": run_id, "not_saved": f"{type(exc).__name__}: {exc}"})
+            yield "run", {"id": run_id, "not_saved": f"{type(exc).__name__}: {exc}"}
 
         try:
             asked = record("question", {})
             asked.update({"text": question, "holdout": body.holdout,
                           "scope": categories or ["all categories"],
                           "memory": body.memory})
-            yield sse("log", asked)
+            yield "log", asked
 
             for event, data in ev_agent.run(
                 question, holdout=body.holdout, categories=categories,
-                memory=body.memory,
+                memory=body.memory, stop=stop,
             ):
                 if event == "tool_call":
                     calls.append(data)
@@ -3089,7 +3088,7 @@ def evidence_ask(body: EvidenceQuestion, user: dict = Depends(current_user)) -> 
                     # the run and sent to the page, but no log line.
                     if conn is not None:
                         _try(ev_store.save_evaluation, conn, run_id, data)
-                    yield sse(event, data)
+                    yield event, data
                     continue
                 entry = record(event, data)
                 if conn is not None:
@@ -3109,23 +3108,42 @@ def evidence_ask(body: EvidenceQuestion, user: dict = Depends(current_user)) -> 
                         conn = None  # stop trying; the answer still streams
                 # The log line goes first: the console shows the call before
                 # the panel below it re-renders with the result.
-                yield sse("log", entry)
+                yield "log", entry
                 if event not in ("thinking", "note"):
-                    yield sse(event, data)
+                    yield event, data
         except SystemExit as exc:
             if conn is not None:
                 _try(ev_store.fail_run, conn, run_id, str(exc), calls)
-            yield sse("error", {"message": str(exc)})
+            yield "error", {"message": str(exc)}
         except Exception as exc:
             if conn is not None:
                 _try(ev_store.fail_run, conn, run_id, f"{type(exc).__name__}: {exc}", calls)
-            yield sse("error", {"message": f"{type(exc).__name__}: {exc}"})
+            yield "error", {"message": f"{type(exc).__name__}: {exc}"}
 
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    stop = threading.Event()
+    return _live_stream(live_runs.start("evidence", events(), user["id"], stop, run_id=run_id))
+
+
+@app.get("/api/evidence/runs/{run_id}/stream")
+def evidence_follow(run_id: str, user: dict = Depends(current_user)) -> StreamingResponse:
+    """Reopen an investigation still in progress -- or one that finished in
+    the last few minutes -- from its first event. 404 once it is only in the
+    store, which is then what the page loads instead."""
+    live = live_runs.get("evidence", run_id, owner=read_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    return _live_stream(live)
+
+
+@app.post("/api/evidence/runs/{run_id}/stop")
+def evidence_stop(run_id: str, user: dict = Depends(current_user)) -> dict:
+    """Stop an investigation after the model turn in flight. It is recorded
+    as failed, stopped. Only one's own run."""
+    live = live_runs.get("evidence", run_id, owner=write_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    live.stop.set()
+    return {"stopping": True, "run_id": run_id}
 
 
 def _now() -> str:

@@ -3,9 +3,11 @@
     LOADTEST_PASSWORD=... ADMIN_USERNAME=... ADMIN_PASSWORD=... \
         python seed_users.py --host http://localhost:8000 --count 20
 
-Signs in as the admin, then creates loadtest-01..N with role `user`. An account
-that already exists has its password reset to LOADTEST_PASSWORD and is
-reactivated, so running this twice is safe. Standard library only, so it runs
+Signs in as the admin, then creates loadtest-01..N with role `user`, and with
+--admin also loadtest-admin with role `admin` (the Quality dashboard is admin
+only). An account that already exists has its password reset to
+LOADTEST_PASSWORD and is reactivated, so running this twice is safe. Only
+loadtest-* accounts are ever created or changed. Standard library only, so it runs
 from either venv.
 """
 
@@ -41,7 +43,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--host", default="http://localhost:8000")
     ap.add_argument("--count", type=int, default=int(os.environ.get("LOADTEST_ACCOUNTS", "20")))
-    ap.add_argument("--prefix", default=os.environ.get("LOADTEST_USER_PREFIX", "loadtest-"))
+    ap.add_argument("--admin", action="store_true",
+                    help="also create loadtest-admin, with the admin role")
     args = ap.parse_args()
 
     password = os.environ.get("LOADTEST_PASSWORD", "")
@@ -59,15 +62,17 @@ def main() -> int:
         sys.exit(f"Listing users failed (is {admin} an admin?): HTTP {status} {body}")
     existing = {u["username"]: u for u in body["users"]}
 
-    for n in range(1, args.count + 1):
-        name = f"{args.prefix}{n:02d}"
+    wanted = [(f"loadtest-{n:02d}", "user") for n in range(1, args.count + 1)]
+    if args.admin:
+        wanted.append(("loadtest-admin", "admin"))
+    for name, role in wanted:
         if name in existing:
             status, body = call("PATCH", f"/api/admin/users/{existing[name]['id']}",
-                                {"password": password, "active": True})
+                                {"password": password, "active": True, "role": role})
             verb = "reset"
         else:
             status, body = call("POST", "/api/admin/users",
-                                {"username": name, "password": password, "role": "user"})
+                                {"username": name, "password": password, "role": role})
             verb = "created"
         if status != 200:
             sys.exit(f"{name}: HTTP {status} {body}")

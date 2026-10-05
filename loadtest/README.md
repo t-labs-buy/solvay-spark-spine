@@ -6,7 +6,7 @@
 |---|---|
 | `locustfile.py` | The simulated users (table below) |
 | `sse.py` | Times a streamed (server-sent events) endpoint to its `done` event |
-| `seed_users.py` | Creates the `loadtest-01..N` accounts through the admin API |
+| `seed_users.py` | Creates the `loadtest-01..N` (and `loadtest-admin`) accounts through the admin API |
 | `mock_anthropic.py` | A stand-in for the Claude API, so a load test costs nothing |
 
 ## The simulated users
@@ -20,11 +20,12 @@ Each one covers one page of the app, and so also of `/demo`, which calls the sam
 | `FitGapUser` | — | A Fit-Gap run with `LOADTEST_HEAVY=1` |
 | `EvidenceUser` | Evidence status and history | An investigation with `LOADTEST_LLM=1` |
 | `RolloutUser` | Fit-to-Standard status, history, decisions and the cost preview | A run with `LOADTEST_HEAVY=1` **and** `LOADTEST_ROLLOUT_SESSION` |
-| `QualityUser` | Quality overview, explorer, judge and experiments | — (admin only; stops at once for other accounts) |
+| `QualityUser` | Quality overview, explorer, judge and experiments | — (admin only: needs `loadtest-admin`; stops at once for other accounts) |
 
 ## Read this first
 
 - **Claude costs money and nothing limits it.** The app has no rate limit. Every Ask makes a Claude call, plus a Ragas judge unless `RAG_EVAL_SAMPLE=0`. A Fit-Gap run makes dozens of calls. That is why `AskUser` needs `LOADTEST_LLM=1` and `FitGapUser` needs `LOADTEST_HEAVY=1`. Without those flags, only the cheap reads run.
+- **Only `loadtest-*` accounts.** Locust refuses to start if `LOADTEST_USERNAME` is the admin or anyone else's account. A test's runs saved under a real account can't be told apart from that person's own runs afterwards.
 - **Only run against a stack you may load.** The locustfile refuses any host that is not in `LOADTEST_ALLOWED_HOSTS` (default `localhost,127.0.0.1`).
 - **Runs are real runs.** Asks and Fit-Gap runs made under load are saved to the run history and show in the Admin dashboard under the `loadtest-*` accounts. A stream that is still open when the test stops is saved as `running` and stays that way.
 - **Test the server as it is deployed.** That means one uvicorn process with no `--reload`, the way the Dockerfile runs it. `scripts/run.sh` adds `--reload`.
@@ -38,17 +39,16 @@ python3 -m venv .venv-loadtest                  # kept apart: Locust brings geve
 # The app needs a fixed AUTH_SECRET, or a restart signs every test user out.
 export LOADTEST_PASSWORD='a-long-password'     # 8+ characters
 ADMIN_USERNAME=... ADMIN_PASSWORD=... \
-  .venv/bin/python loadtest/seed_users.py --host http://localhost:8000 --count 20
+  .venv/bin/python loadtest/seed_users.py --host http://localhost:8000 --count 20 --admin
 ```
 
-Running `seed_users.py` again is safe: existing accounts get the password reset and are reactivated. Each simulated user signs in as a different account. When there are more users than accounts, they share them in turn.
+`--admin` also creates `loadtest-admin` with the admin role, which `QualityUser` needs. The real admin account is only used to create the test accounts, never by Locust itself. Running `seed_users.py` again is safe: existing accounts get the password reset and are reactivated. Each simulated user signs in as a different account. When there are more users than accounts, they share them in turn.
 
-**Or sign every simulated user in as one existing account**, for example the admin. This needs no seeding. All the runs then appear under that account in the Admin dashboard, mixed in with its own real runs.
+**Or sign every simulated user in as one test account**, for example `loadtest-admin`, so that `QualityUser` works alongside the others:
 
 ```sh
-set -a; source ../.env; set +a        # from loadtest/
-LOADTEST_USERNAME="$ADMIN_USERNAME" LOADTEST_PASSWORD="$ADMIN_PASSWORD" \
-  ../.venv-loadtest/bin/locust -H http://localhost:8000 --class-picker
+LOADTEST_USERNAME=loadtest-admin LOADTEST_PASSWORD='a-long-password' \
+  ../.venv-loadtest/bin/locust -H http://localhost:8000 --class-picker     # from loadtest/
 ```
 
 `--class-picker` lets you choose in the web UI which simulated users to start.

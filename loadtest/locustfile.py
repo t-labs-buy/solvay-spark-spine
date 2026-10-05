@@ -8,13 +8,18 @@ Three kinds of user, picked by what they cost:
   EvidenceUser   Evidence history and status; investigations with LOADTEST_LLM=1.
   RolloutUser    Fit-to-Standard history, status and previews; runs with
                  LOADTEST_HEAVY=1 and LOADTEST_ROLLOUT_SESSION (see README).
-  QualityUser    The Quality dashboard. Admin only: needs an admin account.
+  QualityUser    The Quality dashboard. Admin only: needs loadtest-admin.
 
 The parts that call Claude are left out unless asked for, so a plain
 `locust` can never spend money by accident. Each simulated user signs in as
 its own account (loadtest-01, loadtest-02, ... from seed_users.py) so its runs
 are easy to tell apart in the Admin dashboard -- or, with LOADTEST_USERNAME set,
 all of them sign in as that one account.
+
+Only accounts named loadtest-* may be used. Signing in as the admin or a real
+person mixes the test's runs into their history and the usage figures, with
+no way to tell them apart afterwards, so any other name stops Locust before it
+starts.
 """
 
 from __future__ import annotations
@@ -30,9 +35,10 @@ from locust.exception import StopUser
 
 from sse import post_stream
 
-PREFIX = os.environ.get("LOADTEST_USER_PREFIX", "loadtest-")
-# One account for every simulated user, e.g. the admin. When set, the
-# loadtest-NN accounts are not used and seed_users.py is not needed.
+# Fixed rather than configurable: it is what keeps the load test off real accounts.
+PREFIX = "loadtest-"
+# One account for every simulated user, e.g. loadtest-admin. When set, the
+# loadtest-NN accounts are not used. It must still be a loadtest-* account.
 USERNAME = os.environ.get("LOADTEST_USERNAME", "")
 PASSWORD = os.environ.get("LOADTEST_PASSWORD", "")
 ACCOUNTS = int(os.environ.get("LOADTEST_ACCOUNTS", "20"))
@@ -68,6 +74,19 @@ def next_account() -> str:
         return f"{PREFIX}{next(_numbers):02d}"
 
 
+def is_test_account(username: str) -> bool:
+    return username.strip().lower().startswith(PREFIX)
+
+
+@events.init.add_listener
+def refuse_real_accounts(environment, **_kwargs):
+    """Stop at startup, before the web UI opens, if told to use a real account."""
+    if USERNAME and not is_test_account(USERNAME):
+        raise SystemExit(f"LOADTEST_USERNAME={USERNAME!r} is not a load-test account. Only "
+                         f"{PREFIX}* accounts may be used, so the test's runs never mix with "
+                         "the admin's or a real user's. Create one with seed_users.py.")
+
+
 @events.test_start.add_listener
 def refuse_unknown_hosts(environment, **_kwargs):
     """Stop before the first request if the target is not on the allow list.
@@ -88,6 +107,8 @@ class SignedIn(HttpUser):
 
     def on_start(self):
         self.username = next_account()
+        if not is_test_account(self.username):  # belt and braces; see refuse_real_accounts
+            raise StopUser()
         with self.client.post("/api/auth/login", name="/api/auth/login", catch_response=True,
                               json={"username": self.username, "password": PASSWORD}) as res:
             if res.status_code != 200:
@@ -269,8 +290,9 @@ class RolloutUser(SignedIn):
 
 
 class QualityUser(SignedIn):
-    """The Quality dashboard over the Ask history. Admin only, so a user
-    signed in without the admin role stops rather than counting 403s."""
+    """The Quality dashboard over the Ask history. Admin only, so it needs the
+    loadtest-admin account (seed_users.py --admin); a user signed in without the
+    admin role stops rather than counting 403s."""
 
     weight = 1
     wait_time = between(5, 20)

@@ -12,10 +12,13 @@
  *  mounted afterwards, so switching back keeps a query or a run on screen, as
  *  the application does.
  *
- *  The sidebar has three states, remembered per browser:
- *    rail       the default: icons only, a label on hover
+ *  The sidebar, and the menu button that opens it, are shown only to an
+ *  Admin; anyone else sees the two header tabs alone, and a typed /demo/ask
+ *  or /demo/agent lands on the introduction. For an Admin it has three
+ *  states, remembered per browser:
+ *    hidden     the default: no sidebar at all (the close button when expanded)
+ *    rail       icons only, a label on hover
  *    expanded   icons and names (the menu button, or the chevron at its foot)
- *    hidden     no sidebar at all (the close button when expanded)
  */
 import {
   AppBar, Box, Button, ButtonBase, Chip, Divider, IconButton, Tab, Tabs,
@@ -81,6 +84,8 @@ const LANDING: Entry = { value: "landing", label: "Home", icon: <Network size={1
  *  and the server refuses its data. */
 const ADMIN: Entry = { value: "admin", label: "Admin", icon: <ShieldCheck size={16} />, slug: "admin" };
 
+const SIDEBAR_PAGES = new Set<Page>(SECONDARY.flatMap((g) => g.items.map((e) => e.value)));
+
 const ALL: Entry[] = [LANDING, ...PRIMARY, ...SECONDARY.flatMap((g) => g.items), ADMIN];
 /** Where /demo opens, straight after signing in: the introduction, so a
  *  presentation starts from what the product is before showing what it does. */
@@ -94,9 +99,9 @@ function pageFromPath(): Page {
 }
 
 type SidebarState = "hidden" | "rail" | "expanded";
-// Renamed when the default changed from hidden to rail, so a browser that
-// saved the old default starts from the new one instead of keeping it.
-const SIDEBAR_KEY = "demo-sidebar-v2";
+// Renamed whenever the default changes, so a browser that saved the old
+// default starts from the new one instead of keeping it.
+const SIDEBAR_KEY = "demo-sidebar-v3";
 const RAIL = 60;
 const EXPANDED = 240;
 
@@ -107,7 +112,7 @@ function initialSidebar(): SidebarState {
   } catch {
     /* private mode */
   }
-  return "rail";
+  return "hidden";
 }
 
 export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggleMode: () => void }) {
@@ -115,6 +120,9 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
   const [visited, setVisited] = useState<Set<Page>>(() => new Set([pageFromPath()]));
   const [sidebar, setSidebar] = useState<SidebarState>(initialSidebar);
   const [account, setAccount] = useState<Account | null>(null);
+  const isAdmin = account?.role === "admin";
+  // Hidden until the session says Admin, so nobody sees it flash and vanish.
+  const shownSidebar: SidebarState = isAdmin ? sidebar : "hidden";
 
   const isPrimary = PRIMARY.some((e) => e.value === page);
   const isModule = !isPrimary && page !== "landing";
@@ -164,6 +172,16 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
       .catch(() => { /* offline: the server will say so on the next request */ });
   }, []);
 
+  // The sidebar's pages are an Admin's. Anyone else who reaches one -- a typed
+  // address, a link from an Admin -- is taken to the introduction instead.
+  useEffect(() => {
+    if (account && !isAdmin && SIDEBAR_PAGES.has(page)) {
+      history.replaceState(null, "", pathOf(HOME));
+      setVisited((v) => (v.has(HOME) ? v : new Set(v).add(HOME)));
+      setPage(HOME);
+    }
+  }, [account, isAdmin, page]);
+
   const go = (next: Page) => {
     if (next === page) return;
     history.pushState(null, "", pathOf(next));
@@ -191,7 +209,7 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
 
   const render = (p: Page): ReactNode => {
     switch (p) {
-      case "landing": return <DemoLanding onNavigate={go} />;
+      case "landing": return <DemoLanding onNavigate={go} showEngines={isAdmin} />;
       case "graph": return <KnowledgeGraphPage active={page === "graph"} onNavigate={fromApp} incomingQuery={null} />;
       case "rollout": return <RolloutPage active={page === "rollout"} showTechDetails={false} openRun={runRequests.rollout} />;
       case "ask": return <AskPage active={page === "ask"} showTechDetails={false} openRun={runRequests.ask} />;
@@ -201,22 +219,24 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
     }
   };
 
-  const sidebarWidth = sidebar === "hidden" ? 0 : sidebar === "rail" ? RAIL : EXPANDED;
+  const sidebarWidth = shownSidebar === "hidden" ? 0 : shownSidebar === "rail" ? RAIL : EXPANDED;
 
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "background.default" }}>
       <AppBar position="static" color="default" elevation={0}
               sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
         <Toolbar variant="dense" disableGutters sx={{ minHeight: 52, px: 1.5, gap: 1.5 }}>
-          <Tooltip title={sidebar === "expanded" ? "Minimize other modules" : "Show other modules"}>
-            <IconButton
-              onClick={() => setSidebar(sidebar === "expanded" ? "rail" : "expanded")}
-              aria-label={sidebar === "expanded" ? "Minimize other modules" : "Show other modules"}
-              aria-expanded={sidebar === "expanded"} aria-controls="demo-sidebar"
-            >
-              <MenuIcon size={19} />
-            </IconButton>
-          </Tooltip>
+          {isAdmin && (
+            <Tooltip title={sidebar === "expanded" ? "Minimize other modules" : "Show other modules"}>
+              <IconButton
+                onClick={() => setSidebar(sidebar === "expanded" ? "rail" : "expanded")}
+                aria-label={sidebar === "expanded" ? "Minimize other modules" : "Show other modules"}
+                aria-expanded={sidebar === "expanded"} aria-controls="demo-sidebar"
+              >
+                <MenuIcon size={19} />
+              </IconButton>
+            </Tooltip>
+          )}
 
           <Box
             onClick={() => go("landing")} role="link" aria-label={`${PRODUCT} home`}
@@ -289,10 +309,10 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
       <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
         <Box
           id="demo-sidebar" component="nav" aria-label="Other modules"
-          aria-hidden={sidebar === "hidden"} inert={sidebar === "hidden"}
+          aria-hidden={shownSidebar === "hidden"} inert={shownSidebar === "hidden"}
           sx={{
             width: sidebarWidth, flexShrink: 0, overflow: "hidden",
-            borderRight: sidebar === "hidden" ? 0 : 1, borderColor: "divider", bgcolor: "background.paper",
+            borderRight: shownSidebar === "hidden" ? 0 : 1, borderColor: "divider", bgcolor: "background.paper",
             transition: "width .2s ease", display: "flex", flexDirection: "column",
           }}
         >

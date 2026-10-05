@@ -101,10 +101,12 @@ its history:
 A second front door for presenting to a client: <http://localhost:8000/demo>.
 It asks for a sign-in, then opens on the Spark AI Spine landing page (the
 logo returns to it) with only two tabs in the header, **Knowledge Graph** and
-**Fit-Gap Copilot**. **Ask RAG** and the **Agent** sit in a sidebar that starts
-minimized to icons: the menu button in the header expands it and minimizes it
-again, and it can also be hidden entirely. It remembers its state in the
-browser. The document tools (Convert, Batch Convert, Add to knowledge base),
+**Fit-Gap Copilot**. **Ask RAG** and the **Agent** sit in a sidebar that only
+an Admin sees: it starts hidden, the menu button in the header opens it,
+minimizes it to icons and expands it again, and it remembers its state in the
+browser. Anyone else has no menu button, the landing page shows them only the
+first two steps, and `/demo/ask` or `/demo/agent` lands them on the
+introduction. The document tools (Convert, Batch Convert, Add to knowledge base),
 the inspection pages (Coverage, Doc vs MD, MD Viewer), InsightLens and RAG
 Metrics are left out of Demo Mode altogether -- their addresses under `/demo`
 land on the introduction, and the landing page shows no buttons to them. All

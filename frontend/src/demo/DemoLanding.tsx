@@ -1,7 +1,9 @@
 /** The Demo Mode landing page: a project's documents as organizational
  *  memory, told in the order the client sees
  *  it -- the knowledge graph, the Fit-Gap Copilot, Ask RAG, the Evidence
- *  Agent -- over the application's own "How It Works" section, unchanged. */
+ *  Agent -- over the application's own "How It Works" section, unchanged.
+ *  Ask RAG and the Evidence Agent are an Admin's, so anyone else is shown
+ *  only the first two steps. */
 import { Box, Button, ButtonBase, Container, Stack, Typography } from "@mui/material";
 import { alpha, useTheme } from "@mui/material/styles";
 import { motion } from "framer-motion";
@@ -80,7 +82,13 @@ const STEPS: Step[] = [
   },
 ];
 
-export default function DemoLanding({ onNavigate }: { onNavigate: (target: DemoTarget) => void }) {
+const ADMIN_ONLY = new Set<DemoTarget>(["ask", "evidence"]);
+const COUNT = ["Zero", "One", "Two", "Three", "Four"];
+
+export default function DemoLanding({ onNavigate, showEngines }: {
+  onNavigate: (target: DemoTarget) => void; showEngines: boolean;
+}) {
+  const steps = showEngines ? STEPS : STEPS.filter((s) => !ADMIN_ONLY.has(s.target));
   const theme = useTheme();
   const hues = SERVICE_HUES[theme.palette.mode];
   const dark = theme.palette.mode === "dark";
@@ -122,8 +130,8 @@ export default function DemoLanding({ onNavigate }: { onNavigate: (target: DemoT
         {/* the walkthrough, in order */}
         <Box component="nav" aria-label="The walkthrough"
              sx={{ display: "grid", gap: 1.5, mb: { xs: 7, md: 10 },
-                   gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" } }}>
-          {STEPS.map((s, i) => (
+                   gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: `repeat(${steps.length}, 1fr)` } }}>
+          {steps.map((s, i) => (
             <ButtonBase key={s.target} onClick={() => onNavigate(s.target)}
                         sx={{ display: "block", textAlign: "left", p: 2.25, borderRadius: 3, border: 1, borderColor: "divider",
                               bgcolor: "background.paper", position: "relative", transition: "border-color .2s, transform .2s",
@@ -134,7 +142,7 @@ export default function DemoLanding({ onNavigate }: { onNavigate: (target: DemoT
                   {String(i + 1).padStart(2, "0")}
                 </Typography>
                 <Box sx={{ flex: 1, height: 2, bgcolor: alpha(hues[i], 0.35) }} />
-                {i < STEPS.length - 1 && <ArrowRight size={14} color={theme.palette.text.disabled} />}
+                {i < steps.length - 1 && <ArrowRight size={14} color={theme.palette.text.disabled} />}
               </Stack>
               <Typography sx={{ fontWeight: 750, fontSize: 16 }}>{s.title}</Typography>
               <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 0.5, lineHeight: 1.5 }}>{s.question}</Typography>
@@ -148,11 +156,11 @@ export default function DemoLanding({ onNavigate }: { onNavigate: (target: DemoT
               What you will see
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: "-0.02em" }}>
-              Four Steps, One Organizational Memory
+              {COUNT[steps.length]} Steps, One Organizational Memory
             </Typography>
           </Stack>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 3 }}>
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <ServiceCard key={s.target} icon={s.icon} color={hues[i]} title={`${i + 1}. ${s.title}`} subtitle={s.subtitle}
                            badge={s.badge} description={s.description} features={s.features} buttonText={s.button}
                            onClick={() => onNavigate(s.target)} />

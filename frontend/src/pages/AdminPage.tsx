@@ -414,21 +414,30 @@ function MatrixView({ usage, period, onPickUser }: {
   // together -- a crosshair across the matrix. Column 4 is Total.
   const [hot, setHot] = useState<{ row: number; col: number } | null>(null);
   const lit = (row: number, col: number) => hot !== null && (hot.row === row || hot.col === col);
-  // A number in the "All accounts" row under the pointer: 0-3 a tool, 4 the
-  // grand total, 5 the share. The cells that add up to it are outlined and
-  // everything else in the body fades, so the sum can be followed by eye.
+  // A total under the pointer, and the cells that add up to it outlined while
+  // everything else fades, so the sum can be followed by eye. `sumCol` is a
+  // number in the "All accounts" row (0-3 a tool, 4 the grand total, 5 the
+  // share), adding down its column; `sumRow` is an account's Total, adding
+  // across its row.
   const [sumCol, setSumCol] = useState<number | null>(null);
+  const [sumRow, setSumRow] = useState<number | null>(null);
+  const summing = sumCol !== null || sumRow !== null;
   const feedsSx = { bgcolor: `${alpha(ink, dark ? 0.26 : 0.16)} !important`,
                     boxShadow: `inset 0 0 0 1.5px ${alpha(ink, 0.65)}` };
   const fadedSx = { opacity: 0.35 };
-  const feeds = (col: number, v: number) => sumCol === col && v > 0;
-  const faded = (col: number, v: number) => sumCol !== null && !feeds(col, v);
+  const feeds = (row: number, col: number, v: number) =>
+    v > 0 && (sumCol === col || (sumRow === row && col < 4));
+  // The account Total being explained is outlined like its parts.
+  const isSum = (row: number, col: number) => sumRow === row && col === 4;
+  const faded = (row: number, col: number, v: number) => summing && !feeds(row, col, v) && !isSum(row, col);
   const sumOf = (parts: { name: string; v: number }[], whole: string) => {
     const used = parts.filter((p) => p.v > 0);
     return `${whole} = ${used.map((p) => M.show(p.v)).join(" + ")}`
       + ` (${used.map((p) => p.name).join(", ")})`;
   };
-  const enterSum = (col: number) => { setHot(null); setSumCol(col); };
+  const enterSum = (col: number) => { setHot(null); setSumRow(null); setSumCol(col); };
+  const enterRowSum = (row: number) => { setHot(null); setSumCol(null); setSumRow(row); };
+  const enterCell = (row: number, col: number) => { setSumCol(null); setSumRow(null); setHot({ row, col }); };
   const cross = alpha(ink, dark ? 0.12 : 0.07);
 
   const cellSx = { fontFamily: MONO, fontSize: 12.5, fontVariantNumeric: "tabular-nums", textAlign: "center",
@@ -502,7 +511,7 @@ function MatrixView({ usage, period, onPickUser }: {
             <Box sx={{ overflowX: "auto", borderRadius: 2, border: 1, borderColor: "divider",
                        bgcolor: alpha(theme.palette.background.paper, dark ? 0.35 : 0.55),
                        boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, dark ? 0.04 : 0.8)}` }}
-                 onMouseLeave={() => { setHot(null); setSumCol(null); }}>
+                 onMouseLeave={() => { setHot(null); setSumCol(null); setSumRow(null); }}>
               {/* A vertical rule between every column, the same light shade as the
                   row lines, so each account-tool cell reads as its own box. */}
               <Table size="small" sx={{ "& td, & th": { borderBottomColor: alpha(theme.palette.divider, 0.6),
@@ -533,7 +542,7 @@ function MatrixView({ usage, period, onPickUser }: {
                     const rowLit = hot?.row === i;
                     return (
                       <TableRow key={r.u.user_id} sx={{ ...(rowLit && { "& td": { bgcolor: cross } }) }}>
-                        <TableCell sx={{ ...cellSx, px: 1, ...(sumCol !== null && fadedSx) }}>
+                        <TableCell sx={{ ...cellSx, px: 1, ...(summing && sumRow !== i && fadedSx) }}>
                           <Box sx={{ width: 22, height: 22, mx: "auto", borderRadius: "50%", display: "grid", placeItems: "center",
                                      fontSize: 11, fontWeight: 700,
                                      ...(i === 0 ? { bgcolor: ink, color: theme.palette.getContrastText(ink) }
@@ -541,7 +550,7 @@ function MatrixView({ usage, period, onPickUser }: {
                             {i + 1}
                           </Box>
                         </TableCell>
-                        <TableCell sx={{ py: 1.1, transition: "opacity 120ms", ...(sumCol !== null && { opacity: 0.6 }) }}>
+                        <TableCell sx={{ py: 1.1, transition: "opacity 120ms", ...(summing && sumRow !== i && { opacity: 0.6 }) }}>
                           <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                             <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 700,
                                           bgcolor: alpha(ink, i === 0 ? 0.18 : 0.1), color: ink }}>
@@ -570,11 +579,11 @@ function MatrixView({ usage, period, onPickUser }: {
                                        + `${num(n.input_tokens + n.output_tokens)} tokens · ${clock(Math.round(n.seconds))} · ${usd(n.cost_usd)} est.`
                                        + ` · ${pct(v, r.total)} of their ${M.unit}`
                                        : `${r.u.username} has not used ${TOOL_LABEL[k]} in this period`}>
-                              <TableCell onMouseEnter={() => { setSumCol(null); setHot({ row: i, col: j }); }}
+                              <TableCell onMouseEnter={() => enterCell(i, j)}
                                          sx={{ ...cellSx, color: v ? "text.primary" : "text.disabled",
                                                ...(lit(i, j) && { bgcolor: cross }),
                                                ...(hot?.row === i && hot?.col === j && { bgcolor: alpha(ink, dark ? 0.22 : 0.13) }),
-                                               ...(feeds(j, v) && feedsSx), ...(faded(j, v) && fadedSx) }}>
+                                               ...(feeds(i, j, v) && feedsSx), ...(faded(i, j, v) && fadedSx) }}>
                                 {v ? M.show(v) : "·"}
                                 {v > 0 && bar(v, cellMax)}
                               </TableCell>
@@ -582,11 +591,13 @@ function MatrixView({ usage, period, onPickUser }: {
                           );
                         })}
                         <Tooltip placement="top" arrow
-                                 title={`${r.u.username}: ${M.said(r.total)}`
+                                 title={`${r.u.username}, every tool: `
+                                   + sumOf(TOOLS.map((k, j) => ({ name: TOOL_LABEL[k], v: r.cells[j] })), M.show(r.total))
                                    + ` · ${pct(r.total, totalMax)} of the busiest account`}>
-                          <TableCell onMouseEnter={() => { setSumCol(null); setHot({ row: i, col: 4 }); }}
-                                     sx={{ ...cellSx, ...(lit(i, 4) && { bgcolor: cross }),
-                                           ...(feeds(4, r.total) && feedsSx), ...(faded(4, r.total) && fadedSx) }}>
+                          <TableCell onMouseEnter={() => enterRowSum(i)}
+                                     sx={{ ...cellSx, cursor: "help", ...(lit(i, 4) && { bgcolor: cross }),
+                                           ...((feeds(i, 4, r.total) || isSum(i, 4)) && feedsSx),
+                                           ...(faded(i, 4, r.total) && fadedSx) }}>
                             <Box component="span" sx={{ ...heat(r.total), display: "inline-block", minWidth: 64, px: 1.25, py: 0.4,
                                                         borderRadius: 999, fontWeight: 700,
                                                         boxShadow: `inset 0 0 0 1px ${alpha(ink, 0.25)}` }}>
@@ -595,7 +606,7 @@ function MatrixView({ usage, period, onPickUser }: {
                           </TableCell>
                         </Tooltip>
                         <TableCell sx={{ ...cellSx, color: "text.secondary",
-                                         ...(feeds(5, r.total) && feedsSx), ...(faded(5, r.total) && fadedSx) }}>
+                                         ...(feeds(i, 5, r.total) && feedsSx), ...(faded(i, 5, r.total) && fadedSx) }}>
                           {pct(r.total, grand)}
                           {bar(r.total, grand, 56)}
                         </TableCell>
@@ -603,7 +614,8 @@ function MatrixView({ usage, period, onPickUser }: {
                     );
                   })}
                   <TableRow sx={{ "& td": { borderBottom: 0, borderTop: 2, borderTopColor: "divider", fontWeight: 700,
-                                            bgcolor: alpha(theme.palette.text.primary, dark ? 0.04 : 0.025) } }}>
+                                            bgcolor: alpha(theme.palette.text.primary, dark ? 0.04 : 0.025),
+                                            transition: "opacity 120ms", ...(sumRow !== null && fadedSx) } }}>
                     <TableCell />
                     <TableCell sx={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
                                      color: "text.secondary" }}>All accounts</TableCell>

@@ -52,6 +52,11 @@ no longer exist.
 | RAG Metrics (Quality), experiments, the memory "reflect" button | no | yes |
 | The **Admin** tab: accounts, usage, activity | no | yes |
 
+Documents you upload to convert, singly or as a batch, are yours: nobody
+else can open, convert, download or delete them, an Admin included. Once a
+document is in the knowledge base, its original's pages are shown to anyone
+in **Doc vs MD**.
+
 The knowledge base, the knowledge graph and source documents are shared by
 everyone. Two more things are shared as organisational memory:
 

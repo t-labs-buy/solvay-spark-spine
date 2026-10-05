@@ -119,12 +119,49 @@ app.add_middleware(RedactContactDetails)
 # under `async def` they would stall the event loop and freeze the whole UI.
 
 
-def _job_dir(doc_id: str) -> Path:
-    """Resolve a job directory, rejecting ids that try to escape the workdir."""
+# A conversion -- one upload or a batch -- belongs to whoever uploaded it, by
+# an owner.txt beside its files. Someone else's is "not found", as a run is,
+# so a guessed id confirms nothing. One without an owner (left from before
+# accounts) is nobody's: the work folders are scratch, swept like uploads.
+# A job holding an original from the knowledge base is also marked shared:
+# the corpus is everyone's, so anyone signed in may read its pages, while
+# converting, embedding or deleting it stays with its owner.
+_OWNER_FILE = "owner.txt"
+_SHARED_FILE = "shared"
+
+
+def _mark_owner(folder: Path, user: dict) -> None:
+    (folder / _OWNER_FILE).write_text(str(user["id"]))
+
+
+def _mark_shared(folder: Path) -> None:
+    (folder / _SHARED_FILE).touch()
+
+
+def _owned(folder: Path, user: dict, what: str, read: bool = False) -> Path:
+    if read and (folder / _SHARED_FILE).exists():
+        return folder
+    f = folder / _OWNER_FILE
+    owner = f.read_text().strip() if f.exists() else ""
+    if owner != str(user["id"]):
+        raise HTTPException(404, f"{what} not found")
+    return folder
+
+
+def _job_dir(doc_id: str, user: dict, read: bool = False) -> Path:
+    """Resolve a job directory, rejecting ids that try to escape the workdir
+    and jobs that belong to someone else (unless shared and only read)."""
     job = (WORKDIR / doc_id).resolve()
     if not job.is_dir() or WORKDIR.resolve() not in job.parents:
         raise HTTPException(404, "Document not found")
-    return job
+    return _owned(job, user, "Document", read)
+
+
+def _batch_dir(batch_id: str, user: dict) -> Path:
+    batch_dir = (WORKDIR / "batches" / batch_id).resolve()
+    if not batch_dir.is_dir() or WORKDIR.resolve() not in batch_dir.parents:
+        raise HTTPException(404, "Batch not found")
+    return _owned(batch_dir, user, "Batch")
 
 
 def _source(job: Path) -> Path:
@@ -225,7 +262,7 @@ def health() -> dict:
 
 
 @app.post("/api/upload")
-def upload(file: UploadFile) -> dict:
+def upload(file: UploadFile, user: dict = Depends(current_user)) -> dict:
     name = Path(file.filename or "document").name
     suffix = Path(name).suffix.lower()
     if suffix not in ACCEPTED:
@@ -241,6 +278,7 @@ def upload(file: UploadFile) -> dict:
         shutil.copyfileobj(file.file, out)
 
     (job / "name.txt").write_text(name)
+    _mark_owner(job, user)
 
     # A failed preview should not block extraction -- the Markdown side is the
     # point, and the user can still convert a document we cannot render.
@@ -261,10 +299,11 @@ def upload(file: UploadFile) -> dict:
 
 
 @app.post("/api/convert/{doc_id}")
-def convert_doc(doc_id: str, vlm: bool = False, provider: str = "qwen") -> dict:
+def convert_doc(doc_id: str, vlm: bool = False, provider: str = "qwen",
+                user: dict = Depends(current_user)) -> dict:
     if provider not in VLM_PROVIDERS:
         raise HTTPException(400, f"Unknown vision provider '{provider}'.")
-    job = _job_dir(doc_id)
+    job = _job_dir(doc_id, user)
     src = _source(job)
     try:
         result = convert(
@@ -315,13 +354,14 @@ def _display_path(path: str) -> str:
 
 
 @app.post("/api/docs/{doc_id}/embed")
-def embed_doc(doc_id: str, category: str | None = None) -> dict:
+def embed_doc(doc_id: str, category: str | None = None,
+              user: dict = Depends(current_user)) -> dict:
     """Add the converted Markdown to the vector index used by the Ask page.
 
     The file is copied to knowledge_base/<name>_<ext>.md (the same naming as
     folder_to_md.py), so embedding the same upload again replaces its chunks,
     and an unchanged file costs no embedding call."""
-    job = _job_dir(doc_id)
+    job = _job_dir(doc_id, user)
     md = job / "output.md"
     if not md.exists():
         raise HTTPException(409, "Convert the document first")
@@ -359,24 +399,24 @@ def embed_doc(doc_id: str, category: str | None = None) -> dict:
 
 
 @app.get("/api/docs/{doc_id}/preview/{number}")
-def preview_page(doc_id: str, number: int) -> FileResponse:
-    path = preview.page_path(_job_dir(doc_id) / "preview", number)
+def preview_page(doc_id: str, number: int, user: dict = Depends(current_user)) -> FileResponse:
+    path = preview.page_path(_job_dir(doc_id, user, read=True) / "preview", number)
     if not path.exists():
         raise HTTPException(404, "Page not found")
     return FileResponse(path, media_type="image/png")
 
 
 @app.get("/api/docs/{doc_id}/media/{name}")
-def media(doc_id: str, name: str) -> FileResponse:
-    path = (_job_dir(doc_id) / "media" / Path(name).name).resolve()
+def media(doc_id: str, name: str, user: dict = Depends(current_user)) -> FileResponse:
+    path = (_job_dir(doc_id, user, read=True) / "media" / Path(name).name).resolve()
     if not path.exists():
         raise HTTPException(404, "Image not found")
     return FileResponse(path)
 
 
 @app.get("/api/docs/{doc_id}/download")
-def download(doc_id: str) -> FileResponse:
-    job = _job_dir(doc_id)
+def download(doc_id: str, user: dict = Depends(current_user)) -> FileResponse:
+    job = _job_dir(doc_id, user, read=True)
     md = job / "output.md"
     if not md.exists():
         raise HTTPException(404, "Convert the document first")
@@ -385,8 +425,8 @@ def download(doc_id: str) -> FileResponse:
 
 
 @app.delete("/api/docs/{doc_id}")
-def cleanup(doc_id: str) -> dict:
-    shutil.rmtree(_job_dir(doc_id), ignore_errors=True)
+def cleanup(doc_id: str, user: dict = Depends(current_user)) -> dict:
+    shutil.rmtree(_job_dir(doc_id, user), ignore_errors=True)
     return {"ok": True}
 
 
@@ -813,6 +853,8 @@ def open_kb_original(source: str) -> dict:
     if original.parent.parent == WORKDIR and original.name.startswith("source."):
         job = original.parent
         doc_id = job.name
+        # Its Markdown is in the knowledge base now, so its pages are too.
+        _mark_shared(job)
         pages, warning = 0, None
         try:
             pages = len(list((job / "preview").glob("page-*.png"))) or preview.render(
@@ -839,6 +881,7 @@ def open_kb_original(source: str) -> dict:
         shutil.copyfile(original, src)
         shutil.rmtree(job / "preview", ignore_errors=True)
     (job / "name.txt").write_text(original.name)
+    _mark_shared(job)
 
     pages, warning = 0, None
     try:
@@ -1219,7 +1262,7 @@ def kb_batch_insert(files: list[UploadFile], category: str | None = Form(default
 
 
 @app.post("/api/batch/upload")
-def upload_batch(files: list[UploadFile]) -> dict:
+def upload_batch(files: list[UploadFile], user: dict = Depends(current_user)) -> dict:
     if not files:
         raise HTTPException(400, "No files uploaded")
 
@@ -1228,6 +1271,7 @@ def upload_batch(files: list[UploadFile]) -> dict:
     src_dir = batch_dir / "sources"
     src_dir.mkdir(parents=True, exist_ok=True)
     (batch_dir / "markdown").mkdir(parents=True, exist_ok=True)
+    _mark_owner(batch_dir, user)
 
     file_list = []
     for f in files:
@@ -1262,10 +1306,9 @@ class BatchConvertRequest(BaseModel):
 
 
 @app.post("/api/batch/convert/{batch_id}")
-def convert_batch(batch_id: str, body: BatchConvertRequest) -> StreamingResponse:
-    batch_dir = (WORKDIR / "batches" / batch_id).resolve()
-    if not batch_dir.is_dir() or WORKDIR.resolve() not in batch_dir.parents:
-        raise HTTPException(404, "Batch not found")
+def convert_batch(batch_id: str, body: BatchConvertRequest,
+                  user: dict = Depends(current_user)) -> StreamingResponse:
+    batch_dir = _batch_dir(batch_id, user)
 
     src_dir = batch_dir / "sources"
     md_dir = batch_dir / "markdown"
@@ -1392,10 +1435,8 @@ def convert_batch(batch_id: str, body: BatchConvertRequest) -> StreamingResponse
 
 
 @app.get("/api/batch/{batch_id}/download")
-def download_batch_zip(batch_id: str) -> FileResponse:
-    batch_dir = (WORKDIR / "batches" / batch_id).resolve()
-    if not batch_dir.is_dir() or WORKDIR.resolve() not in batch_dir.parents:
-        raise HTTPException(404, "Batch not found")
+def download_batch_zip(batch_id: str, user: dict = Depends(current_user)) -> FileResponse:
+    batch_dir = _batch_dir(batch_id, user)
 
     md_dir = batch_dir / "markdown"
     if not md_dir.is_dir():
@@ -1418,13 +1459,12 @@ def download_batch_zip(batch_id: str) -> FileResponse:
 
 
 @app.post("/api/batch/{batch_id}/embed")
-def embed_batch(batch_id: str, category: str | None = None) -> StreamingResponse:
+def embed_batch(batch_id: str, category: str | None = None,
+                user: dict = Depends(current_user)) -> StreamingResponse:
     """Embed a converted batch. The files are copied into knowledge_base/, so
     `category` is how a batch is filed; without it they are UNFILED unless a
     file declares its own category in front matter."""
-    batch_dir = (WORKDIR / "batches" / batch_id).resolve()
-    if not batch_dir.is_dir() or WORKDIR.resolve() not in batch_dir.parents:
-        raise HTTPException(404, "Batch not found")
+    batch_dir = _batch_dir(batch_id, user)
 
     md_dir = batch_dir / "markdown"
     if not md_dir.is_dir():
@@ -2749,7 +2789,9 @@ def rollout_decisions_all(country: str = "", scope: str = "", type: str = "", ve
                           user: dict = Depends(current_user)) -> dict:
     """Workshop decisions across every run, the current one per gap unless
     `history=1`. Each row carries its own context, so this still answers for
-    runs that have since been deleted."""
+    runs that have since been deleted. Everyone's, for every signed-in user:
+    what was decided in a workshop is shared organisational memory, not a
+    personal history, and each row records who decided it."""
     from backend.agents.rollout import store as ro_store
 
     conn = ro_store.connect()

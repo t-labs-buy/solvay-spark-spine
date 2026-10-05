@@ -309,6 +309,17 @@ def bootstrap_admin(conn=None) -> str:
     if not name or not password:
         return ("auth: WARNING -- there is no active Admin account. Set ADMIN_USERNAME and"
                 " ADMIN_PASSWORD, or run: python -m backend.auth.store create-admin <name>")
+    # A refused name or password is a line in the log, not a crash: raising
+    # here would stop the whole app starting over one setting.
+    why = passwords.check_strength(password)
+    if why:
+        return f"auth: WARNING -- ADMIN_PASSWORD was not used: {why} No Admin account was created."
+    # Checked before looking the name up, or ADMIN_USERNAME=legacy would find
+    # the built-in account and make it an Admin that can sign in.
+    try:
+        name = _clean_username(name)
+    except AccountError as exc:
+        return f"auth: WARNING -- ADMIN_USERNAME was not used: {exc} No Admin account was created."
     existing = conn.execute("SELECT id FROM users WHERE lower(username) = lower(%s)",
                             (name,)).fetchone()
     if existing:
@@ -317,7 +328,10 @@ def bootstrap_admin(conn=None) -> str:
                      (passwords.hash_password(password), existing[0]))
         conn.commit()
     else:
-        create_user(conn, name, password, "admin")
+        try:
+            create_user(conn, name, password, "admin")
+        except AccountError as exc:
+            return f"auth: WARNING -- ADMIN_USERNAME was not used: {exc} No Admin account was created."
     return f"auth: created Admin account {name!r} from ADMIN_USERNAME"
 
 

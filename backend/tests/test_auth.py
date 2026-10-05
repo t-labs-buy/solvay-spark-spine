@@ -95,6 +95,15 @@ def test_password_hashing() -> None:
     assert not passwords.verify_password("x", "garbage")
 
 
+def test_bad_admin_settings_do_not_stop_start_up() -> None:
+    for name, password in (("root", "short"), ("legacy", "root-password"), ("two words", "root-password")):
+        os.environ["ADMIN_USERNAME"], os.environ["ADMIN_PASSWORD"] = name, password
+        line = store.bootstrap_admin()
+        assert line.startswith("auth: WARNING"), line
+    assert store.active_admins(store.connect()) == 0, "nothing was created"
+    os.environ["ADMIN_USERNAME"], os.environ["ADMIN_PASSWORD"] = "root", "root-password"
+
+
 def test_bootstrap_admin() -> None:
     line = store.bootstrap_admin()
     assert "created" in line, line
@@ -256,6 +265,7 @@ def test_activity_is_logged() -> None:
 
 TESTS = [
     test_password_hashing,
+    test_bad_admin_settings_do_not_stop_start_up,
     test_bootstrap_admin,
     test_api_and_pages_need_a_session,
     test_sign_in_and_out,

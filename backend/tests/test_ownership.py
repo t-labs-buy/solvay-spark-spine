@@ -263,6 +263,51 @@ def test_an_admin_lists_one_accounts_runs_across_tools() -> None:
     assert root.get("/api/admin/runs?tool=nope").status_code == 400
 
 
+def test_conversions_belong_to_the_uploader() -> None:
+    alice, bob = client("alice"), client("bob")
+    doc = alice.post("/api/upload", files={"file": ("note.txt", b"Note: hello")}).json()["id"]
+    batch = alice.post("/api/batch/upload",
+                       files=[("files", ("a.txt", b"A")), ("files", ("b.txt", b"B"))]).json()["batch_id"]
+    assert bob.get(f"/api/docs/{doc}/download").status_code == 404
+    assert bob.delete(f"/api/docs/{doc}").status_code == 404
+    assert bob.post(f"/api/convert/{doc}").status_code == 404
+    assert bob.get(f"/api/batch/{batch}/download").status_code == 404
+    assert bob.post(f"/api/batch/convert/{batch}", json={}).status_code == 404
+    assert client("root").get(f"/api/docs/{doc}/download").status_code == 404, "not an Admin's either"
+    assert alice.get(f"/api/docs/{doc}/download").status_code == 404, "hers, but not converted yet"
+    # A job holding a knowledge-base original is shared: anyone may read it,
+    # only its owner may change it.
+    from backend.api import app as app_module
+    app_module._mark_shared(app_module.WORKDIR / doc)
+    r = bob.get(f"/api/docs/{doc}/download")
+    assert r.status_code == 404 and "Convert" in r.json()["detail"], "read reaches the shared job"
+    assert bob.delete(f"/api/docs/{doc}").status_code == 404, "but cannot delete it"
+    assert alice.delete(f"/api/docs/{doc}").status_code == 200
+
+
+def test_decisions_are_shared_memory() -> None:
+    conn = store.connect()
+    for who in ("alice", "bob"):
+        conn.execute("INSERT INTO workshop_decisions (source_run, gap_id, verdict, decided_by, user_id)"
+                     " VALUES (%s, 'GAP-01', 'accept', %s, %s)", (f"ro_{who}", who, IDS[who]))
+    conn.commit()
+    runs = lambda c, q="": {d["source_run"] for d in c.get("/api/rollout/decisions" + q).json()["decisions"]}
+    # Organisational memory: everyone sees every decision, and each row still
+    # records who made it.
+    assert runs(client("alice")) == runs(client("root")) == {"ro_alice", "ro_bob"}
+
+
+def test_copied_old_decisions_get_the_runs_owner() -> None:
+    conn = store.connect()
+    conn.execute("INSERT INTO rollout_decisions (run_id, gap_id, reviewer, verdict)"
+                 " VALUES ('ro_bob', 'GAP-02', 'bob (typed)', 'accept')")
+    conn.commit()
+    assert ro_store._backfill(conn) == 1
+    owners = dict(conn.execute("SELECT source_run, user_id FROM workshop_decisions"
+                               " WHERE legacy_id IS NOT NULL").fetchall())
+    assert owners == {"ro_bob": IDS["bob"]}, "the run's owner, not left empty"
+
+
 TESTS = [
     test_an_admin_lists_one_accounts_runs_across_tools,
     test_a_user_lists_only_their_own,
@@ -274,6 +319,9 @@ TESTS = [
     test_retention_is_per_account,
     test_clear_history_clears_only_ones_own,
     test_usage_counts_each_account,
+    test_conversions_belong_to_the_uploader,
+    test_decisions_are_shared_memory,
+    test_copied_old_decisions_get_the_runs_owner,
 ]
 
 

@@ -538,6 +538,8 @@ def _backfill(conn) -> int:
     Run from create_schema, so it happens once per database and then finds
     nothing. The context comes from the run as it stands, which is why this
     has to happen while those runs still exist."""
+    from backend.auth import store as auth_store
+
     rows = conn.execute(
         """SELECT d.id, d.run_id, d.gap_id, d.reviewer, d.verdict, d.disposition, d.comment, d.decided_at
            FROM rollout_decisions d
@@ -549,9 +551,13 @@ def _backfill(conn) -> int:
             runs[run_id] = get_run(conn, run_id, decisions_too=False)
         ctx = _clean(decisions.snapshot(runs[run_id], gap_id))
         index, text, rationale = decisions.from_legacy_comment(comment, ctx["options"])
+        # Copied after own_table() has run, so the copy is given its owner
+        # here: the run's, or `legacy` should the run have none.
+        owner = (runs[run_id] or {}).get("user_id") or auth_store.legacy_id(conn)
         _insert_decision(conn, run_id, run_id, gap_id, ctx, verdict=verdict, option_index=index,
                          option_text=text, rationale=rationale, disposition=disposition,
-                         decided_by=reviewer, decided_at=decided_at, legacy_id=legacy_id)
+                         decided_by=reviewer, decided_at=decided_at, legacy_id=legacy_id,
+                         user_id=owner)
     return len(rows)
 
 

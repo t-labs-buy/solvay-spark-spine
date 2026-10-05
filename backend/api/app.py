@@ -41,6 +41,7 @@ from backend.rag import ask_store
 from backend.graph import knowledge_graph
 from backend.ingestion import preview
 from backend.rag import rag
+from backend.core import live as live_runs
 from backend.core import tracing
 from backend.ingestion import vlm_api
 from backend.ingestion.converter import VLM_PROVIDERS, convert
@@ -2016,7 +2017,11 @@ def fitgap_preview(req: "FitGapRun", user: dict = Depends(current_user)) -> dict
 def fitgap_run(req: "FitGapRun", user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one map-reduce over a BPML scope as server-sent events:
     `scope`, `step_start`, `tool_call`, `entry`, `verify_fail`, `synthesis`,
-    `done`. A sync generator, so Starlette iterates it in the threadpool."""
+    `done`.
+
+    The run is driven on a thread of its own (see fitgap/live.py), not by this
+    response, so closing the tab does not end it: the history reopens it
+    through /api/fitgap/runs/{id}/stream with every event so far."""
     from backend.agents.fitgap.orchestrator import run as fg_run
     from backend.agents.fitgap.schemas import RunRequest
 
@@ -2027,26 +2032,59 @@ def fitgap_run(req: "FitGapRun", user: dict = Depends(current_user)) -> Streamin
     _own_upload(req.upload_session, user)
     request = RunRequest(**{**req.model_dump(), "categories": categories,
                             "user_id": user["id"]})
-
-    def sse(event: str, data) -> str:
-        return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+    stop = threading.Event()
 
     def events():
         try:
-            for event, data in fg_run(request):
+            for event, data in fg_run(request, stop=stop):
                 if event == "scope" and isinstance(data, dict) and data.get("run_id"):
                     auth_store.log_event(user, "run", tool="fitgap", run_id=data["run_id"])
-                yield sse(event, data)
+                yield event, data
         except SystemExit as exc:
-            yield sse("error", {"message": str(exc)})
-        except Exception as exc:
-            yield sse("error", {"message": f"{type(exc).__name__}: {exc}"})
+            yield "error", {"message": str(exc)}
+
+    return _live_stream(live_runs.start("fitgap", events(), user["id"], stop))
+
+
+def _live_stream(live) -> StreamingResponse:
+    """A live agent run as server-sent events, from its first event on, with
+    a comment line as a keep-alive whenever it has been quiet. A sync
+    generator, so Starlette iterates it in the threadpool."""
+
+    def events():
+        for event, data in live.follow():
+            if event == live_runs.PING:
+                yield ": ping\n\n"
+            else:
+                yield f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
     return StreamingResponse(
         events(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/fitgap/runs/{run_id}/stream")
+def fitgap_follow(run_id: str, user: dict = Depends(current_user)) -> StreamingResponse:
+    """Reopen a run still in progress -- or one that finished in the last few
+    minutes -- from its first event. 404 once it is only in the store, which
+    is then what the page loads instead."""
+    live = live_runs.get("fitgap", run_id, owner=read_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    return _live_stream(live)
+
+
+@app.post("/api/fitgap/runs/{run_id}/stop")
+def fitgap_stop(run_id: str, user: dict = Depends(current_user)) -> dict:
+    """Stop a run: the steps not yet started are dropped and the register is
+    finished with what it has, as `stopped`. Only one's own run."""
+    live = live_runs.get("fitgap", run_id, owner=write_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    live.stop.set()
+    return {"stopping": True, "run_id": run_id}
 
 
 # --- documents attached to one agent session ----------------------------------
@@ -2540,30 +2578,51 @@ def rollout_preview(req: "RolloutRun", user: dict = Depends(current_user)) -> di
 @app.post("/api/rollout/run")
 def rollout_run(req: "RolloutRun", user: dict = Depends(current_user)) -> StreamingResponse:
     """Stream one Fit-to-Standard analysis as server-sent events: `scope`,
-    `stage`, `tool_call`, `asis`, `gate`, `analysis`, `scores`, `done`."""
+    `stage`, `tool_call`, `asis`, `gate`, `analysis`, `scores`, `done`.
+
+    Driven on a thread of its own (core/live.py), not by this response: one
+    model turn can run for minutes without an event, and the proxy in front
+    of the deployed app closes a connection that quiet. The stream sends a
+    keep-alive meanwhile, and a stream that is cut anyway -- or a tab that is
+    closed -- is reopened through /api/rollout/runs/{id}/stream."""
     from backend.agents.rollout.orchestrator import run as ro_run
 
     request = _rollout_request(req, user)
-
-    def sse(event: str, data) -> str:
-        return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+    stop = threading.Event()
 
     def events():
         try:
-            for event, data in ro_run(request):
+            for event, data in ro_run(request, stop=stop):
                 if event == "scope" and isinstance(data, dict) and data.get("run_id"):
                     auth_store.log_event(user, "run", tool="rollout", run_id=data["run_id"])
-                yield sse(event, data)
+                yield event, data
         except SystemExit as exc:
-            yield sse("error", {"message": str(exc)})
-        except Exception as exc:
-            yield sse("error", {"message": f"{type(exc).__name__}: {exc}"})
+            yield "error", {"message": str(exc)}
 
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _live_stream(live_runs.start("rollout", events(), user["id"], stop))
+
+
+@app.get("/api/rollout/runs/{run_id}/stream")
+def rollout_follow(run_id: str, user: dict = Depends(current_user)) -> StreamingResponse:
+    """Reopen a Copilot run still in progress -- or one that finished in the
+    last few minutes -- from its first event. 404 once it is only in the
+    store, which is then what the page loads instead."""
+    live = live_runs.get("rollout", run_id, owner=read_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    return _live_stream(live)
+
+
+@app.post("/api/rollout/runs/{run_id}/stop")
+def rollout_stop(run_id: str, user: dict = Depends(current_user)) -> dict:
+    """Stop a Copilot run. The model turn in flight is not interrupted; the
+    pass ends after it and the run is recorded as failed, stopped. Only one's
+    own run."""
+    live = live_runs.get("rollout", run_id, owner=write_owner(user))
+    if live is None:
+        raise HTTPException(404, f"run {run_id} is not running")
+    live.stop.set()
+    return {"stopping": True, "run_id": run_id}
 
 
 @app.get("/api/rollout/runs")

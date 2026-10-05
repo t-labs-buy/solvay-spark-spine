@@ -2241,6 +2241,35 @@ def test_a_run_that_kept_no_calls_is_not_called_unretrieved():
     assert lin["summary"]["record"] == "none" and lin["summary"]["not_retrieved"] == 0
 
 
+def test_a_stopped_pass_makes_no_further_model_call():
+    """Stop from the page ends the pass after the turn in flight. Without it a
+    run whose stream was dropped would carry on billing turns nobody reads."""
+    import threading
+    import types
+
+    from backend.agents.rollout import agent
+
+    stop = threading.Event()
+    turns = [([types.SimpleNamespace(type="text", text="Reading the As-Is.")], "end_turn")] * 3
+
+    class Requests(list):
+        def append(self, item):
+            super().append(item)
+            stop.set()  # pressed while the first turn is being written
+
+    requests = Requests()
+    real = agent._client
+    agent._client = lambda: _scripted_client(list(turns), requests)
+    try:
+        agent._run("sys", "ctx", "asis", ftools.Session(), "submit_asis", AsIsModel, None, stop=stop)
+        raise AssertionError("the pass did not stop")
+    except agent.Stopped:
+        pass
+    finally:
+        agent._client = real
+    assert len(requests) == 1
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

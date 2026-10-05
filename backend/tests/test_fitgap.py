@@ -479,6 +479,70 @@ def test_scoping_does_not_reorder_what_is_left():
     _with_fake_graph(check)
 
 
+# --- a run outlives the tab that started it ----------------------------------
+
+def _live_run(events, owner=7):
+    import threading
+    from backend.core import live
+
+    return live.start("fitgap", iter(events), owner, threading.Event())
+
+
+def _drain(run):
+    from backend.core import live
+
+    return [e for e in run.follow() if e[0] != live.PING]
+
+
+def test_a_late_reader_replays_the_run_from_its_first_event():
+    from backend.core import live
+
+    events = [("scope", {"run_id": "fg_live000001", "steps": []}),
+              ("step_start", {"bpml_code": "1"}), ("done", {"run_id": "fg_live000001"})]
+    first = _live_run(events)
+    assert _drain(first) == events
+    # Reopened after the first stream has gone: the same log, from the top.
+    again = live.get("fitgap", "fg_live000001", owner=7)
+    assert again is first and _drain(again) == events
+
+
+def test_someone_elses_live_run_is_not_found_but_an_admin_sees_it():
+    from backend.core import live
+
+    _drain(_live_run([("scope", {"run_id": "fg_live000002", "steps": []})], owner=7))
+    assert live.get("fitgap", "fg_live000002", owner=8) is None
+    assert live.get("fitgap", "fg_live000002", owner=None) is not None
+
+
+def test_a_run_that_raises_ends_its_stream_with_an_error():
+    def events():
+        yield "scope", {"run_id": "fg_live000003", "steps": []}
+        raise RuntimeError("boom")
+
+    got = _drain(_live_run(events()))
+    assert got[-1] == ("error", {"message": "RuntimeError: boom"})
+
+
+def test_a_quiet_run_sends_keepalives_so_a_proxy_keeps_the_stream_open():
+    """One Copilot model turn can run for minutes without an event. Behind the
+    deployed app's proxy that silence closed the stream as "network error"."""
+    import time
+
+    from backend.core import live
+
+    def events():
+        yield "scope", {"run_id": "fg_live000004", "steps": []}
+        time.sleep(0.3)
+        yield "done", {}
+
+    real, live.PING_SECONDS = live.PING_SECONDS, 0.05
+    try:
+        got = [e[0] for e in _live_run(events()).follow()]
+    finally:
+        live.PING_SECONDS = real
+    assert got[0] == "scope" and got[-1] == "done" and live.PING in got[1:-1]
+
+
 if __name__ == "__main__":
     import traceback
 
@@ -494,3 +558,4 @@ if __name__ == "__main__":
             traceback.print_exc()
     print(f"\n{len(fns) - failed}/{len(fns)} passed")
     sys.exit(1 if failed else 0)
+

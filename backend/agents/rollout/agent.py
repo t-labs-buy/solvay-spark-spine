@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import typing
 from typing import Any, Callable
@@ -372,7 +373,8 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
          step_ids: list[str] | None = None,
          need_advisory: bool = False,
          min_sap_searches: int = 0,
-         amend: str | None = None) -> tuple[Any, dict]:
+         amend: str | None = None,
+         stop: threading.Event | None = None) -> tuple[Any, dict]:
     """One bounded pass. Returns the submitted model (or None) and its cost.
 
     `on_note(kind, data)` receives what is not a tool call: the context the
@@ -406,6 +408,10 @@ def _run(system: str, user: str, stage: str, sess: tools.Session,
                                            "tools": [t["name"] for t in tool_defs]}})
 
     while submitted is None:
+        # Checked between turns: a turn in flight is paid for either way, and
+        # the SDK has no clean way to abandon one half-streamed.
+        if stop is not None and stop.is_set():
+            raise Stopped("stopped before it finished")
         over = (calls >= budget or last_in >= MAX_INPUT_TOKENS
                 or in_tokens >= MAX_TOTAL_INPUT_TOKENS)
         if over and not warned:
@@ -899,9 +905,14 @@ def _unquoted_sap_ratings(model, sess: tools.Session) -> list[str]:
     return out
 
 
+class Stopped(Exception):
+    """The run was stopped from the page."""
+
+
 def read_asis(req: RunRequest, scope, sess: tools.Session,
               on_tool: Callable | None = None,
-              on_note: Callable | None = None) -> tuple[AsIsModel | None, dict]:
+              on_note: Callable | None = None,
+              stop: threading.Event | None = None) -> tuple[AsIsModel | None, dict]:
     """Pass one. Named for the country case it was written for; it reads
     whatever the run's subject is."""
     subject = SUBJECTS[req.subject]
@@ -913,12 +924,13 @@ def read_asis(req: RunRequest, scope, sess: tools.Session,
           "does not limit which parts of the document you may read."
     )
     return _run(system_subject(subject), user, "asis", sess, "submit_asis", AsIsModel, on_tool,
-                on_note)
+                on_note, stop=stop)
 
 
 def compare(req: RunRequest, scope, asis: AsIsModel, sess: tools.Session,
             on_tool: Callable | None = None,
-            on_note: Callable | None = None) -> tuple[Analysis | None, dict]:
+            on_note: Callable | None = None,
+            stop: threading.Event | None = None) -> tuple[Analysis | None, dict]:
     steps = "\n".join(_step_line(s) for s in asis.steps) or "(no steps were extracted)"
     notes = ""
     if asis.normalisation_notes:
@@ -940,7 +952,7 @@ def compare(req: RunRequest, scope, asis: AsIsModel, sess: tools.Session,
                 Analysis, on_tool, on_note, step_ids=[s.step_id for s in asis.steps],
                 need_advisory=subject.localization,
                 min_sap_searches=min_sap_searches(subject, asis, sess),
-                amend="amend_analysis")
+                amend="amend_analysis", stop=stop)
 
 
 def _prefetched(scope, sess: tools.Session, on_tool: Callable | None) -> str:

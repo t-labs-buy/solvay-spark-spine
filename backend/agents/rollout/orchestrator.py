@@ -88,9 +88,12 @@ def preview(req: RunRequest) -> dict:
     }
 
 
-def run(req: RunRequest) -> Iterator[Event]:
+def run(req: RunRequest, stop: threading.Event | None = None) -> Iterator[Event]:
     """Yields ('scope'|'stage'|'tool_call'|'asis'|'analysis'|'gate'|'scores'|
-    'done'|'error', payload)."""
+    'done'|'error', payload).
+
+    Setting `stop` ends the pass in progress after its current model turn,
+    and the run is recorded as failed."""
     started = time.time()
     subject = SUBJECTS[req.subject]
     # The scope guardrail, on the one thing here a person types freely. A run
@@ -253,7 +256,7 @@ def run(req: RunRequest) -> Iterator[Event]:
                         "detail": "Reading the country As-Is documentation"}
         yield "log", entry("note", {"kind": "stage", "title": f"Pass 1 of 2: reading the {subject.label}"})
         box: dict = {}
-        yield from recorded(_pass(lambda cb, nb: agent.read_asis(req, scope, sess, cb, nb), box, run,
+        yield from recorded(_pass(lambda cb, nb: agent.read_asis(req, scope, sess, cb, nb, stop), box, run,
                          "read-as-is", lambda m: {"steps": len(m.steps),
                                                   "evidence_gaps": len(m.evidence_gaps)}))
         if box.get("error"):
@@ -287,7 +290,7 @@ def run(req: RunRequest) -> Iterator[Event]:
                                     "text": f"{len(asis.steps)} steps carried over from pass 1.",
                                     "detail": asis_cost})
         box = {}
-        yield from recorded(_pass(lambda cb, nb: agent.compare(req, scope, asis, sess, cb, nb), box, run,
+        yield from recorded(_pass(lambda cb, nb: agent.compare(req, scope, asis, sess, cb, nb, stop), box, run,
                          "compare-to-template",
                          lambda a: {"deviations": len(a.deviations),
                                     "fit_areas": len(a.fit_areas),

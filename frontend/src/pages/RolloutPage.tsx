@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  fitgap, rollout, runRollout, sessionUploads, uploadSessionDocuments,
+  fitgap, followRollout, rollout, runRollout, sessionUploads, uploadSessionDocuments,
   type AgentToolCall, type AsIsModel, type Lineage, type EvidenceLogEntry, type BpmlProcess, type Deviation,
   type Materiality, type RolloutAnalysis, type RolloutDecision, type RolloutGates,
   type RolloutSourceChunk, type RolloutSourceDocument, type RolloutSources,
   type RolloutSubject,
-  type RolloutPreview,
+  type RolloutHandlers, type RolloutPreview,
   type RolloutRunDetail, type RolloutRunSummary, type RolloutScores, type RolloutStatus,
   type UploadRole,
   type UploadSession, type AgentEvaluation,
@@ -82,6 +82,10 @@ const MATERIALITY_HUE: Record<Materiality, "error" | "warning" | "info" | "succe
 
 /** The two states that are a real legal obligation. Everything else is a
  *  choice, however local — which is the whole point of §5.3. */
+
+// How many times a dropped stream is reopened before the page gives up and
+// points at History. The run carries on on the server either way.
+const RECONNECTS = 5;
 
 const plural = (n: number, one: string, many = "") => `${n} ${n === 1 ? one : many || one + "s"}`;
 
@@ -957,6 +961,9 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
   const [decisions, setDecisions] = useState<RolloutDecision[]>([]);
   const [deciding, setDeciding] = useState<Record<string, string>>({});
   const controller = useRef<AbortController | null>(null);
+  // The run the live stream belongs to, as soon as its `scope` event names
+  // it: what a dropped connection reopens, and what Stop stops.
+  const liveRun = useRef<string | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
 
   // Follow the tail of the live log, but stop following the moment the
@@ -1067,49 +1074,99 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
     try { if (id) await sessionUploads.drop(id); } catch { /* already swept */ }
   }
 
-  async function start() {
-    if (running || !session) return;
-    setRunning(true);
+  /** Empty every panel a live stream fills, before it fills them. */
+  function clearLive() {
     setError(null); setAsis(null); setAnalysis(null); setScores(null); setGates(null);
-    setStages([]); setCalls([]); setLog([]); setRunId(null); setTab("summary"); setDecisions([]); setComposing(false);
-    setSources(null); setEvaluation(null);
+    setStages([]); setCalls([]); setLog([]); setSources(null); setEvaluation(null);
+  }
+
+  /** What a live stream does with its events. `ended` is set by the two
+   *  events a run always finishes with, so a stream that closes without
+   *  either is known to have been cut. */
+  function liveHandlers(ended: { value: boolean }): RolloutHandlers {
+    return {
+      scope: (d) => { liveRun.current = d.run_id; setRunId(d.run_id); },
+      stage: (d) => setStages((prev) => {
+        const next = prev.filter((s) => s.stage !== d.stage);
+        return [...next, { stage: d.stage, status: d.status, detail: d.detail }];
+      }),
+      toolCall: (d) => setCalls((prev) => [...prev, d]),
+      log: (e) => setLog((prev) => [...prev, e]),
+      asis: setAsis,
+      gate: setGates,
+      analysis: setAnalysis,
+      scores: setScores,
+      sources: setSources,
+      evaluation: setEvaluation,
+      done: () => { ended.value = true; },
+      error: (m) => { ended.value = true; setError(m); },
+    };
+  }
+
+  /** Follow a run until it finishes. `first` opens the stream; without it,
+   *  the run in `liveRun` is reopened. A connection that drops before the
+   *  run ends -- a proxy, a flaky network -- is reopened and replayed from
+   *  the top, since the run itself carries on on the server. */
+  async function follow(first: ((on: RolloutHandlers, signal: AbortSignal) => Promise<unknown>) | null) {
+    setRunning(true);
     const ctrl = new AbortController();
     controller.current = ctrl;
+    const ended = { value: false };
+    let open = first;
     try {
-      await runRollout(
-        {
-          scope_bpml: scope?.code ?? "", upload_session: session, categories: [],
-          subject: subjectKey,
-          country: country.trim(), country_context: countryContext.trim(),
-          sap_release: sapRelease.trim(), gt_version: gtVersion.trim(),
-          question: question.trim() || null,
-        },
-        {
-          scope: (d) => setRunId(d.run_id),
-          stage: (d) => setStages((prev) => {
-            const next = prev.filter((s) => s.stage !== d.stage);
-            return [...next, { stage: d.stage, status: d.status, detail: d.detail }];
-          }),
-          toolCall: (d) => setCalls((prev) => [...prev, d]),
-          log: (e) => setLog((prev) => [...prev, e]),
-          asis: setAsis,
-          gate: setGates,
-          analysis: setAnalysis,
-          scores: setScores,
-          sources: setSources,
-          evaluation: setEvaluation,
-          done: () => undefined,
-          error: setError,
-        },
-        ctrl.signal,
-      );
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") setError((e as Error).message);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (open) {
+            await open(liveHandlers(ended), ctrl.signal);
+          } else {
+            const id = liveRun.current;
+            clearLive();
+            if (!id || !(await followRollout(id, liveHandlers(ended), ctrl.signal))) {
+              // No longer live: it finished, or the server restarted. The
+              // store has whatever it got to.
+              if (id) await loadRun(id, false);
+              return;
+            }
+          }
+          if (ended.value || ctrl.signal.aborted) return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError" || ctrl.signal.aborted) return;
+          if (!liveRun.current) { setError((e as Error).message); return; }
+        }
+        if (attempt >= RECONNECTS) {
+          setError("Lost the connection to this run. It is still running on the server: reopen it from History.");
+          return;
+        }
+        open = null;
+        await new Promise((r) => setTimeout(r, 1000 * Math.min(attempt + 1, 5)));
+      }
     } finally {
       setRunning(false);
       controller.current = null;
       rollout.runs().then(setHistory).catch(() => undefined);
     }
+  }
+
+  async function start() {
+    if (running || !session) return;
+    clearLive();
+    setRunId(null); setTab("summary"); setDecisions([]); setComposing(false);
+    liveRun.current = null;
+    const body = {
+      scope_bpml: scope?.code ?? "", upload_session: session, categories: [],
+      subject: subjectKey,
+      country: country.trim(), country_context: countryContext.trim(),
+      sap_release: sapRelease.trim(), gt_version: gtVersion.trim(),
+      question: question.trim() || null,
+    };
+    await follow((on, signal) => runRollout(body, on, signal));
+  }
+
+  /** Stop on the server as well: the run no longer ends with the stream. */
+  function stop() {
+    if (liveRun.current) rollout.stop(liveRun.current).catch(() => undefined);
+    controller.current?.abort();
+    setRunning(false);
   }
 
   // Which retrieved passages the analysis ended up resting on. Rollout records
@@ -1194,7 +1251,7 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
-  async function loadRun(id: string) {
+  async function loadRun(id: string, attach = true) {
     try {
       const run = await rollout.run(id);
       setRunId(run.id);
@@ -1218,6 +1275,12 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
       setCalls(run.calls ?? []);
       setLog(run.log?.length ? run.log : logFromCalls(run.calls ?? []));
       setStages([]); setError(null); setTab("summary"); setComposing(false);
+      // Still going -- the stream was cut, the tab was closed, or it was
+      // started in another one. Follow it live from its first event.
+      if (attach && run.status === "running") {
+        liveRun.current = run.id;
+        await follow(null);
+      }
     } catch (e) {
       setError((e as Error).message);
     }
@@ -2105,7 +2168,7 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
                     </Typography>
                     {running ? (
                       <Button variant="outlined" color="error" size="large" startIcon={<Square size={15} />}
-                              onClick={() => { controller.current?.abort(); setRunning(false); }}
+                              onClick={stop}
                               sx={{ textTransform: "none", borderRadius: RADIUS }}>
                         Stop
                       </Button>
@@ -2310,6 +2373,7 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
         )}
         onLoadIntoPage={(id) => void loadRun(id)}
         loadDisabled={running}
+        opensInPage={(id) => history.some((r) => r.id === id && r.status === "running")}
         filterPlaceholder="Filter by scope, country or headline…"
         emptyText="Nothing analysed yet. Run one and it will appear here."
       />

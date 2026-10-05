@@ -68,6 +68,10 @@ export interface RunHistoryDrawerProps<D> {
   detailActions?: (detail: D) => ReactNode;
   onLoadIntoPage: (id: string) => void;
   loadDisabled?: boolean;
+  /** True for a card that skips the detail pane and goes straight onto the
+   *  page -- a run still in progress, whose register the pane cannot show
+   *  yet but the page can follow live. */
+  opensInPage?: (id: string) => boolean;
   filterPlaceholder: string;
   /** Shown when there is nothing to list at all. */
   emptyText: string;
@@ -97,7 +101,7 @@ export function when(iso: string | null): string {
 export default function RunHistoryDrawer<D>({
   open, onClose, icon, title, noun, items, loading, currentId,
   onDelete, armDelete, deleteLabel = "Delete this run",
-  fetchDetail, renderDetail, detailActions, onLoadIntoPage, loadDisabled,
+  fetchDetail, renderDetail, detailActions, onLoadIntoPage, loadDisabled, opensInPage,
   filterPlaceholder, emptyText,
 }: RunHistoryDrawerProps<D>) {
   const theme = useTheme();
@@ -132,6 +136,15 @@ export default function RunHistoryDrawer<D>({
     },
     [fetchDetail],
   );
+
+  const pick = (id: string) => {
+    if (!loadDisabled && opensInPage?.(id)) {
+      onLoadIntoPage(id);
+      onClose();
+    } else {
+      show(id);
+    }
+  };
 
   // The three list endpoints take no query, so this filters what is already
   // here rather than asking the server, which is also why it needs no debounce.
@@ -267,11 +280,11 @@ export default function RunHistoryDrawer<D>({
                 key={r.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => show(r.id)}
+                onClick={() => pick(r.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    show(r.id);
+                    pick(r.id);
                   }
                 }}
                 sx={{

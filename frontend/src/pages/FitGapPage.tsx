@@ -17,8 +17,8 @@ import {
   type EvalQuestion, type Engine, type Expectation,
 } from "../data/evalQuestions";
 import {
-  fitgap, runFitGap, uploadSessionDocuments,
-  type BpmlProcess, type FitGapClass, type FitGapEntry, type FitGapEvidence, type FitGapIssue,
+  fitgap, followFitGap, runFitGap, uploadSessionDocuments,
+  type BpmlProcess, type FitGapHandlers, type FitGapClass, type FitGapEntry, type FitGapEvidence, type FitGapIssue,
   type FitGapPreview, type FitGapRunDetail, type FitGapRunSummary, type FitGapStatus,
   type FitGapSynthesis,
   type UploadComparison, type UploadSession,
@@ -1600,48 +1600,47 @@ export default function FitGapPage({ active, onShowInGraph, openRun: request = n
     setQuestion("");
   };
 
-  async function start() {
-    if (running || !scope) return;
+  /** What every live stream does with its events -- a run started here, or
+   *  one reopened from the history and replayed from its first event. */
+  const handlers: FitGapHandlers = {
+    scope: (d) => {
+      setRunId(d.run_id);
+      setSteps(d.steps.map((s) => ({ code: s.code, name: s.name, state: "waiting", tools: [] })));
+    },
+    stepStart: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "running" })),
+    toolCall: (d) =>
+      patch(d.bpml_code, (s) => ({
+        ...s,
+        tools: [...s.tools, { tool: d.tool, summary: d.summary, error: d.error }],
+      })),
+    entry: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "done", entry: d })),
+    verifyFail: () => { /* surfaced on the entry itself, as issues */ },
+    stepError: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "failed", message: d.message })),
+    synthesis: setSynth,
+    done: (d) => {
+      setSummary(d);
+      // A stopped run drops the steps it had not reached, so none of them is
+      // left looking like it is still on its way.
+      if (d.stopped) {
+        setSteps((ss) => ss.map((s) =>
+          s.state === "waiting" || s.state === "running" ? { ...s, state: "failed", message: "Stopped before it finished" } : s));
+      }
+    },
+    error: setError,
+  };
+
+  /** Follow one stream until it ends, with the page marked as running. */
+  async function stream(follow: (signal: AbortSignal) => Promise<unknown>) {
     setRunning(true);
     setError(null);
     setSynth(null);
     setSummary(null);
-    setRunId(null);
     setOpenEntry(null);
     setTab(0);
-    setSteps((plan?.steps ?? []).map((s) => ({ code: s.code, name: s.name, state: "waiting", tools: [] })));
     const ctrl = new AbortController();
     controller.current = ctrl;
     try {
-      await runFitGap(
-        {
-          mode, scope_bpml: scope.code, holdout, max_steps: maxSteps, concurrency, categories: [],
-          upload_session: (uploads?.documents ?? 0) > 0 ? uploadSession : null,
-          // Tag the run with the eval id so a stored register can be traced
-          // back to the question that produced it.
-          question: picked ? `[${picked.id} · ${picked.axis}] ${question.trim()}` : question.trim() || null,
-          country_profile: mode === "B" && country.trim() && !countryError ? JSON.parse(country) : null,
-        },
-        {
-          scope: (d) => {
-            setRunId(d.run_id);
-            setSteps(d.steps.map((s) => ({ code: s.code, name: s.name, state: "waiting", tools: [] })));
-          },
-          stepStart: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "running" })),
-          toolCall: (d) =>
-            patch(d.bpml_code, (s) => ({
-              ...s,
-              tools: [...s.tools, { tool: d.tool, summary: d.summary, error: d.error }],
-            })),
-          entry: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "done", entry: d })),
-          verifyFail: () => { /* surfaced on the entry itself, as issues */ },
-          stepError: (d) => patch(d.bpml_code, (s) => ({ ...s, state: "failed", message: d.message })),
-          synthesis: setSynth,
-          done: setSummary,
-          error: setError,
-        },
-        ctrl.signal,
-      );
+      await follow(ctrl.signal);
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError((e as Error).message);
     } finally {
@@ -1651,9 +1650,35 @@ export default function FitGapPage({ active, onShowInGraph, openRun: request = n
     }
   }
 
+  async function start() {
+    if (running || !scope) return;
+    setRunId(null);
+    setSteps((plan?.steps ?? []).map((s) => ({ code: s.code, name: s.name, state: "waiting", tools: [] })));
+    await stream((signal) =>
+      runFitGap(
+        {
+          mode, scope_bpml: scope.code, holdout, max_steps: maxSteps, concurrency, categories: [],
+          upload_session: (uploads?.documents ?? 0) > 0 ? uploadSession : null,
+          // Tag the run with the eval id so a stored register can be traced
+          // back to the question that produced it.
+          question: picked ? `[${picked.id} · ${picked.axis}] ${question.trim()}` : question.trim() || null,
+          country_profile: mode === "B" && country.trim() && !countryError ? JSON.parse(country) : null,
+        },
+        handlers,
+        signal,
+      ),
+    );
+  }
+
+  /** Stop the run on the server, which finishes the register with the steps
+   *  it has and ends the stream with it. Closing the tab no longer stops a
+   *  run, so dropping the stream alone would leave it going. */
   function stop() {
-    controller.current?.abort();
-    setRunning(false);
+    if (!runId) {
+      controller.current?.abort();
+      return;
+    }
+    fitgap.stop(runId).catch(() => controller.current?.abort());
   }
 
   async function addUploads(files: File[]) {
@@ -1752,6 +1777,19 @@ export default function FitGapPage({ active, onShowInGraph, openRun: request = n
       setSynth((run.synthesis && "reuse" in run.synthesis ? run.synthesis : null) as FitGapSynthesis | null);
       setSummary(null);
       setError(null);
+      // Still going -- started in a tab since closed, or in another one.
+      // Follow it live: the replay rebuilds every step, with its tool calls,
+      // from the first event. If it is no longer live, what the store holds
+      // is what was just put on the page.
+      if (run.status === "running") {
+        await stream(async (signal) => {
+          if (!(await followFitGap(run.id, handlers, signal))) {
+            const latest = await fitgap.run(run.id);
+            setSteps(latest.entries.map((e) => ({ code: e.bpml_code, name: e.step_name, state: "done", tools: [], entry: e })));
+            setSynth((latest.synthesis && "reuse" in latest.synthesis ? latest.synthesis : null) as FitGapSynthesis | null);
+          }
+        });
+      }
     } catch (e) {
       setError((e as Error).message);
     }
@@ -1838,6 +1876,7 @@ export default function FitGapPage({ active, onShowInGraph, openRun: request = n
               )}
               onLoadIntoPage={(id) => void loadRun(id)}
               loadDisabled={running}
+              opensInPage={(id) => history.some((r) => r.id === id && r.status === "running")}
               filterPlaceholder="Filter by scope or question…"
               emptyText="Nothing run yet. Run one and it will appear here."
             />
@@ -2099,7 +2138,7 @@ export default function FitGapPage({ active, onShowInGraph, openRun: request = n
                 {summary.verification.evidence_items} quotes checked against the chunks they name ·{" "}
                 {summary.verification.hard_issues} discarded · {summary.verification.soft_issues} flagged ·{" "}
                 {summary.verification.entries_repaired} entries repaired
-                {summary.failed > 0 && ` · ${summary.failed} step(s) failed`}
+                {summary.failed > 0 && ` · ${summary.failed} step(s) ${summary.stopped ? "not run — stopped" : "failed"}`}
               </Typography>
             </Stack>
           </Paper>

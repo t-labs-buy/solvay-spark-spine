@@ -11,7 +11,7 @@ import queue
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Iterator
 
 from backend.core import tracing
@@ -48,9 +48,13 @@ def preview(req: RunRequest) -> dict:
     }
 
 
-def run(req: RunRequest) -> Iterator[Event]:
+def run(req: RunRequest, stop: threading.Event | None = None) -> Iterator[Event]:
     """Yields ('scope'|'step_start'|'tool_call'|'entry'|'verify_fail'|
-    'synthesis'|'done'|'error', payload)."""
+    'synthesis'|'done'|'error', payload).
+
+    Setting `stop` cancels the steps not yet started and finishes the run
+    with what it has, as `stopped`. Steps already in flight are not
+    interrupted; what they produce afterwards is still saved."""
     started = time.time()
     # The scope guardrail, on the one thing here a person types freely. A run
     # asked to answer something outside the programme is refused before it
@@ -231,23 +235,32 @@ def run(req: RunRequest) -> Iterator[Event]:
         futures = [pool.submit(work, s) for s in steps]
 
         def close_pool() -> None:
-            for f in futures:
-                f.exception()
+            wait(futures)
             pool.shutdown(wait=True)
             events.put(("__done__", {}))
 
         threading.Thread(target=close_pool, daemon=True).start()
 
+        stopped = False
         while True:
-            name, payload = events.get()
+            if stop is not None and stop.is_set():
+                for f in futures:
+                    f.cancel()
+                stopped = True
+                break
+            try:
+                name, payload = events.get(timeout=0.5)
+            except queue.Empty:
+                continue
             if name == "__done__":
                 break
             yield name, payload
 
-        ordered = [results[s.code] for s in steps if s.code in results]
+        with lock:
+            ordered = [results[s.code] for s in steps if s.code in results]
         synth = synthesis.synthesise(ordered)
         tokens = (sum(r.input_tokens for r in ordered), sum(r.output_tokens for r in ordered))
-        store.finish_run(conn, run_id, synth, tokens)
+        store.finish_run(conn, run_id, synth, tokens, status="stopped" if stopped else "done")
 
         reuse = synth.get("reuse", {})
         run.end(output={
@@ -268,6 +281,7 @@ def run(req: RunRequest) -> Iterator[Event]:
             "steps": len(steps),
             "entries": len(ordered),
             "failed": len(steps) - len(ordered),
+            "stopped": stopped,
             "seconds": round(time.time() - started, 1),
             "input_tokens": tokens[0], "output_tokens": tokens[1],
             "verification": verifier.summarise(ordered),

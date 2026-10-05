@@ -940,6 +940,8 @@ export interface FitGapHandlers {
   synthesis: (d: FitGapSynthesis) => void;
   done: (d: {
     run_id: string; steps: number; entries: number; failed: number; seconds: number;
+    /** Stopped from the page: the register holds the steps that finished. */
+    stopped?: boolean;
     input_tokens: number; output_tokens: number;
     verification: { entries: number; evidence_items: number; hard_issues: number; soft_issues: number; entries_repaired: number; evidence_valid_pct: number };
   }) => void;
@@ -957,6 +959,21 @@ export async function runFitGap(body: FitGapRunBody, on: FitGapHandlers, signal:
     signal,
   });
   if (!res.ok || !res.body) await json(res);
+  await dispatchFitGap(res, on);
+}
+
+/** Reopen a run still in progress -- from another tab, or after this one was
+ *  closed -- and replay every event it has sent so far before following it.
+ *  False when the run is no longer live, and only the stored register is left. */
+export async function followFitGap(id: string, on: FitGapHandlers, signal: AbortSignal): Promise<boolean> {
+  const res = await fetch(`/api/fitgap/runs/${id}/stream`, { signal });
+  if (res.status === 404) return false;
+  if (!res.ok || !res.body) await json(res);
+  await dispatchFitGap(res, on);
+  return true;
+}
+
+async function dispatchFitGap(res: Response, on: FitGapHandlers) {
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -1137,6 +1154,8 @@ export const fitgap = {
   runs: () => fetch(`/api/fitgap/runs?scope=${historyScope()}`).then((r) => json<FitGapRunSummary[]>(r)),
   run: (id: string) => fetch(`/api/fitgap/runs/${id}`).then((r) => json<FitGapRunDetail>(r)),
   exportUrl: (id: string, format: "md" | "json" | "xlsx") => `/api/fitgap/runs/${id}/export?format=${format}`,
+  /** Finish a live run early, with the steps it has. */
+  stop: (id: string) => fetch(`/api/fitgap/runs/${id}/stop`, { method: "POST" }).then((r) => json<{ stopping: boolean }>(r)),
   review: (entryId: number, body: { reviewer: string; verdict: string; corrected_classification?: string | null; comment?: string }) =>
     fetch(`/api/fitgap/entries/${entryId}/review`, {
       method: "POST",
@@ -2012,7 +2031,22 @@ export async function runRollout(body: RolloutRunBody, on: RolloutHandlers, sign
     body: JSON.stringify(body),
     signal,
   });
-  await readEvents(res, {
+  await readEvents(res, rolloutEvents(on));
+}
+
+/** Reopen a Copilot run still in progress -- after a dropped connection, a
+ *  closed tab, or from another one -- replaying every event it has sent so
+ *  far before following it. False when the run is no longer live, and only
+ *  the stored record is left. */
+export async function followRollout(id: string, on: RolloutHandlers, signal: AbortSignal): Promise<boolean> {
+  const res = await fetch(`/api/rollout/runs/${id}/stream`, { signal });
+  if (res.status === 404) return false;
+  await readEvents(res, rolloutEvents(on));
+  return true;
+}
+
+function rolloutEvents(on: RolloutHandlers): Record<string, (payload: unknown) => void> {
+  return {
     scope: (d) => on.scope(d as Parameters<RolloutHandlers["scope"]>[0]),
     stage: (d) => on.stage(d as Parameters<RolloutHandlers["stage"]>[0]),
     tool_call: (d) => on.toolCall(d as Parameters<RolloutHandlers["toolCall"]>[0]),
@@ -2025,7 +2059,7 @@ export async function runRollout(body: RolloutRunBody, on: RolloutHandlers, sign
     done: (d) => on.done(d as Parameters<RolloutHandlers["done"]>[0]),
     error: (d) => on.error((d as { message: string }).message),
     log: (d) => on.log?.(d as EvidenceLogEntry),
-  });
+  };
 }
 
 /** Whether workshop-pack downloads are the client copy (no model named).
@@ -2043,6 +2077,8 @@ export const rollout = {
     }).then((r) => json<RolloutPreview>(r)),
   runs: () => fetch(`/api/rollout/runs?scope=${historyScope()}`).then((r) => json<RolloutRunSummary[]>(r)),
   run: (id: string) => fetch(`/api/rollout/runs/${id}`).then((r) => json<RolloutRunDetail>(r)),
+  /** End a live run after the model turn in flight. */
+  stop: (id: string) => fetch(`/api/rollout/runs/${id}/stop`, { method: "POST" }).then((r) => json<{ stopping: boolean }>(r)),
   deleteRun: (id: string) =>
     fetch(`/api/rollout/runs/${encodeURIComponent(id)}`, { method: "DELETE" })
       .then((r) => json<{ status: string; id: string }>(r)),

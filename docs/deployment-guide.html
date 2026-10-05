@@ -2810,6 +2810,41 @@ solvay-spark-spine-solvay-hindsight-1   Up 2 hours (healthy)</pre>
               so the app is always <code>solvay-spark-spine-app-1</code>.
             </p>
 
+            <h3 id="read-logs">Read the container logs</h3>
+            <p>Run these from <code>~/solvay-spark-spine</code>. Each service's log is under its service name.</p>
+            <pre class="language-bash">
+docker compose logs --tail 50 app
+docker compose logs -f app
+docker compose logs -f --since 10m app
+docker compose logs --tail 50 solvay-postgres
+docker compose logs --tail 50 solvay-neo4j
+docker compose logs --tail 50 solvay-hindsight
+docker compose logs --tail 50 solvay-ollama
+docker compose logs --tail 100
+docker compose logs app 2&gt;&amp;1 | grep -i error | tail -20
+docker compose logs --no-color app &gt; app.log</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker compose logs --tail 50 app</code></td><td>The app's last 50 lines.</td></tr>
+                  <tr><td><code>docker compose logs -f app</code></td><td>Follows the app's log live. <kbd>Ctrl</kbd>+<kbd>C</kbd> stops following; the app keeps running.</td></tr>
+                  <tr><td><code>docker compose logs -f --since 10m app</code></td><td>Starts at the last 10 minutes, then follows. <code>--since</code> also takes <code>1h</code> or a time such as <code>2026-10-05T09:00</code>.</td></tr>
+                  <tr><td><code>docker compose logs --tail 50 solvay-postgres</code> (and the other <code>solvay-</code> services)</td><td>The same for the database, Neo4j, Hindsight or Ollama.</td></tr>
+                  <tr><td><code>docker compose logs --tail 100</code></td><td>The last 100 lines of every service together, each line prefixed with its service name.</td></tr>
+                  <tr><td><code>docker compose logs app 2&gt;&amp;1 | grep -i error | tail -20</code></td><td>The 20 most recent lines that mention "error", in any case.</td></tr>
+                  <tr><td><code>docker compose logs --no-color app &gt; app.log</code></td><td>Saves the whole app log to <code>app.log</code>, for example to copy it to your Mac with <code>scp</code>.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Outside the project folder, use the container name with plain
+              <code>docker logs</code>: <code>docker logs -f solvay-spark-spine-app-1</code>.
+              Add <code>-t</code> to put a timestamp on every line. Caddy, the HTTPS front
+              door, is a separate stack, so its logs are read from its own folder:
+              <code>cd ~/caddy &amp;&amp; docker compose logs --tail 100 caddy</code>.
+            </p>
+
             <h3 id="check-network">Check the app is on ivolve-network</h3>
             <pre class="language-bash">
 docker inspect solvay-spark-spine-app-1 --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}'
@@ -2872,6 +2907,53 @@ solvay-spark-spine-solvay-hindsight-1</pre>
               the server has an older <code>compose.yml</code>. Move it to the current one
               as described in section 11, "Moving a running server to the solvay- names".
             </p>
+
+            <h3 id="network-errors">Find network errors in the logs</h3>
+            <p>When the app can't reach another service, the log says so. This lists the most recent such lines from every service in the stack:</p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose logs --since 1h 2&gt;&amp;1 | grep -iE "could not translate host name|name or service not known|temporary failure in name resolution|connection refused|connection reset|timed out|timeout|network is unreachable|no route to host|failed to establish|ConnectError|ServiceUnavailable" | tail -30</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Part</th><th>What it does</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker compose logs --since 1h</code></td><td>The last hour of every service's log. Use <code>24h</code> to look further back, or put <code>app</code> at the end for the app alone.</td></tr>
+                  <tr><td><code>2&gt;&amp;1</code></td><td>Sends error output into the pipe as well, so <code>grep</code> sees every line.</td></tr>
+                  <tr><td><code>grep -iE "…"</code></td><td>Keeps lines matching any of the phrases, in any case. <code>-E</code> lets <code>|</code> mean "or".</td></tr>
+                  <tr><td><code>| tail -30</code></td><td>Shows only the 30 most recent matches.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>What the phrases usually mean:</p>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Message</th><th>Likely cause</th></tr></thead>
+                <tbody>
+                  <tr><td><code>could not translate host name</code>, <code>Name or service not known</code>, <code>Temporary failure in name resolution</code></td><td>The name doesn't resolve: the target container isn't running, or isn't on <code>ivolve-network</code> (see the check above).</td></tr>
+                  <tr><td><code>Connection refused</code></td><td>The container is reachable but nothing is listening yet: it is still starting, or has crashed. Read that service's own log.</td></tr>
+                  <tr><td><code>timed out</code>, <code>ConnectError</code>, <code>ServiceUnavailable</code></td><td>The service is overloaded or hung (Ollama while loading a model, Neo4j during a graph rebuild), or, for outside calls such as the Anthropic API, the server's outbound internet is blocked.</td></tr>
+                  <tr><td><code>Network is unreachable</code>, <code>No route to host</code></td><td>A network problem on the host itself; check the AWS security group and the server's outbound access.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>To test the connections directly from inside the app container:</p>
+            <pre class="language-bash">
+docker exec solvay-spark-spine-app-1 getent hosts solvay-postgres solvay-neo4j solvay-ollama solvay-hindsight
+docker exec solvay-spark-spine-app-1 curl -sS -m 5 http://solvay-ollama:11434/api/tags
+docker exec solvay-spark-spine-app-1 curl -sS -m 5 -o /dev/null -w '%{http_code}\n' http://solvay-hindsight:8888/
+docker exec solvay-spark-spine-app-1 curl -sS -m 5 -o /dev/null -w '%{http_code}\n' http://solvay-neo4j:7474
+docker exec solvay-spark-spine-app-1 curl -sS -m 10 -o /dev/null -w '%{http_code}\n' https://api.anthropic.com</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
+                <tbody>
+                  <tr><td><code>getent hosts …</code></td><td>The address each name resolves to, one line per name. A missing line means that name doesn't resolve from the app.</td></tr>
+                  <tr><td><code>curl … solvay-ollama:11434/api/tags</code></td><td>Ollama answers with the list of models it has.</td></tr>
+                  <tr><td><code>curl … solvay-hindsight:8888/</code>, <code>… solvay-neo4j:7474</code></td><td>Prints an HTTP status code. Any number means the service answered; an error such as <code>Connection refused</code> or <code>timed out</code> means it didn't.</td></tr>
+                  <tr><td><code>curl … https://api.anthropic.com</code></td><td>Whether the server can reach the internet. Any status code (often <code>404</code>) is fine; a timeout means outbound traffic is blocked.</td></tr>
+                </tbody>
+              </table>
+            </div>
             <h3>Restart or stop</h3>
             <pre class="language-bash">
 cd ~/solvay-spark-spine

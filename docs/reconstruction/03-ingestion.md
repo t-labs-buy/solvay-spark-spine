@@ -1,6 +1,7 @@
 # 03 — Document Ingestion / Conversion (documents → Markdown)
 
 Scope: `backend/ingestion/*` (converter.py, pptx_ocr.py, pptx_flow.py, flow_cv.py, table_cv.py, vlm_ocr.py, vlm_api.py, xlsx_tables.py, xml_tables.py, bpml_markdown.py, md_chunker.py, mail_reader.py, preview.py, pptx_to_md.py, folder_to_md.py) plus the API callers that drive it (`backend/api/app.py`, `backend/core/uploads.py`).
+Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; `app.py` line numbers are at that working tree.
 Legend: **FACT (file:line)** = read from the code. **INFERRED** = deduced or taken from docs but not confirmed in code. Paths are relative to the repo root, and `ingestion/` means `backend/ingestion/`.
 
 ---
@@ -313,8 +314,9 @@ The Solvay process house (BPML), exported from Signavio: one section per process
 - Read-back API (used by `backend/agents/fitgap/bpml.py` and `backend/graph/knowledge_graph.py`):
   - `sections(text)` parses headings `^#{2,6}\s+`, fields `^- \*\*(.+?):\*\*\s?(.*)$`, description lines and `- ` activity lines. It works on the chunks joined back together.
   - `parse(text)` returns the numbered processes as `{code, name, description, process_type, status, accountable, roles, inputs, outputs}`.
-  - `hierarchy(text)` returns `{"parent":{code:parent}, "name":{code:name}}` and covers lettered BPMN codes too: `BPMN_CODE = ^([A-Za-z][A-Za-z0-9]{0,3}-\d{2,3}(?:-\d{2,3})*)\s+(.*)$`. Kind suffix: `\s*\((task|subProcess|ev[A-Z]\w*|\w*[Gg]ateway)\)(?:\W.*)?$`. Rank priority: own heading/task/subProcess = 0, object section = 1, event reference = 2, path mention = 9. Ties go to the earlier occurrence in the document (FACT :354-407).
-- CLI: `.venv/bin/python -m backend.ingestion.bpml_markdown [--source X.xlsx] [--target Y.md] [--index]`. `--index` calls `backend.rag.rag.index_path(target, force=True)` (FACT :410-426).
+  - `hierarchy(text)` returns `{"parent":{code:parent}, "name":{code:name}}` and covers lettered BPMN codes too: `BPMN_CODE = ^([A-Za-z][A-Za-z0-9]{0,3}-\d{2,3}(?:-\d{2,3})*)\s+(.*)$` (FACT :282). Kind suffix: `\s*\((task|subProcess|ev[A-Z]\w*|\w*[Gg]ateway)\)(?:\W.*)?$` (FACT :286). Rank priority: own heading/task/subProcess = 0, object section = 1, event reference = 2, path mention = 9. Ties go to the earlier occurrence in the document. A code's name comes from its winning entry; its parent comes from the best entry that has a parent other than itself (FACT :354-416).
+  - Host of an activity (FACT :383-407): in a numbered section the host is the section's own code. In any other section the host is the last numbered segment of its Path. When that section's heading is itself a lettered code (an object section, e.g. `T-050-050 …`), an activity whose code **extends** it (starts with `T-050-050-`) is placed under that lettered code, not under the numbered ancestor. An activity with an unrelated code keeps the numbered host. Before this rule, `T-050-050-020` in the `T-050-050` section filed under `8.0` was parented to `8.0`, a sibling of its own parent.
+- CLI: `.venv/bin/python -m backend.ingestion.bpml_markdown [--source X.xlsx] [--target Y.md] [--index]`. `--index` calls `backend.rag.rag.index_path(target, force=True)` (FACT :419-435).
 
 ---
 
@@ -477,10 +479,10 @@ folder_to_md `FORMATS = {.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.xlsm,.html,.htm,
 
 | Caller | Source stored at | Media dir | Markdown written to |
 |---|---|---|---|
-| Web single upload `POST /api/upload` → `POST /api/convert/{doc_id}?vlm=&provider=qwen` | `.workdir/{doc_id}/source{.ext}` + `name.txt` (original filename). doc_id = `uuid4().hex[:12]` | `.workdir/{doc_id}/media/` (persisted; served by `GET /api/docs/{id}/media/{name}`) | `.workdir/{doc_id}/output.md`. Preview PNGs go to `.workdir/{doc_id}/preview/page-NNNN.png` (FACT app.py:174-228) |
-| `POST /api/docs/{doc_id}/embed?category=` | — | — | copied to `knowledge_base/{stem}{_ext}.md`, with category front matter added via `rag.declare_category`, then `rag.index_path` (FACT app.py:264-305) |
-| Batch `POST /api/batch/upload` → `POST /api/batch/convert/{batch_id}` (body `{vlm=False, provider="claude"}`, SSE events `progress`/`file_done`…) | `.workdir/batches/{batch_id}/sources/{name}` | temp dir | `.workdir/batches/{batch_id}/markdown/{stem}{_ext}.md` (FACT app.py:1161-1290) |
-| Upload sessions (`backend/core/uploads.py:add_file`) | `.workdir/uploads/{sid}/` | `{session}/media` | `{session}/{stem}{_ext}.md` (`md_name`), then `rag.index_file` (FACT uploads.py:59, 380-389, 461-469) |
+| Web single upload `POST /api/upload` → `POST /api/convert/{doc_id}?vlm=&provider=qwen` | `.workdir/{doc_id}/source{.ext}` + `name.txt` (original filename) + `owner.txt` (the uploader's user id; only that account can convert, preview, download, embed or delete the job, others get 404). doc_id = `uuid4().hex[:12]` | `.workdir/{doc_id}/media/` (persisted; served by `GET /api/docs/{id}/media/{name}`) | `.workdir/{doc_id}/output.md`. Preview PNGs go to `.workdir/{doc_id}/preview/page-NNNN.png` (FACT app.py:264-298) |
+| `POST /api/docs/{doc_id}/embed?category=` | — | — | copied to `knowledge_base/{stem}{_ext}.md`, with category front matter added via `rag.declare_category`, then `rag.index_path` (FACT app.py:302-344) |
+| Batch `POST /api/batch/upload` → `POST /api/batch/convert/{batch_id}` (body `{vlm=False, provider="claude"}`, SSE events `progress`/`file_done`…) | `.workdir/batches/{batch_id}/sources/{name}` + `owner.txt` (the uploader's user id; only that account can convert, download or embed the batch, others get 404) | temp dir | `.workdir/batches/{batch_id}/markdown/{stem}{_ext}.md` (FACT app.py:1264-1434) |
+| Upload sessions (`backend/core/uploads.py:add_file`). Since accounts, each session belongs to the user who created it (`new_session(user_id)`), and another user's session id is refused (§04 §2.9) | `.workdir/uploads/{sid}/` | `{session}/media` | `{session}/{stem}{_ext}.md` (`md_name`), then `rag.index_file` (FACT uploads.py:59, 357, 398-415, 479-487) |
 | Corpus convention | originals in `solvay-spark/<code>/` | — | `solvay-spark/<code>/markdown/{stem}_{ext}.md`. The category is the folder name (docs/ingesting-markdown.md) |
 
 Filename convention: `{stem}{suffix.lower().replace('.', '_')}.md`, so `Pricing.xlsx` becomes `Pricing_xlsx.md`. The review page reverses it to locate the original (tests/test_originals.py).
@@ -508,7 +510,7 @@ Filename convention: `{stem}{suffix.lower().replace('.', '_')}.md`, so `Pricing.
 4. `.xls` is accepted but goes through Docling rather than openpyxl. Docling's support for legacy .xls/.ppt/.doc is unverified (**INFERRED**: possibly unsupported or converted via LibreOffice).
 5. PDF path: only the first picture per page receives the page render, and text can be duplicated (documented).
 6. `pptx_ocr._render_line` is unused.
-7. The batch convert default provider is `"claude"`, while the single convert default is `"qwen"` (FACT app.py:1200-1202 vs 211).
+7. The batch convert default provider is `"claude"`, while the single convert default is `"qwen"` (FACT app.py:1303-1305 vs 292).
 8. The Qwen `read_flow` prompt asks for `flowchart TD`, while CV and connector flows emit `flowchart LR`.
 9. Not examined here: how rag.declare_category formats front matter, and `rag.index_path`/`index_file` internals (see the RAG spec section).
 10. Test files `backend/tests/test_converter.py`, `test_formats.py`, `test_bpml_markdown.py` and `test_originals.py` are plain-Python runners (`python backend/tests/test_x.py`) with no external services. Their assertions define the behaviours above (txt/csv verbatim, xml text retention, mail tables, json fencing, preview stand-ins, BPML round-trip, original-file lookup).

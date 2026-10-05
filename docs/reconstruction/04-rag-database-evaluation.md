@@ -1,9 +1,11 @@
 # 04 — RAG (Ask), Database Schema, Answer Quality / Evaluation
 
-Scope: `backend/rag/*.py`, every Postgres DDL statement in `backend/`, the Ask
+Scope: `backend/rag/*.py`, every Postgres DDL statement in `backend/`
+(including the accounts tables in `backend/auth/store.py`), the Ask
 API path in `backend/api/app.py`, Ragas evaluation, the Answer-Quality
 workspace arithmetic. Paths are repo-relative. **FACT** = read in code
 (file:line). **INFERRED** = deduced, not directly stated. **DOC** = from docs only.
+Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; line numbers are at that working tree.
 
 ---
 
@@ -11,9 +13,13 @@ workspace arithmetic. Paths are repo-relative. **FACT** = read in code
 
 * One Postgres database (`DATABASE_URL`, e.g. `.../docling` locally,
   `.../solvay` in compose) holds: the corpus (`rag_documents`, `rag_chunks`,
-  `rag_categories`), Ask history + evaluations, experiments, and every agent
-  run store (evidence, fitgap, rollout, workshop, graph-quality). FACT
-  `rag.py:256-262`, `ask_store.py:73-75`, `fitgap/store.py:26-30`.
+  `rag_categories`), Ask history + evaluations, experiments, every agent
+  run store (evidence, fitgap, rollout, workshop, graph-quality), and the
+  accounts tables (`users`, `activity_events`). FACT
+  `rag.py:256-262`, `ask_store.py:72-74`, `fitgap/store.py:28-31`,
+  `auth/store.py:42-48`.
+* Every run, review, workshop session and workshop decision row carries a
+  `user_id` owner (§2.10). FACT `auth/store.py:125-137,340-341`.
 * A sibling database `<base>_session` (e.g. `docling_session`) holds uploaded
   attachments, one Postgres **schema per session** (`u_<12 hex>`), each with its
   own copy of `rag_documents`/`rag_chunks`. FACT `rag.py:265-277`,
@@ -42,14 +48,25 @@ workspace arithmetic. Paths are repo-relative. **FACT** = read in code
 * Dimension auto-rebuild: after create, reads `pg_attribute.atttypmod` of
   `rag_chunks.embedding`; if `!= EMBED_DIMENSION` it **drops and recreates**
   `rag_chunks, rag_documents` (`rag.py:543-553`). (Destructive; re-index needed.)
-* `ask_store` / `experiment_store`: DDL once per process **per database URL**
-  (`_ready: set[str]` + lock) because `ALTER TABLE ADD COLUMN IF NOT EXISTS` takes
-  ACCESS EXCLUSIVE before checking and concurrent requests deadlocked
-  (`ask_store.py:84-111`, `experiment_store.py:36-50`). Test
-  `test_the_schema_is_brought_up_once_however_many_requests_arrive`.
-* `fitgap/store.py`, `rollout/store.py`, `evidence/store.py`: `create_schema`
-  runs each time it's called (no once-guard) inside `conn.transaction()`.
-  `graph_eval._conn()` runs its DDL on every call (`graph/graph_eval.py:543-558`).
+* `ask_store`, `experiment_store`, `evidence/store.py`, `fitgap/store.py`,
+  `rollout/store.py` and `auth/store.py`: DDL once per process **per database
+  URL** (`_ready: set[str]` + lock; the public `create_schema` checks the set and
+  calls a private `_create_schema` inside `conn.transaction()`), because
+  `ALTER TABLE ADD COLUMN IF NOT EXISTS` takes ACCESS EXCLUSIVE before checking
+  and concurrent requests deadlocked (`ask_store.py:85-112`,
+  `experiment_store.py:36-50`, `evidence/store.py:54-71`,
+  `fitgap/store.py:46-63`, `rollout/store.py:49-66`, `auth/store.py:51-70`).
+  Test `test_the_schema_is_brought_up_once_however_many_requests_arrive`.
+* `upload_sessions`/`upload_files` use a single module flag `_meta_ready`
+  (`core/uploads.py:120,175-224`).
+* `graph_eval._conn()` runs its DDL on every call (`graph/graph_eval.py:543-558`).
+* Start-up order (FastAPI lifespan, `api/app.py:82-91`): `auth_store.bootstrap_admin()`
+  creates `users`/`activity_events` and the `legacy` row (and a first Admin from
+  `ADMIN_USERNAME`/`ADMIN_PASSWORD` if no active Admin exists); then
+  `_ensure_run_tables()` (`app.py:215-226`) runs `create_schema` of ask, evidence,
+  fitgap and rollout stores, so the `user_id` columns and the `legacy` backfill
+  exist before the usage dashboard reads them. A store that fails is logged
+  (`auth: could not prepare the {name} run table: …`), not fatal.
 * All connections: psycopg3, `autocommit=True`, thread-local cached
   (`rag.connection(schema=False)` shared by all stores); callers must not close;
   worker threads call `rag.close()` in `finally`. FACT `rag.py:471-540`,
@@ -157,7 +174,7 @@ inline and `rag_chunks` with no FK/indexes (added after COPY), `rag_categories`
 (`consolidate.py:239-276`), then `SET maintenance_work_mem='512MB'` and builds
 FK/HNSW/GIN/category indexes, `ANALYZE` (`consolidate.py:354-388`).
 
-### 2.3 Ask history & evaluation — owner `backend/rag/ask_store.py:114-230`
+### 2.3 Ask history & evaluation — owner `backend/rag/ask_store.py:115-237`
 
 ```sql
 CREATE TABLE IF NOT EXISTS ask_runs (
@@ -221,6 +238,9 @@ CREATE TABLE IF NOT EXISTS ask_reviews (
     note       text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now()
 );
+-- owner columns (§2.10), ask_store.py:236-237:
+--   own_table(conn, "ask_runs")                 -> user_id, ask_runs_user_idx (user_id, started_at DESC)
+--   own_table(conn, "ask_reviews", "created_at") -> user_id, ask_reviews_user_idx (user_id, created_at DESC)
 ```
 
 ### 2.4 Experiments — owner `backend/rag/experiment_store.py:53-88`
@@ -256,7 +276,7 @@ CREATE TABLE IF NOT EXISTS eval_experiment_items (
 );
 ```
 
-### 2.5 Evidence Agent — owner `backend/agents/evidence/store.py:53-96`
+### 2.5 Evidence Agent — owner `backend/agents/evidence/store.py:71-118`
 
 ```sql
 CREATE TABLE IF NOT EXISTS evidence_runs (
@@ -282,9 +302,15 @@ CREATE INDEX IF NOT EXISTS evidence_runs_started_idx ON evidence_runs (started_a
 ALTER TABLE evidence_runs ADD COLUMN IF NOT EXISTS memory jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE evidence_runs ADD COLUMN IF NOT EXISTS log jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE evidence_runs ADD COLUMN IF NOT EXISTS evaluation jsonb NOT NULL DEFAULT '{}'::jsonb;
+-- owner column (§2.10), evidence/store.py:118:
+--   own_table(conn, "evidence_runs") -> user_id, evidence_runs_user_idx (user_id, started_at DESC)
 ```
+Retention: `EVIDENCE_HISTORY_LIMIT` (200) runs **per owner**; `finish_run` calls
+`trim(conn, owner=<run's user_id>)`, which deletes that owner's runs beyond the
+newest 200 (`WHERE user_id IS NOT DISTINCT FROM %s ... OFFSET %s`). FACT
+`evidence/store.py:179,294-311`.
 
-### 2.6 Fit-Gap (InsightLens) — owner `backend/agents/fitgap/store.py:44-116`
+### 2.6 Fit-Gap (InsightLens) — owner `backend/agents/fitgap/store.py:63-139`
 
 ```sql
 CREATE TABLE IF NOT EXISTS fitgap_runs (
@@ -336,9 +362,13 @@ CREATE INDEX IF NOT EXISTS fitgap_entries_run_idx ON fitgap_entries (run_id);
 CREATE INDEX IF NOT EXISTS fitgap_reviews_entry_idx ON fitgap_reviews (entry_id);
 ALTER TABLE fitgap_runs ADD COLUMN IF NOT EXISTS categories jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE fitgap_runs ADD COLUMN IF NOT EXISTS uploads jsonb NOT NULL DEFAULT '{}'::jsonb;
+-- owner columns (§2.10), fitgap/store.py:138-139:
+--   own_table(conn, "fitgap_runs")                  -> user_id, fitgap_runs_user_idx (user_id, started_at DESC)
+--   own_table(conn, "fitgap_reviews", "created_at") -> user_id, fitgap_reviews_user_idx (user_id, created_at DESC)
+-- fitgap_reviews.reviewer stays the free text that was typed; user_id is the signed-in account.
 ```
 
-### 2.7 Rollout (Fit-Gap Copilot) + workshops — owner `backend/agents/rollout/store.py:47-203`
+### 2.7 Rollout (Fit-Gap Copilot) + workshops — owner `backend/agents/rollout/store.py:66-230`
 
 ```sql
 CREATE TABLE IF NOT EXISTS rollout_runs (
@@ -448,8 +478,19 @@ ALTER TABLE workshop_sessions ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
 CREATE INDEX IF NOT EXISTS workshop_decisions_run_idx ON workshop_decisions (source_run, gap_id);
 CREATE INDEX IF NOT EXISTS workshop_decisions_memory_idx
     ON workshop_decisions (country, scope_bpml, primary_type) WHERE is_current;
--- then _backfill(conn): copies rollout_decisions rows not yet copied (legacy_id) into workshop_decisions (rollout/store.py:494+)
+-- owner columns (§2.10), rollout/store.py:227-229, run BEFORE _backfill (it reads runs through _COLUMNS, which now includes user_id):
+--   own_table(conn, "rollout_runs")                      -> user_id, rollout_runs_user_idx (user_id, started_at DESC)
+--   own_table(conn, "workshop_sessions")                 -> user_id, workshop_sessions_user_idx (user_id, started_at DESC)
+--   own_table(conn, "workshop_decisions", "decided_at")  -> user_id, workshop_decisions_user_idx (user_id, decided_at DESC)
+-- rollout_decisions (legacy) gets no owner column.
+-- then _backfill(conn): copies rollout_decisions rows not yet copied (legacy_id) into workshop_decisions (rollout/store.py:230, 535-561);
+--   each copy gets user_id = its run's owner, or legacy if the run has none (rollout_decisions.run_id is a FK to rollout_runs, so the run exists)
 ```
+`facilitator` and `decided_by` are the signed-in username for new rows (the API
+passes `user["username"]`, app.py:2668, 2705; a typed name in the request is ignored)
+and keep the typed names on rows from before accounts; `user_id` records the
+signed-in account (`submit_workshop`, `save_decision`, `_insert_decision` take
+`user_id`). FACT `rollout/store.py:476-526,573-620`. `list_decisions(…)` takes no `owner`: decisions are shared organisational memory, so `GET /api/rollout/decisions` returns every account's to every signed-in user, and each row records who decided it (rollout/store.py:625-640).
 
 ### 2.8 Graph quality runs — owner `backend/graph/graph_eval.py:546-557`
 
@@ -493,6 +534,7 @@ CREATE TABLE IF NOT EXISTS upload_files (                       -- uploads.py:19
     PRIMARY KEY (session_id, name)
 );
 ALTER TABLE upload_files ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'other';
+ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS user_id bigint;  -- uploads.py:222; NO foreign key: users lives in the main database
 -- per session:
 CREATE SCHEMA IF NOT EXISTS "u_<12hex>";   -- then SET search_path TO "u_<id>", public; rag.create_schema(scoped) -> full §2.1 corpus tables inside the schema
 -- sweep: DROP SCHEMA IF EXISTS "u_<id>" CASCADE for expired sessions + orphan schemas matching u_[0-9a-f]{12}
@@ -501,7 +543,124 @@ Session id regex `[0-9a-f]{12}`; TTL `FITGAP_UPLOAD_TTL_HOURS` (12), cap
 `FITGAP_UPLOAD_MAX_FILES` (12). Chunks in sessions carry category `UPLOAD`
 (INFERRED from `rag.py:147-152` comment).
 
-### 2.10 Table ownership summary
+Session owner (FACT `uploads.py:234-279`, `api/app.py:229-244,2106-2115`):
+`new_session(user_id)` inserts `(id, expires_at, user_id)`. `owner(sid)` returns
+`user_id` of a live (`expires_at > now()`) session, else None. `_own_upload`
+answers a live session that is not the caller's with **404 "This upload session
+has expired"**, the same as a missing one. The upload stream starts a fresh
+session for the caller instead of adding to someone else's. A session created
+before accounts has `user_id` NULL, so it matches nobody and expires within the TTL.
+
+### 2.10 Accounts, activity log and run ownership — owner `backend/auth/store.py:70-137`
+
+```sql
+CREATE TABLE IF NOT EXISTS users (                              -- auth/store.py:74-85
+    id              bigserial PRIMARY KEY,
+    username        text NOT NULL,
+    password_hash   text NOT NULL DEFAULT '',
+    role            text NOT NULL DEFAULT 'user'
+                    CHECK (role IN ('admin', 'user')),
+    active          boolean NOT NULL DEFAULT true,
+    session_version int NOT NULL DEFAULT 1,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    last_login_at   timestamptz,
+    last_seen_at    timestamptz
+);
+-- Case-insensitive uniqueness without citext: "Alice" and "alice" are one account.
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users (lower(username));   -- :89-90
+
+CREATE TABLE IF NOT EXISTS activity_events (                    -- :93-103
+    id        bigserial PRIMARY KEY,
+    at        timestamptz NOT NULL DEFAULT now(),
+    user_id   bigint REFERENCES users(id),
+    username  text NOT NULL DEFAULT '',
+    action    text NOT NULL,
+    tool      text,
+    run_id    text,
+    detail    jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS activity_events_at_idx   ON activity_events (at DESC);            -- :104-105
+CREATE INDEX IF NOT EXISTS activity_events_user_idx ON activity_events (user_id, at DESC);   -- :106-107
+
+-- The pre-account owner, in the same transaction:                -- :108-111
+INSERT INTO users (username, password_hash, role, active)
+VALUES ('legacy', '', 'user', false)
+ON CONFLICT (lower(username)) DO NOTHING;
+```
+
+* **Accounts are never deleted**; `active=false` replaces deletion so a run's
+  owner always exists (`auth/store.py:12-14`). Passwords are stored as
+  `passwords.hash_password(...)` in `password_hash`; `legacy` has an empty hash
+  and `active=false`, so it cannot sign in (`:16-18`, `:217`).
+* `session_version` is bumped (`session_version + 1`) by a new password or by
+  deactivation, which signs the account out everywhere; a role change does not
+  bump it (`update_user`, `:239-280`). `bootstrap_admin` also bumps it when it
+  re-activates an existing account (`:323-329`), which it does only after `ADMIN_PASSWORD` passes the strength check and `ADMIN_USERNAME` passes `_clean_username` (so never for `legacy`); a refused setting is a WARNING line, not an error (`:312-334`).
+* Username rules (`_clean_username`, `:171-177`): 1-64 characters, no whitespace,
+  no `|`, not `legacy` (case-insensitive). Roles `("admin","user")` (`:38`).
+  Duplicate names are caught by `ON CONFLICT (lower(username)) DO NOTHING
+  RETURNING …` returning no row (`:187-195`).
+* The last active Admin cannot be demoted or deactivated, and nobody may demote
+  or deactivate themselves (`:255-260`).
+* `last_login_at`/`last_seen_at` set on successful sign-in; `touch_seen` updates
+  `last_seen_at` at most once a minute (`:219-221`, `:290-294`).
+* `activity_events` rows come from `log_event(user, action, tool=, run_id=,
+  detail=)`, which never raises (`:371-386`). Actions written by the code: `login`,
+  `login_failed` (always user_id NULL, typed username kept; `auth/routes.py:39`), `logout`, `password_changed`,
+  `user_created`, `user_updated`, `run`, `review`, `decision`, `workshop`,
+  `export`, `delete`, `clear_history` (FACT grep of `log_event(` in `backend/`).
+
+**Ownership column — `own_table(conn, table, column="started_at")`** (FACT `auth/store.py:125-137`),
+called from inside each store's `_create_schema`:
+
+```sql
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS user_id bigint REFERENCES users(id);
+CREATE INDEX IF NOT EXISTS {table}_user_idx ON {table} (user_id, {column} DESC);
+UPDATE {table} SET user_id = <legacy id> WHERE user_id IS NULL;   -- idempotent backfill
+```
+
+| Table | Index column | Called at |
+|---|---|---|
+| ask_runs | started_at | `rag/ask_store.py:236` |
+| ask_reviews | created_at | `rag/ask_store.py:237` |
+| evidence_runs | started_at | `agents/evidence/store.py:118` |
+| fitgap_runs | started_at | `agents/fitgap/store.py:138` |
+| fitgap_reviews | created_at | `agents/fitgap/store.py:139` |
+| rollout_runs | started_at | `agents/rollout/store.py:227` |
+| workshop_sessions | started_at | `agents/rollout/store.py:228` |
+| workshop_decisions | decided_at | `agents/rollout/store.py:229` |
+
+`OWNED_TABLES` lists exactly these eight (`auth/store.py:340-341`). Not owned:
+`fitgap_entries`, `ask_evaluations`, `ask_evaluation_history` (reached through
+their run), `rollout_decisions` (legacy), `eval_experiments*`,
+`graph_quality_runs`, the corpus tables. Outside the database, single-document
+conversion jobs (`.workdir/<doc_id>/`) and batches (`.workdir/batches/<id>/`)
+are owned through an `owner.txt` holding the uploader's id; only the uploader
+reaches them, not even an Admin (§02 §3d). A job that `/api/kb/files/open`
+returns for Doc vs MD also gets a `shared` marker: anyone signed in may read
+its pages, only the owner may change it.
+
+* `legacy_id()` caches the `legacy` row's id per database URL (`:114-122`).
+* `owned(owner, alias="")` returns `(" AND [alias.]user_id = %s", [owner])`, or
+  `("", [])` when `owner` is None, meaning "everyone's" (`:140-148`). Every
+  `get_run`, `list_runs`, `delete_run` (and rollout `get_attachment`) in the
+  run stores takes `owner` and appends this fragment. `list_runs` also
+  `LEFT JOIN users u ON u.id = r.user_id` and returns `user_id` and `owner`
+  (= `u.username`).
+* Who passes which owner (`auth/deps.py:39-58`): `list_owner(user, scope)` is
+  None only for an Admin with `scope=all`, else the user's id; `read_owner` is
+  None for an Admin, else the user's id; `write_owner` is always the user's id
+  (an Admin's access to others' runs is read-only). Someone else's run returns
+  404, not 403. `GET /api/rollout/decisions` applies no owner at all:
+  `workshop_decisions` is shared organisational memory, readable by every
+  signed-in user, and its `user_id` only records who decided.
+* `reassign_legacy(conn, username, tables=None)` moves `legacy`'s rows in the
+  given owned tables (default all; a table not yet created is skipped) to an
+  account in one transaction; CLI `python -m backend.auth.store
+  reassign-legacy <username> [table …]` (`:344-365`, `:410-418`). Other CLI:
+  `create-admin <username>` (prompts twice), `list`.
+
+### 2.11 Table ownership summary
 
 | DB | Table | Owner module |
 |---|---|---|
@@ -513,6 +672,7 @@ Session id regex `[0-9a-f]{12}`; TTL `FITGAP_UPLOAD_TTL_HOURS` (12), cap
 | main | fitgap_runs, fitgap_entries, fitgap_reviews | backend/agents/fitgap/store.py |
 | main | rollout_runs, rollout_decisions, workshop_sessions, workshop_decisions | backend/agents/rollout/store.py |
 | main | graph_quality_runs | backend/graph/graph_eval.py |
+| main | users, activity_events | backend/auth/store.py |
 | `<base>_session` public | upload_sessions, upload_files | backend/core/uploads.py |
 | `<base>_session` u_<id> | rag_documents, rag_chunks, rag_categories (copy) | uploads.py via rag.create_schema |
 | hindsight | (Hindsight-owned) | external service |
@@ -713,21 +873,34 @@ Question: {question}
 Stage keys: `embed, keyword, vector, fuse, answer`; statuses `running|done`; optional `ms`.
 
 ### 6.2 HTTP (FACT `api/app.py`)
+* Every page and `/api/*` route sits behind the sign-in gate (`app_login.install(app)`,
+  `app.py:3457`; accounts spec). Owner rules below use `list_owner`/`read_owner`/`write_owner` (§2.10).
 * `POST /api/ask` body `Question{question (1..2000 chars), k (1..20, default 8), mode="hybrid", categories: list[str]=[]}`; 400 on bad mode/category. Returns SSE (`text/event-stream`, headers `Cache-Control: no-cache`, `X-Accel-Buffering: no`), each event `event: <name>\ndata: <json>\n\n`. Events: `run {id[, not_saved]}` first (run id `ask_<10 hex>`), then all ask_events events (`trace, stage, sources, token, done`), or `error {message}`.
-  Persistence during stream: `start_run` before pipeline; `save_trace` on trace; `save_sources(sources, terms)` on sources; `finish_run(answer, done)` on done (+ `trim`); `fail_run(message, partial answer)` on exception/SystemExit. On done: refused → `_record_unscored` (evaluation status `skipped` with reason); else `_start_judging(run_id)` daemon thread.
+  Persistence during stream: `start_run` (with `user_id` = the signed-in account) before pipeline, then `log_event(user, "run", tool="ask", run_id)` (`app.py:1826-1838`); `save_trace` on trace; `save_sources(sources, terms)` on sources; `finish_run(answer, done)` on done (+ `trim`); `fail_run(message, partial answer)` on exception/SystemExit. On done: refused → `_record_unscored` (evaluation status `skipped` with reason); else `_start_judging(run_id)` daemon thread.
 * `GET /api/rag/status` → `{missing[], embed_model, embed_provider:"ollama", embed_dimension, answer_model, default_k, documents, chunks, categories, ingest_categories, prompt_hash, tracing, evaluation: evaluation.status(), error}`.
 * `GET /api/rag/chunk/{chunk_id}` → Source-shaped object for a `CAT:id` key (404 if not found).
-* `GET /api/ask/runs?limit=50&search=&quality=` (limit clamped 1..200) → `{runs, retention, filters, low_quality_below, ...}`.
-* `GET /api/ask/runs/{id}` → full run + `corpus_changed` + `evaluation` + `review`.
-* `GET /api/ask/runs/{id}/evaluation`; `POST /api/ask/runs/{id}/evaluation` (re-score: 404/409 not done/409 already running/503 unavailable; returns `{status:"running", run_id, judge_model}`).
-* `POST /api/ask/runs/{id}/review` body `{verdict ∈ grounded|partly|not, reviewer≤120, note≤2000}`; also Langfuse `create_score(name="human_grounded", value=verdict, data_type="CATEGORICAL", score_id=score_id(run_id,"human_grounded"))`.
-* `DELETE /api/ask/runs/{id}`, `DELETE /api/ask/runs`.
-* `GET /api/quality/overview|explorer?days=28&half=&mode=` (days clamped 1..365), `GET /api/quality/judge`, `GET /api/quality/experiments`, `GET /api/quality/experiments/compare?base=&cand=`, `GET /api/quality/experiments/{id}/items/{item_id}`, `POST /api/quality/experiments/{id}/baseline`, `DELETE /api/quality/experiments/{id}`.
+* `GET /api/ask/runs?limit=50&search=&quality=&scope=mine` (limit clamped 1..200) → `{runs, retention, filters, low_quality_below}`. Rows are the caller's own; an Admin with `scope=all` gets everyone's (`app.py:3204-3221`).
+* `GET /api/ask/runs/{id}` → full run (incl. `user_id`) + `corpus_changed` + `evaluation` + `review`. `read_owner`: an Admin may open any run, a User only their own; others → 404.
+* `GET /api/ask/runs/{id}/evaluation` (`read_owner`); `POST /api/ask/runs/{id}/evaluation` (re-score, `write_owner`: 404/409 not done/409 already running/503 unavailable; returns `{status:"running", run_id, judge_model}`).
+* `POST /api/ask/runs/{id}/review` body `{verdict ∈ grounded|partly|not, reviewer≤120, note≤2000}`; only the run's owner may review (`write_owner`, else 404). The stored `reviewer` is the signed-in `username` (the body's `reviewer` is ignored) and `user_id` is the account (`app.py:3299-3313`); also Langfuse `create_score(name="human_grounded", value=verdict, data_type="CATEGORICAL", score_id=score_id(run_id,"human_grounded"))`.
+* `DELETE /api/ask/runs/{id}` deletes only the caller's own run (`write_owner`, else 404). `DELETE /api/ask/runs` clears **only the caller's own** history, Admin or not, returns `{status:"cleared", removed}` and logs `clear_history` with `{removed}` (`app.py:3421-3437`).
+* `GET /api/quality/overview|explorer?days=28&half=&mode=` (days clamped 1..365), `GET /api/quality/judge`, `GET /api/quality/experiments`, `GET /api/quality/experiments/compare?base=&cand=`, `GET /api/quality/experiments/{id}/items/{item_id}`, `POST /api/quality/experiments/{id}/baseline`, `DELETE /api/quality/experiments/{id}`. **All Admin-only** (`Depends(require_admin)`, `app.py:3342-3418`).
 * `GET /api/coverage?documents=true` → `coverage.collect()`.
 
 ## 7. Ask history storage (`ask_store.py`, FACT)
-* `RETENTION = ASK_HISTORY_LIMIT` (500); `trim()` after each `finish_run`:
-  `DELETE ... WHERE id IN (SELECT id FROM ask_runs ORDER BY started_at DESC OFFSET 500)`; cascades evaluations/history/reviews.
+* `RETENTION = ASK_HISTORY_LIMIT` (500) **per owner**. After each `finish_run`, the
+  run's `user_id` is read back and `trim(conn, owner=…)` runs
+  `DELETE FROM ask_runs WHERE id IN (SELECT id FROM ask_runs WHERE user_id IS NOT DISTINCT FROM %s ORDER BY started_at DESC OFFSET 500)`,
+  so one busy user cannot push out anyone else's history; cascades
+  evaluations/history/reviews (`ask_store.py:275-317`).
+* Ownership: `start_run` writes `user_id` (default None) (`:240-255`).
+  `get_run(owner)`, `delete_run(owner)` append `AND user_id = %s` when
+  `owner` is not None (`:472-477`, `:549-554`). `list_runs(..., owner)` adds
+  `r.user_id = %(owner)s` to its clauses and `LEFT JOIN users u`, returning
+  `user_id` and `owner` (username) per row (`:496-546`).
+* `clear(conn, owner=None)`: `DELETE FROM ask_runs WHERE true[ AND user_id = %s]`;
+  None deletes everyone's, but the API always passes the caller's id (`:557-563`).
+* `save_review(..., user_id)` upserts `user_id` with the verdict (`:408-420`).
 * `STALE_AFTER_MINUTES=5`: `running` older than 5 min **reported** as `abandoned` (row not mutated). Evaluations: `EVAL_STALE_AFTER_MINUTES=10`.
 * `LOW_QUALITY = ASK_LOW_QUALITY` (0.7).
 * Sources stored as full excerpt JSON (text, not ids) because re-indexing renumbers chunks.
@@ -783,6 +956,9 @@ python -m backend.rag.consolidate baseline|preflight|run|verify [--target doclin
 `selftest` exits 0 iff good−bad overall gap > 0.2; `questions` exits 0 iff 27 parsed.
 
 ## 9. Quality analytics (`quality.py`, FACT) — pure arithmetic over stored rows
+* Scope: `quality.py` is unchanged by accounts. It reads **every** user's judged
+  runs; there is no per-user filter. The workspace is Admin-only at the API (§6.2).
+  Per-account counts live in the Admin usage view (§9.1).
 * `load(conn)`: runs with `r.status='done' AND e.status='done'`, sources reduced to `{n,title,category}`, plus review verdict, tokens; derives `half` (categories actually read: "PKG", "DR", "PKG+DR", "—"), `retrieval` = mean(context_relevance, context_precision), `failure`.
 * Failure rules, first match: safety<1 → `safety`; relevance<0.5 → `wrong_sources`; relevance≥0.7 & precision<0.5 → `buried`; precision≥0.7 & utilization<0.5 → `ignored`; faithfulness<0.7 & (relevance None or ≥0.5) → `invented`; answer_relevancy<0.6 → `off_question`. Missing inputs skip the rule.
 * `LINE = ASK_LOW_QUALITY` (0.7). Window `days` (default 28) and previous window (`offset=1`).
@@ -792,17 +968,43 @@ python -m backend.rag.consolidate baseline|preflight|run|verify [--target doclin
 * Judge trust: dropped-judge rate per metric; context-relevance dual-judge agreement; stability from last two `ask_evaluation_history` faithfulness values (unstable ≥0.15); human agreement: bucket faithfulness ≥0.8 grounded, ≥0.5 partly, else not; Cohen's kappa withheld <20 reviews (`MIN_REVIEWS`); 3×3 matrix judge rows × reviewer cols; queue (size 12): disagreements (bad if grounded↔not), relevance splits, unstable, then weekly-deterministic sample (sha256 of `"%G-%V:run_id"`).
 * Experiments compare: `NOISE=0.05`; COMPARED metrics `overall, correctness, context_recall, faithfulness, context_precision, context_relevance, context_utilization, answer_relevancy`; verdict improved/regressed/unchanged/missing; `why_moved` (titles entered/left, useful excerpt count change, excerpt count change); `differs` over CONFIG_KEYS `mode,k,answer_model,judge_model,prompt_hash,corpus_fingerprint,ragas_version`; tokens mean & ratio change; sort regressed first (worst first). Only one baseline (`UPDATE ... SET baseline = (id = %s)`).
 
+### 9.1 Admin usage analytics (`backend/api/admin.py`, FACT) — reads run tables + `activity_events`
+* No usage table: usage is read from the run tables, which already hold tokens
+  and durations; cost is estimated from model + tokens at list prices
+  (`core/pricing.py`), never stored (`admin.py:1-11`).
+* `_runs_sql` = `UNION ALL` over the run tables that exist (`information_schema`
+  check), one row per run `(tool, id, user_id, started_at, status, seconds,
+  input_tokens, output_tokens, model)`. Mapping: evidence → `evidence_runs`
+  (`seconds`, `model`); ask → `ask_runs` (`seconds`, `answer_model`); fitgap →
+  `fitgap_runs` and rollout → `rollout_runs` (both `EXTRACT(EPOCH FROM
+  (finished_at - started_at))`, `model`) (`admin.py:32-58`).
+* `GET /api/admin/usage?start=&end=&user_id=`: window `[start, end+1 day)` UTC,
+  default last 30 days, max 366 days (400 otherwise). Groups runs by
+  `(user_id, tool, model)` with count, failed count, seconds and tokens; sign-ins
+  and failed sign-ins per user from `activity_events`; failed sign-ins with
+  `user_id IS NULL`; a per-day series per tool (`admin.py:61-74,130-257`).
+* `GET /api/admin/activity?limit=100&before=&user_id=&action=`: `activity_events`
+  newest first, paged by `id < before`, limit clamped 1..500; also the distinct
+  actions (`admin.py:260-284`).
+* `GET /api/admin/runs?user_id=&tool=&limit=50&before=`: one account's (or
+  everyone's) runs across the four tools, `LEFT JOIN users`, paged by
+  `started_at < before`, limit clamped 1..200 (`admin.py:300-343`).
+* `GET /api/admin/users` adds run counts per `user_id` over `_runs_sql`
+  (`admin.py:91-98`). All routes need `require_admin`.
+
 ## 10. Coverage analytics (`coverage.py`, FACT, read-only)
 Compares disk (`knowledge_graph.source_folders()` `*.md`, skipping `.`/`~$` names), corpus (`rag.documents()`), graph (`kg.extract_graph()` document nodes). Issue kinds/severity: `file_missing` error, `not_indexed` warning, `not_in_graph` warning, `shadowed` warning (same file name twice), `category_mismatch` info, `no_original` info (uses `app._original_of`). Output `{summary{on_disk, indexed, in_graph, documents, clean, <counts>}, issues (severity-ordered), help, corpus_error, graph_error, documents?}`.
 
 ## 11. Environment variables (this area)
-`DATABASE_URL` (required), `ANTHROPIC_API_KEY`, `OLLAMA_HOST`, `RAG_EMBED_MODEL`, `RAG_EMBED_DIMENSION`, `RAG_EMBED_BATCH`, `RAG_ANSWER_MODEL`, `RAG_HNSW_EF_SEARCH`, `ASK_HISTORY_LIMIT`, `ASK_LOW_QUALITY`, `RAG_EVAL`, `RAG_EVAL_MODEL`, `RAG_EVAL_SAMPLE`, `RAG_EVAL_TIMEOUT`, `RAG_EVAL_MAX_TOKENS`, `RAG_EVAL_OPTIONAL_METRICS`, `RAG_EVAL_DATASET`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, `AGENT_SCOPE_GUARD`, `AGENT_SCOPE_MODEL`, `AGENT_SCOPE_TIMEOUT`, `FITGAP_UPLOAD_TTL_HOURS`, `FITGAP_UPLOAD_MAX_FILES`. `.env` loaded from repo root with `override=False`.
+`DATABASE_URL` (required), `ANTHROPIC_API_KEY`, `OLLAMA_HOST`, `RAG_EMBED_MODEL`, `RAG_EMBED_DIMENSION`, `RAG_EMBED_BATCH`, `RAG_ANSWER_MODEL`, `RAG_HNSW_EF_SEARCH`, `ASK_HISTORY_LIMIT` (per owner), `EVIDENCE_HISTORY_LIMIT` (200, per owner), `ASK_LOW_QUALITY`, `RAG_EVAL`, `RAG_EVAL_MODEL`, `RAG_EVAL_SAMPLE`, `RAG_EVAL_TIMEOUT`, `RAG_EVAL_MAX_TOKENS`, `RAG_EVAL_OPTIONAL_METRICS`, `RAG_EVAL_DATASET`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, `AGENT_SCOPE_GUARD`, `AGENT_SCOPE_MODEL`, `AGENT_SCOPE_TIMEOUT`, `FITGAP_UPLOAD_TTL_HOURS`, `FITGAP_UPLOAD_MAX_FILES`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (first Admin, used only when no active Admin exists; `auth/store.py:297-335`). `.env` loaded from repo root with `override=False`.
 
 ## 12. Test-encoded contracts (FACT test names)
 * test_rag: source path indexed once; two files same name = two docs; retag carries chunks; chunk can't disagree with doc (FK); scoped search can't see other category; chunk key checked; delete cascades; delete by source; BM25 stats cover scope only; reserved code rejected. Uses throwaway DB `docling_test_rag`.
 * test_ask_store: recorded before answered; excerpts survive unanswered; failed keeps partial; abandoned reported not rewritten; list omits excerpts; retention trims oldest; delete one; filter matches question text only; schema once. DB `docling_test_ask`.
 * test_evaluation (47, stubs `evaluate`/`push_scores`): weighted mean; failed judge dropped; nothing scored → None; safety cap; weights sum 1; reference-only don't run without reference & never in overall; working numbering; score_id stable; safety → BOOLEAN; skipped when unavailable; evaluate refuses running loop; sampling 0/1; re-score replaces; skipped≠failed; abandoned after 10 min; cascades; quality filters.
-* test_quality / test_coverage / test_category_durability: as summarised in §9, §10, §4.2–4.3.
+* test_ownership (DB `docling_test_ownership`): a user lists only their own; someone else's run is not found; reviews are signed by the account; an Admin reads everyone's but changes only their own; pre-account runs go to `legacy`; legacy runs can be handed to an account; retention is per account; clear history clears only one's own; usage counts each account; an Admin lists one account's runs across tools; conversions belong to the uploader (a shared one is readable by others, not deletable); decisions are shared memory (every account, Admin or not, sees everyone's); copied old decisions get the run's owner.
+* test_auth (DB `docling_test_auth`): password hashing; bad Admin settings do not stop start-up; bootstrap Admin; API and pages need a session; sign in/out; `legacy` cannot sign in; forged/expired tokens; roles and account management; change own password; activity is logged.
+* test_quality / test_coverage / test_category_durability: as summarised in §9, §10, §4.2–4.3. The review endpoint test now signs in as an Admin who owns the run.
 
 ## 13. Gaps / inconsistencies
 1. `docs/rag.md:116-123` still says default embed model `embed-v4.0`, dimension 1536 and "chunk text is sent to Cohere"; code is Ollama bge-m3 1024 (stale doc). `rag.py` module docstring line 9 also says "Cohere Embed". FACT.
@@ -815,3 +1017,5 @@ Compares disk (`knowledge_graph.source_folders()` `*.md`, skipping `.`/`~$` name
 8. `rollout/store._backfill` DML details and the rest of fitgap/rollout/evidence store CRUD not covered (owned by agents spec).
 9. Exact frontend polling interval for the scorecard not read (frontend spec).
 10. Dimension mismatch auto-rebuild silently drops the corpus — rebuild implementers should keep or consciously change this.
+11. `upload_sessions.user_id` has no foreign key (the `users` table is in the main database, the sessions in `<base>_session`). FACT `uploads.py:219-222`.
+12. Quality analytics (§9) and Ragas judging are global, not per account; only the Ask history is owner-scoped.

@@ -3,12 +3,13 @@
 Scope: everything needed to build, configure, run and deploy Solvay Spark Spine AI.
 Notation: **[F]** = FACT, cited `file:line` (paths relative to the repo root); **[I]** = INFERRED (reasoned from evidence, not stated).
 Secrets: only variable *names* appear here. No values from `.env` were copied.
+Current as of commit `1d37131` (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree. Line numbers are at that working tree.
 
 ---
 
 ## 0. One-paragraph picture
 
-[F] There is one Python 3.12 FastAPI process (`backend.api.app:app`, port 8000). It serves the REST/SSE API and the pre-built React SPA from `static/dist/` (`backend/api/app.py:51-58,127-148,3288`). It calls these services:
+[F] There is one Python 3.12 FastAPI process (`backend.api.app:app`, port 8000). It serves the REST/SSE API and the pre-built React SPA from `static/dist/` (`backend/api/app.py:51-58,174-186,3459`). Every page and every `/api/*` route except a few sign-in/health routes needs a signed-in account; accounts are rows in the main Postgres database (`backend/auth/middleware.py:35-41,111-127`, `backend/auth/store.py:1-18`). It calls these services:
 - PostgreSQL 18 + pgvector (`DATABASE_URL`)
 - Ollama `bge-m3` embeddings (`OLLAMA_HOST`, default `http://127.0.0.1:11434`)
 - Neo4j 5 Community + APOC (`NEO4J_URI`, default `bolt://127.0.0.1:7687`), optional
@@ -36,9 +37,10 @@ Secrets: only variable *names* appear here. No values from `.env` were copied.
 | PyTorch | CPU-only `torch==2.14.0`, `torchvision==0.29.0`, from `https://download.pytorch.org/whl/cpu` | [F] `Dockerfile:22,29-30,40,43-44`; Hindsight: `torch==2.14.0` only, `Dockerfile.hindsight:24,33` |
 | PostgreSQL | 18 + pgvector (`pgvector/pgvector:pg18`; locally `brew install postgresql@18`, which "ships pgvector") | [F] `compose.yml:57`; [F] `docs/running-the-app.md:32` |
 | Neo4j | `neo4j:5-community` + APOC plugin | [F] `compose.yml:146,150`; `compose.neo4j.yml:12,21` |
-| Ollama | `ollama/ollama:latest` (unpinned); model `bge-m3` (1024-d) | [F] `compose.yml:126,138`; `.env.example:23-24` |
+| Ollama | `ollama/ollama:latest` (unpinned); model `bge-m3` (1024-d) | [F] `compose.yml:126,138`; `.env.example:22-23` |
 | Hindsight server | `hindsight-api==0.10.1` (build arg `HINDSIGHT_VERSION`) | [F] `Dockerfile.hindsight:23,34` |
 | Hindsight client | `hindsight-client==0.10.1` | [F] `constraints.txt:60` |
+| Locust (load tests only) | `locust>=2.32`, unpinned, in its own venv `.venv-loadtest` because Locust brings gevent, which `constraints.txt` was never resolved against. Not in the image | [F] `loadtest/requirements.txt:1-3`; `loadtest/README.md:36-37`; `.gitignore:22-23` |
 
 ### 1.2 Python direct dependencies (`requirements.txt`, unpinned) with the pins from `constraints.txt`
 `requirements.txt` is unpinned for local dev. The Docker build installs it with `-c constraints.txt` to fix exact versions (`constraints.txt:1-11`, `Dockerfile:46-47`). torch/torchvision are deliberately left out of constraints because the CPU index adds a `+cpu` suffix (`constraints.txt:6-7`).
@@ -131,7 +133,7 @@ Other notable transitive pins:
 | `frontend/login.html` | "Spark AI Spine — Sign in" | `/src/login/main.tsx` |
 
 [F] Frontend tests are plain Node scripts in `frontend/test/*.mjs`, run as `node test/<name>.mjs` (`frontend/test/pages-mount.mjs:3`):
-- agent-memory, agent-trace, frappe-palette, pages-mount, quality-page, quote-highlight, rag-quality, rollout-export, rollout-steps, run-history, surface-contrast
+- agent-memory, agent-trace, frappe-palette, pages-mount, quality-page, quote-highlight, rag-quality, rollout-export, rollout-steps, rollout-tabs, rollout-timing, run-history, surface-contrast
 - `quote-highlight-fixture.py` builds a 4 MB fixture from Postgres; it is git-ignored (`.gitignore:13-15`)
 
 ### 1.4 System binaries / OS packages
@@ -196,7 +198,7 @@ Notes:
 - There is no ENTRYPOINT.
 - The image is about 3–4 GB (`docs/deployment.md:29`).
 - An amd64 build on Apple silicon takes 20–40 minutes the first time (`scripts/docker-publish.sh:11-12`).
-- `/api/health` returns `{"ok": true, "preview_available", "soffice": <path|null>, "pdftoppm": <path|null>}` (`backend/api/app.py:163-171`).
+- `/api/health` returns `{"ok": true, "preview_available", "soffice": <path|null>, "pdftoppm": <path|null>}` (`backend/api/app.py:253-261`).
 
 **`.dockerignore`** (`.dockerignore:1-22`) excludes:
 - `.git/`, `.env`, `.env.*` (but re-includes `.env.example`)
@@ -298,11 +300,13 @@ The script runs under bash with `set -euo pipefail` and `cd`s to the repo root f
    - If that fails, print a warning and continue.
 3. **Backend** (`:46`): `exec .venv/bin/uvicorn backend.api.app:app --port "${PORT:-8000}" --reload --reload-dir backend`. It binds 127.0.0.1, uvicorn's default.
 
-[F] App lifespan at startup (`backend/api/app.py:75-95`):
-- `print(tracing.start())`, which logs whether Langfuse is on
-- `kg_neo4j_load.sync_in_background()`: a daemon thread loads `data/knowledge_graph.json` into Neo4j, retries for up to 120s while Neo4j starts, and gives up quietly if it is not configured (`backend/graph/kg_neo4j_load.py:249-261`)
+[F] App lifespan at startup (`backend/api/app.py:74-97`), in order:
+1. `print(tracing.start())`, which logs whether Langfuse is on.
+2. `print(auth_store.bootstrap_admin())` (`app.py:86`). It creates the `users` and `activity_events` tables and the `legacy` account. If there is no active Admin and both `ADMIN_USERNAME` and `ADMIN_PASSWORD` are set, it creates that Admin, or, if the username already exists, makes it an active Admin with that password and bumps its `session_version`. With no active Admin and either variable unset, it logs `auth: WARNING -- there is no active Admin account…` and the app still starts. A refused setting also only logs a line and the app starts: an `ADMIN_PASSWORD` under 8 characters gives `auth: WARNING -- ADMIN_PASSWORD was not used: … No Admin account was created.`, and an `ADMIN_USERNAME` that is empty, contains spaces or `|`, is over 64 characters or is the reserved `legacy` gives `auth: WARNING -- ADMIN_USERNAME was not used: … No Admin account was created.` Both checks run before the existing-account lookup, so re-enabling an existing account is also refused for a short password, and `ADMIN_USERNAME=legacy` can never turn the built-in `legacy` account into an Admin (`backend/auth/store.py:297-335`).
+3. `_ensure_run_tables()`: brings the ask, evidence, fitgap and rollout run tables up to date (owner column, hand-over of older runs to `legacy`). A failure is printed, not fatal (`app.py:215-226`).
+4. `kg_neo4j_load.sync_in_background()`: a daemon thread loads `data/knowledge_graph.json` into Neo4j, retries for up to 120s while Neo4j starts, and gives up quietly if it is not configured (`backend/graph/kg_neo4j_load.py:249-261`).
 
-[F] App lifespan at shutdown: `tracing.shutdown()` and `agent_memory.close()`.
+[F] App lifespan at shutdown: `tracing.shutdown()` and `agent_memory.close()` (`app.py:99-105`).
 
 [F] Stopping (`docs/running-the-app.md:54-62`). Ctrl+C stops only uvicorn. Stop the rest with:
 - `docker compose -f compose.neo4j.yml down`
@@ -351,6 +355,7 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 - `backend/ingestion/vlm_api.py:39`
 - `backend/rag/evaluation.py:94`
 - `backend/rag/consolidate.py:52`
+- `backend/auth/store.py:430`, only when the module runs as the account CLI (`__main__`)
 
 [F] `kg_neo4j_load.py:44` imports `rag` specifically so that `.env` is loaded before `NEO4J_*` are read.
 
@@ -359,8 +364,8 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 ### 5.1 Read by the backend (`os.environ.get`)
 | Variable | Default | file:line | Purpose |
 |---|---|---|---|
-| `DATABASE_URL` | none (required; exits with "DATABASE_URL is not set") | `backend/rag/rag.py:259-261`; `backend/rag/consolidate.py:92`; checked in `backend/api/app.py:1043,1380,1531` | Main Postgres DB. The session DB is derived as `<db>_session`, for example `docling_session` or `solvay_session` (`rag.py:265-277`, `ensure_sibling` at `:328-343` creates it through the `/postgres` maintenance DB). If the URL has no path, the base defaults to `docling` |
-| `ANTHROPIC_API_KEY` | none | `backend/agents/rollout/agent.py:323`; `backend/rag/evaluation.py:247`; `backend/api/app.py:1530,1811,2349,2716`; `vlm_api.py` claude provider `key_env`; also read implicitly by the `anthropic` SDK [I] | All Claude calls |
+| `DATABASE_URL` | none (required; exits with "DATABASE_URL is not set") | `backend/rag/rag.py:259-261`; `backend/rag/consolidate.py:92`; checked in `backend/api/app.py:1146,1480,1631` | Main Postgres DB. The session DB is derived as `<db>_session`, for example `docling_session` or `solvay_session` (`rag.py:265-277`, `ensure_sibling` at `:328-343` creates it through the `/postgres` maintenance DB). If the URL has no path, the base defaults to `docling` |
+| `ANTHROPIC_API_KEY` | none | `backend/agents/rollout/agent.py:332`; `backend/rag/evaluation.py:247`; `backend/api/app.py:1630,1915,2482,2874`; `vlm_api.py` claude provider `key_env`; also read implicitly by the `anthropic` SDK [I] | All Claude calls |
 | `OLLAMA_HOST` | `http://127.0.0.1:11434` | `backend/rag/rag.py:66` | Embeddings (`/api/embed`, falling back to `/api/embeddings` per ARCHITECTURE-CONTEXT §5.2) |
 | `RAG_EMBED_MODEL` | `bge-m3` | `rag.py:67` | Ollama embedding model |
 | `RAG_EMBED_DIMENSION` | `1024` | `rag.py:68`; `backend/rag/consolidate.py:64` | Vector dimension. If it changes, the table is rebuilt |
@@ -374,12 +379,12 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | `RAG_EVAL_MAX_TOKENS` | `16000` | `evaluation.py:123` | Judge max tokens |
 | `RAG_EVAL_OPTIONAL_METRICS` | `""` (CSV; e.g. toxicity, bias) | `evaluation.py:131` | Extra metrics |
 | `RAG_EVAL_DATASET` | `spark-l2c-eval` | `evaluation.py:914` | Langfuse dataset name |
-| `ASK_HISTORY_LIMIT` | `500` | `backend/rag/ask_store.py:54` | Ask history retention |
-| `ASK_LOW_QUALITY` | `0.7` | `ask_store.py:66` | Low-quality score threshold |
-| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | none. Tracing is on only when both are set | `backend/core/tracing.py:64`; `evaluation.py:804-805` | Langfuse auth |
-| `LANGFUSE_BASE_URL` | `tracing.py:204` uses `'cloud'` (log label only), `tracing.py:439` uses `""`, `evaluation.py:803,890` use `https://cloud.langfuse.com` | as listed | Langfuse host (also read by the Langfuse SDK [I]) |
-| `LANGFUSE_TRACING_ENVIRONMENT` | `development` (`.env.example` sets `production`) | `tracing.py:69` | Environment tag |
-| `LANGFUSE_RELEASE` | None | `tracing.py:149` | Release tag |
+| `ASK_HISTORY_LIMIT` | `500` | `backend/rag/ask_store.py:55` | Ask history retention |
+| `ASK_LOW_QUALITY` | `0.7` | `ask_store.py:67` | Low-quality score threshold |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | none. Tracing is on only when both are set | `backend/core/tracing.py:65`; `evaluation.py:804-805` | Langfuse auth |
+| `LANGFUSE_BASE_URL` | `tracing.py:205` uses `'cloud'` (log label only), `tracing.py:450` uses `""`, `evaluation.py:803,890` use `https://cloud.langfuse.com` | as listed | Langfuse host (also read by the Langfuse SDK [I]) |
+| `LANGFUSE_TRACING_ENVIRONMENT` | `development` (`.env.example` sets `production`) | `tracing.py:70` | Environment tag |
+| `LANGFUSE_RELEASE` | None | `tracing.py:150` | Release tag |
 | `NEO4J_URI` | `bolt://127.0.0.1:7687` | `backend/graph/kg_neo4j_load.py:46` | Bolt endpoint |
 | `NEO4J_USER` | `neo4j` | `kg_neo4j_load.py:47` | — |
 | `NEO4J_PASSWORD` | `""`. Empty means Neo4j/Cypher is disabled ("NEO4J_PASSWORD is not set in .env", `:114`) | `kg_neo4j_load.py:48` | — |
@@ -396,17 +401,18 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | `EVIDENCE_MODEL` | then `RAG_ANSWER_MODEL`, then `claude-opus-5` | `backend/agents/evidence/agent.py:35` | Evidence Agent |
 | `EVIDENCE_MAX_TOOL_CALLS` | `14` | `evidence/agent.py:36` | — |
 | `EVIDENCE_MAX_INPUT_TOKENS` | `60000` | `evidence/agent.py:37` | — |
-| `EVIDENCE_HISTORY_LIMIT` | `200` | `backend/agents/evidence/store.py:257` | Run retention |
+| `EVIDENCE_HISTORY_LIMIT` | `200` | `backend/agents/evidence/store.py:294` | Run retention |
 | `EVIDENCE_DUPLICATE_AT` | `0.93` | `backend/agents/evidence/independence.py:31` | Centroid-cosine near-duplicate threshold |
 | `EVIDENCE_HUB_DEGREE` | `40` | `backend/agents/evidence/paths.py:31` | Graph hub cut-off |
 | `FITGAP_MODEL` | then `RAG_ANSWER_MODEL`, then `claude-opus-5` | `backend/agents/fitgap/agent.py:24` | InsightLens |
 | `FITGAP_MAX_TOOL_CALLS` | `12` | `fitgap/agent.py:25` | — |
 | `FITGAP_MAX_INPUT_TOKENS` | `40000` | `fitgap/agent.py:31` | — |
-| `FITGAP_COPILOT_MODEL` | then `RAG_ANSWER_MODEL`, then `claude-opus-5` | `backend/agents/rollout/agent.py:38` | Fit-Gap Copilot |
-| `ROLLOUT_MAX_TOOL_CALLS_ASIS` | `20` | `rollout/agent.py:41` | As-Is pass |
-| `ROLLOUT_MAX_TOOL_CALLS` | `30` | `rollout/agent.py:42` | Compare pass |
-| `ROLLOUT_MAX_INPUT_TOKENS` | `150000` | `rollout/agent.py:56` | — |
-| `ROLLOUT_MAX_BILLED_TOKENS` | `220000` | `rollout/agent.py:57` | Total input-token budget |
+| `FITGAP_COPILOT_MODEL` | then `RAG_ANSWER_MODEL`, then `claude-opus-5` | `backend/agents/rollout/agent.py:41` | Fit-Gap Copilot. Read once at import, so a change needs the process (container) recreated; see §7.7 |
+| `ROLLOUT_MAX_TOOL_CALLS_ASIS` | `20` | `rollout/agent.py:44` | As-Is pass |
+| `ROLLOUT_MAX_TOOL_CALLS` | `30` | `rollout/agent.py:45` | Compare pass |
+| `ROLLOUT_MAX_INPUT_TOKENS` | `150000` | `rollout/agent.py:59` | — |
+| `ROLLOUT_MAX_BILLED_TOKENS` | `220000` | `rollout/agent.py:60` | Total input-token budget |
+| `ROLLOUT_MAX_TOKENS_OUT` | `64000` | `rollout/agent.py:66` | `max_tokens` per Copilot response. Sized so a full deviation register fits; a pass gives up after `MAX_CUT_OFFS = 2` responses that hit it (`:67-69`) |
 | `FITGAP_UPLOAD_TTL_HOURS` | `12` | `backend/core/uploads.py:96` | Session-attachment expiry |
 | `FITGAP_UPLOAD_MAX_FILES` | `12` | `uploads.py:99` | Files per session |
 | `AGENT_SCOPE_GUARD` | `on` | `backend/agents/guardrails/scope.py:39` | Scope classifier on/off |
@@ -417,17 +423,15 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | `AGENT_WEB_MAX_SEARCHES` | `2` | `web.py:44` | — |
 | `AGENT_WEB_DOMAINS` | `sap.com,europa.eu` | `web.py:48-49` | Allow-list |
 | `AGENT_WEB_TIMEOUT` | `90` | `web.py:50` | — |
-| `APP_LOGIN` | `on` | `backend/api/app_login.py:46` | Page sign-in gate |
-| `APP_USERNAME` / `APP_PASSWORD` | `test` / `test` | `app_login.py:47-48` | — |
-| `APP_SECRET` | random `secrets.token_hex(32)` per process, so every restart signs everyone out | `app_login.py:49` | HMAC cookie key |
-| `APP_SESSION_HOURS` | `12` | `app_login.py:50` | — |
-| `DEMO_USERNAME` / `DEMO_PASSWORD` | `solvay` / `solvay` | `backend/api/demo_mode.py:47-48` | Demo Mode sign-in |
-| `DEMO_SECRET` | random per process | `demo_mode.py:49` | — |
-| `DEMO_SESSION_HOURS` | `12` | `demo_mode.py:50` | — |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | none | `backend/auth/store.py:307-308` | The first Admin, created or re-enabled at start-up only when there is no active Admin (§4.3). Ignored once an active Admin exists. Also read by `loadtest/seed_users.py:51` |
+| `AUTH_SECRET` | then `APP_SECRET`, then random `secrets.token_hex(32)` per process, so every restart signs everyone out | `backend/auth/sessions.py:22-23` | HMAC-SHA256 key for the `spark_session` cookie, shared by the app and Demo Mode. `APP_SECRET` is kept only as a fallback so an older installation keeps its sessions |
+| `AUTH_SESSION_HOURS` | then `APP_SESSION_HOURS`, then `12` | `sessions.py:24-25` | Cookie lifetime and token expiry |
 | `OPENAI_API_KEY` | none | `backend/ingestion/vlm_api.py:63-70` (`key_env`), read at `:93,117` | Optional GPT vision |
 | `OPENAI_VLM_MODEL` | `gpt-5` | `vlm_api.py:68-69`, read at `:89` | — |
 | `CLAUDE_VLM_MODEL` | `claude-opus-5` | `vlm_api.py:76-77` | Claude vision via the OpenAI-compatible endpoint |
 | `TESSDATA_PREFIX` | auto-detected (see §1.4) | `backend/ingestion/pptx_ocr.py:52` | Tesseract language data |
+
+[F] **Removed since the first version of this spec:** `APP_LOGIN`, `APP_USERNAME`, `APP_PASSWORD`, `DEMO_USERNAME`, `DEMO_PASSWORD`, `DEMO_SECRET`, `DEMO_SESSION_HOURS`. Sign-in is now per account in Postgres, and Demo Mode uses the same accounts and cookie (`backend/api/demo_mode.py:8-11`). `APP_SECRET` and `APP_SESSION_HOURS` survive only as fallbacks (above).
 
 ### 5.2 Read by scripts, compose, images and libraries
 | Variable | Where | Default / meaning |
@@ -438,7 +442,7 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | `HINDSIGHT_API_*` (LLM_PROVIDER, LLM_MODEL, LLM_API_KEY, REFLECT_LLM_MODEL, REFLECT_LLM_TIMEOUT, EMBEDDINGS_PROVIDER, DATABASE_URL) | consumed by the hindsight-api server | see §3.1 / §4.4 |
 | `TAG`, `IMAGE`, `PLATFORM` | `scripts/docker-publish.sh:21-24`; `TAG` also `compose.yml:19` | TAG = short git SHA (publish) / `latest` (compose); IMAGE = `reg.ivolve.cloud/ivolve/<name>`; PLATFORM = `linux/amd64` |
 | `HINDSIGHT_TAG` | `compose.yml:107` | `latest` |
-| `APP_PORT` | `compose.yml:32` | `8000` (may be `127.0.0.1:8000`, `docs/deployment.md:101`) |
+| `APP_PORT` | `compose.yml:32` | `8000` (may be `127.0.0.1:8000`, `docs/deployment.md:108`) |
 | `POSTGRES_PASSWORD` | `compose.yml:23,63,84,110` | required |
 | `DATABASE_URL` | `scripts/db-export.sh:9` | from the shell, or grepped from `.env` |
 | `DOCLING_ARTIFACTS_PATH` | `Dockerfile:72` | `/opt/docling-models`; read by Docling [I] |
@@ -448,18 +452,26 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | `GIT_SHA`, `TORCH_VERSION`, `TORCHVISION_VERSION`, `HINDSIGHT_VERSION` | build args | unknown, 2.14.0, 0.29.0, 0.10.1 |
 | `PGHOST`, `PGUSER`, `PGPASSWORD` | `solvay-hindsight-db` | — |
 | `NEO4J_AUTH`, `NEO4J_PLUGINS`, `NEO4J_server_memory_*`, `NEO4J_db_tx__log_rotation_*` | Neo4j container | §3 |
+| `ANTHROPIC_BASE_URL` | read by the `anthropic` SDK [I]; set only by the load-test recipe | Points the app at `loadtest/mock_anthropic.py` (`http://localhost:8099`) for a cost-free streaming test (`loadtest/README.md:66-76`) |
+| `LOADTEST_USERNAME`, `LOADTEST_PASSWORD` | `loadtest/locustfile.py:42-43`; password also `loadtest/seed_users.py:50` | none. `LOADTEST_USERNAME` must start with `loadtest-`; when empty, simulated users rotate over `loadtest-01..N`. The password must meet the app's 8-character minimum (`backend/auth/passwords.py:22`) |
+| `LOADTEST_ACCOUNTS` | `locustfile.py:44`; `seed_users.py:45` | `20` |
+| `LOADTEST_ALLOWED_HOSTS` | `locustfile.py:45-47` | `localhost,127.0.0.1`; Locust refuses any other host |
+| `LOADTEST_LLM`, `LOADTEST_HEAVY` | `locustfile.py:48-49` | off unless `1`. `LLM` enables Ask and Evidence calls; `HEAVY` enables Fit-Gap and Fit-Gap Copilot runs |
+| `LOADTEST_ROLLOUT_SESSION`, `LOADTEST_ROLLOUT_SUBJECT`, `LOADTEST_ROLLOUT_SCOPE` | `locustfile.py:52,260-261` | `""` (Copilot runs skipped), `sap_best_practice`, `4.1` |
+| `LOADTEST_FITGAP_STEPS` | `locustfile.py:219` | `2` |
+| `MOCK_FIRST_TOKEN_MS`, `MOCK_TOKENS_PER_SEC`, `MOCK_ANSWER_TOKENS` | `loadtest/mock_anthropic.py:32-34` | `800`, `60`, `300` |
 | `COHERE_API_KEY` | not read by the code (leftover per `ARCHITECTURE-CONTEXT.md:123,317`) | — |
 
 ### 5.3 `.env.example` contents (variable names and comments)
-[F] `.env.example:1-47`:
+[F] `.env.example:1-46`:
 - **Required:** `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, `NEO4J_PASSWORD` (empty switches Cypher off).
-- **Sign-in:** `APP_USERNAME`, `APP_PASSWORD`, `APP_SECRET`, `DEMO_USERNAME`, `DEMO_PASSWORD`, `DEMO_SECRET`. The file recommends `openssl rand -hex 32`.
+- **Accounts** (`:11-19`): `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AUTH_SECRET`; `AUTH_SESSION_HOURS=12` commented out. The comment says the first Admin is created at start-up when there is no active Admin, everyone else's account is created from the Admin tab, the Admin changes this password from the account menu, and `AUTH_SECRET` should come from `openssl rand -hex 32`.
 - **Models:** `RAG_EMBED_MODEL=bge-m3`, `RAG_EMBED_DIMENSION=1024`. Commented out: `RAG_ANSWER_MODEL`, `FITGAP_COPILOT_MODEL`, `CLAUDE_VLM_MODEL`, `OPENAI_API_KEY`, `OPENAI_VLM_MODEL`.
 - **Langfuse:** `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL=https://cloud.langfuse.com`, `LANGFUSE_TRACING_ENVIRONMENT=production`.
 - **Hindsight (commented):** `HINDSIGHT_MODEL`, `HINDSIGHT_REFLECT_MODEL`, `HINDSIGHT_TAG`.
 - **Compose (commented):** `TAG`, `APP_PORT`.
 
-[F] The developer's local `.env` defines (names only): `ANTHROPIC_API_KEY`, `CLAUDE_VLM_MODEL`, `DATABASE_URL`, `OLLAMA_HOST`, `RAG_EMBED_MODEL`, `RAG_EMBED_DIMENSION`, `RAG_ANSWER_MODEL`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `FITGAP_COPILOT_MODEL`.
+[F] The developer's local `.env` defines (names only): `ANTHROPIC_API_KEY`, `CLAUDE_VLM_MODEL`, `DATABASE_URL`, `OLLAMA_HOST`, `RAG_EMBED_MODEL`, `RAG_EMBED_DIMENSION`, `RAG_ANSWER_MODEL`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`, `FITGAP_COPILOT_MODEL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `AUTH_SECRET`. It no longer sets `NEO4J_*`, so [I] Cypher is off on that machine unless they are exported.
 
 ### 5.4 External endpoints and model IDs (defaults)
 | What | Default | file:line |
@@ -469,7 +481,7 @@ Storage: embedded pg0 at `~/.pg0` (`docs/running-the-app.md:59`).
 | Neo4j Bolt | `bolt://127.0.0.1:7687` (compose: `bolt://solvay-neo4j:7687`) | `kg_neo4j_load.py:46`; `compose.yml:25` |
 | Neo4j Browser | `http://localhost:7474/browser/` | `kg_neo4j_load.py:50` |
 | Hindsight | `http://127.0.0.1:8888` (compose: `http://solvay-hindsight:8888`) | `memory.py:63`; `compose.yml:28` |
-| Langfuse | `https://cloud.langfuse.com` | `evaluation.py:803`; `.env.example:34` |
+| Langfuse | `https://cloud.langfuse.com` | `evaluation.py:803`; `.env.example:33` |
 | OpenAI vision | `https://api.openai.com/v1/chat/completions`, model `gpt-5`, param `max_completion_tokens` | `vlm_api.py:63-70` |
 | Claude vision | `https://api.anthropic.com/v1/chat/completions` (OpenAI-compat), model `claude-opus-5`, param `max_tokens`. `MAX_EDGE=2000`, `MAX_OUTPUT_TOKENS=16000`, `TIMEOUT_SECONDS=300` | `vlm_api.py:44-80` |
 | Local vision (MLX) | `mlx-community/Qwen3-VL-8B-Instruct-4bit`, Apple silicon only | `vlm_ocr.py:39` |
@@ -495,20 +507,23 @@ Every module resolves paths from `ROOT`, often aliased as `BASE`. In the contain
 | Path | Contents / writer | Evidence |
 |---|---|---|
 | `.env` | Config (git- and docker-ignored) | `.gitignore:6`, `.dockerignore:4` |
-| `.workdir/` | Per-upload scratch; never garbage-collected (about 20 MB per 144-slide deck) | `backend/api/app.py:51`; `README.md:163-165` |
-| `.workdir/<12-hex uuid>/` | `source.<ext>`, `name.txt` (original filename), `preview/page-N.png` (LibreOffice→PDF→pdftoppm @90 DPI), `output.md`, media | `app.py:174-186`; observed |
-| `.workdir/kb<10-hex sha256(path)>/` | Preview jobs for originals of already-indexed corpus/KB files (`source.<ext>`, `name.txt`, `preview/`) | `app.py:774-781` |
-| `.workdir/batches/<batch_id>/` | Batch convert: `sources/`, `markdown/`, `batch_<id>_markdown.zip` | `app.py:1167`; observed |
+| `.env.bak*` | Backups of `.env` (for example from `sed -i.bak`); git-ignored | `.gitignore:20` |
+| `.workdir/` | Per-upload scratch; never garbage-collected (about 20 MB per 144-slide deck) | `backend/api/app.py:51`; `README.md:164` |
+| `.workdir/<12-hex uuid>/` | `source.<ext>`, `name.txt` (original filename), `owner.txt` (the uploader's user id), `preview/page-N.png` (LibreOffice→PDF→pdftoppm @90 DPI), `output.md`, media | `app.py:273-281`; observed |
+| `.workdir/kb<10-hex sha256(path)>/` | Preview jobs for originals of already-indexed corpus/KB files (`source.<ext>`, `name.txt`, `preview/`, and an empty `shared` marker; no `owner.txt`, so any signed-in user may read its pages and nobody can convert, embed or delete it through the API) | `app.py:876-884` |
+| `.workdir/batches/<batch_id>/` | Batch convert: `owner.txt` (the uploader's user id), `sources/`, `markdown/`, `batch_<id>_markdown.zip` | `app.py:1269-1274`; observed |
 | `.workdir/uploads/<12-hex session>/` | Per-session agent attachments. The DB side is `<db>_session`, one schema `u_<sid>` per session, plus tables `upload_sessions` and `upload_files` | `backend/core/uploads.py:59,106-114,187-198` |
 | `.workdir/app.log` | Observed log file. [I] Writer not found by grep. Possibly a redirect from an earlier run script | observed |
-| `knowledge_base/` | Markdown added from the UI (`<stem>_<ext>.md`), plus `BPML_Process.xlsx` → `BPML_Process_xlsx.md` (`backend/ingestion/bpml_markdown.py:35-36`). Category `UNFILED`. Mounted rw in compose; git-ignored | `app.py:58,277`; `rag.py:133-137` |
+| `knowledge_base/` | Markdown added from the UI (`<stem>_<ext>.md`), plus `BPML_Process.xlsx` → `BPML_Process_xlsx.md` (`backend/ingestion/bpml_markdown.py:35-36`). Category `UNFILED`. Mounted rw in compose; git-ignored | `app.py:58,370`; `rag.py:133-137` |
 | `solvay-spark/<cat>/` and `solvay-spark/<cat>/markdown/*.md` | The client corpus. Source docs are in `<cat>/`; converted Markdown is in `<cat>/markdown`. The folder name gives the category: `pkg`→PKG, `dr`→DR, also `sap`. Other dirs observed: `sample-data`, `markdown docling`, `markdown unstructured io`. Mounted read-only in compose; not in the image | `rag.py:121-137`; `knowledge_graph.py:33-37` |
 | `data/knowledge_graph.json` | Cached graph, rewritten by `POST /api/graph/rebuild`. Volume `graph-data` | `paths.py:12`; `compose.yml:35-36` |
 | `data/graph_eval_questions.json`, `data/spark_target_model.json` | Graph eval set; target model | `backend/graph/graph_eval.py:59`; observed |
-| `static/dist/` | Built SPA: `index.html`, `demo.html`, `login.html`, `assets/` (hashed). `/assets` is served with `Cache-Control: public, max-age=31536000, immutable`; HTML is served with `no-cache`. If not built, `/` returns 503 with build instructions | `app.py:127-148,3271-3288`; `app_login.py:54`; `demo_mode.py:53` |
+| `static/dist/` | Built SPA: `index.html`, `demo.html`, `login.html`, `assets/` (hashed). `/assets` is served with `Cache-Control: public, max-age=31536000, immutable`; HTML is served with `no-cache`. If not built, `/` returns 503 with build instructions | `app.py:174-186,3440-3459`; `app_login.py:51-55`; `demo_mode.py:29-34` |
 | `docs/` | Needed at runtime for eval questions and the Langfuse dashboard JSON | `evaluation.py:870,913`; `backend/graph/kg_neo4j_export.py:39` |
 | `backup/` | `db-export.sh` dumps (`spark-YYYY-MM-DD.dump`); `backup/baseline.json` used by `consolidate.py:63` | git-ignored |
 | `hindsight-venv/`, `hindsight.log` | Local memory server environment and log | `.gitignore:17-19` |
+| `.venv-loadtest/` | Locust's own venv (§7.8) | `.gitignore:22-23` |
+| Postgres main DB: `users`, `activity_events` | Accounts and the usage log. In the main `DATABASE_URL` database, not the session DB; on the server, database `solvay` in `solvay-postgres`. Every run table also gains a `user_id` owner column | `backend/auth/store.py:1-18,42-48,340-341` |
 | `~/.pg0` | Local Hindsight embedded Postgres | `docs/running-the-app.md:59` |
 | `out/`, `tmp/` | CLI output / scratch, ignored | `.gitignore:3`, `.dockerignore:13-14` |
 
@@ -530,7 +545,7 @@ Log in first with `docker login reg.ivolve.cloud`, using a GitLab token with `wr
 ### 7.2 `scripts/db-export.sh`
 `DATABASE_URL` comes from the environment, or else from `grep ^DATABASE_URL= .env`. The script runs `mkdir -p backup`, then `pg_dump --format=custom --no-owner --no-acl --dbname=$DATABASE_URL --file=backup/spark-$(date +%F).dump`, then prints the size. The dump holds the RAG index (embeddings) and run history.
 
-### 7.3 Server deployment procedure (`docs/deployment.md:21-104`)
+### 7.3 Server deployment procedure (`docs/deployment.md:21-111`)
 1. **On the dev machine:**
    - `./scripts/docker-publish.sh`
    - `./scripts/docker-publish.sh hindsight`, only when `Dockerfile.hindsight` changes
@@ -541,23 +556,24 @@ Log in first with `docker login reg.ivolve.cloud`, using a GitLab token with `wr
    - `rsync -a solvay-spark/`
    - `rsync -a knowledge_base/`
    - `scp backup/spark-<date>.dump`
-4. `cp .env.example .env` and fill it in. Change every sign-in value.
+4. `cp .env.example .env` and fill it in, including `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET` before the first start (`docs/deployment.md:50,109`).
 5. `docker login reg.ivolve.cloud`, then `docker compose pull`.
 6. `docker compose up -d solvay-postgres solvay-ollama solvay-ollama-pull solvay-neo4j`
 7. Restore: `docker compose exec -T solvay-postgres pg_restore -U spark -d solvay --no-owner --no-acl < spark-<date>.dump`. A warning that the vector extension already exists is harmless.
 8. `docker compose up -d solvay-hindsight-db solvay-hindsight app`
 9. `docker compose logs -f app` and wait for "Application startup complete". Then `curl -s localhost:8000/api/health`; `soffice` and `pdftoppm` must both be non-null.
-10. Open `http://<server>:8000` and sign in with `APP_USERNAME`/`APP_PASSWORD`.
+10. Open `http://<server>:8000` and sign in with `ADMIN_USERNAME`/`ADMIN_PASSWORD`. Create everyone else's account from the **Admin** tab (`docs/deployment.md:74`).
 
 **Updating:**
 - `./scripts/docker-publish.sh`, then on the server `docker compose pull app && docker compose up -d app`.
 - To pin a version, set `TAG=<commit>` in `.env`.
-- When the corpus changes, rsync again, then `curl -s -X POST localhost:8000/api/graph/rebuild`.
+- When the corpus changes, rsync again, then rebuild the graph. The API needs a session, so sign in first and reuse the cookie: `curl -s -c /tmp/spark.cookie -H 'content-type: application/json' -d '{"username":"<admin>","password":"<password>"}' localhost:8000/api/auth/login`, then `curl -s -b /tmp/spark.cookie -X POST localhost:8000/api/graph/rebuild`, then delete the cookie file. Or press the rebuild button on the Knowledge Graph page (`docs/deployment.md:85-97`).
 - When an image update changes `data/`, remove the `graph-data` volume so the new seed is taken.
 
-**Security notes** (`docs/deployment.md:97-104`):
-- `/api/*` has no authentication; the sign-in guards the HTML pages only (`backend/api/app_login.py`).
-- Put a TLS reverse proxy, VPN or allowlist in front, or set `APP_PORT=127.0.0.1:8000`.
+**Security notes** (`docs/deployment.md:104-111`):
+- Accounts guard the pages and the API. A request to `/api/*` without a valid session gets `401 {"detail": "Sign in first."}`; only `/api/health` and the `login`/`logout`/`session` routes under `/api/auth`, `/api/app` and `/api/demo` are exempt (`backend/auth/middleware.py:35-41,111-117`).
+- The cookie `spark_session` is `HttpOnly`, `SameSite=Lax`, path `/`, and **not** `Secure` (`backend/auth/routes.py:45-46`). Cookie and passwords travel in clear over plain HTTP, so put a TLS reverse proxy, VPN or allowlist in front, or set `APP_PORT=127.0.0.1:8000` (`compose.yml:30-31`).
+- Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET` before the first start; then change the Admin password from the account menu.
 - Postgres, Ollama, Neo4j and Hindsight publish no ports.
 - Questions and excerpts are sent to Anthropic.
 
@@ -568,11 +584,61 @@ One line, no shebang: `ngrok http 8000 --url https://scuttle-bagel-tyke.ngrok-fr
 A standalone generator (217 lines, stdlib only) that writes a hand-laid-out 1800×1340 SVG architecture diagram to `sys.argv[1]`. Its docstring says the target is `docs/system-architecture.svg`, but that file does not exist in the repo. It is not part of the build.
 
 ### 7.6 Tests and CLIs
-- Backend tests: `.venv/bin/python backend/tests/test_<name>.py`. These are plain scripts, not pytest-required [I] (`README.md:149-153`). There are 22 test files (agent_eval, app_login, ask_store, bpml_markdown, category_durability, converter, coverage, demo_mode, evaluation, evidence, fitgap, formats, graph_determinism, graph_eval, guardrails, knowledge_graph, neo4j, originals, quality, rag, rollout, tracing).
+- Backend tests: `.venv/bin/python backend/tests/test_<name>.py`. These are plain scripts, not pytest-required [I] (`README.md:149-153`). There are 23 test files (agent_eval, app_login, ask_store, auth, bpml_markdown, category_durability, converter, coverage, evaluation, evidence, fitgap, formats, graph_determinism, graph_eval, guardrails, knowledge_graph, neo4j, originals, ownership, quality, rag, rollout, tracing). `test_demo_mode.py` was removed; `test_auth.py` and `test_ownership.py` are new.
 - CLIs run as modules from the root, for example:
   - `python -m backend.rag.rag index|search|ask|chunks|clear|reset|categories`
   - `python -m backend.ingestion.pptx_to_md`
   - `python -m backend.ingestion.folder_to_md` (`README.md:56-57,127-132`)
+  - `python -m backend.auth.store create-admin <username>` (prompts twice for the password), `… list` (id, username, role, active/inactive), `… reassign-legacy <username> [table ...]` (`backend/auth/store.py:20-25,389-419`). The CLI loads `.env` itself (`:426-430`).
+
+### 7.7 Operating the deployed server
+All commands run in `~/solvay-spark-spine` on the server (`docs/deployment-guide.html`).
+
+**Accounts.**
+- [F] A first Admin comes from `ADMIN_USERNAME`/`ADMIN_PASSWORD` at start-up (§4.3). If that is not set, create one inside the container: `docker compose exec app python -m backend.auth.store create-admin <name>` [I] (the command is the CLI above; `-it` may be needed for the password prompt).
+- [F] Usernames are 1–64 characters with no whitespace and no `|`, unique case-insensitively; `legacy` is reserved. Passwords need at least 8 characters and are stored as stdlib `scrypt` hashes, `scrypt$<n>$<r>$<p>$<salt hex>$<hash hex>` (`backend/auth/store.py:171-198`; `backend/auth/passwords.py:1-28`).
+- [F] `bootstrap_admin` checks `ADMIN_PASSWORD` (at least 8 characters) and `ADMIN_USERNAME` (`_clean_username`: 1–64 characters, no whitespace or `|`, not `legacy`) before it looks for an existing account. A refused value is not an error: it returns an `auth: WARNING -- ADMIN_PASSWORD was not used: …` or `auth: WARNING -- ADMIN_USERNAME was not used: …` line ending `No Admin account was created.`, the lifespan prints it and the app starts without an Admin (`store.py:312-334`). Fix the setting and restart, or use `create-admin`. [I] An unreachable database still stops the app from starting, because the lifespan does not catch that.
+- [F] Accounts are never deleted, only deactivated. Resetting a password or deactivating an account bumps `session_version`, which signs that user out everywhere; the middleware caches each account lookup for 30 s and clears the cache when an Admin changes an account (`backend/auth/sessions.py:1-9`; `backend/auth/middleware.py:15-19,43`).
+- [F] View accounts: `docker compose exec solvay-postgres psql -U spark -d solvay -c "SELECT id, username, role, active, created_at, last_login_at, last_seen_at FROM users ORDER BY id;"`. Recent activity: `SELECT at, username, action, tool, run_id FROM activity_events ORDER BY at DESC LIMIT 30;`. Without SQL: the Admin tab, or `docker compose exec app python -m backend.auth.store list`. `password_hash` cannot be read back; reset passwords from the Admin tab (`docs/deployment-guide.html`, "View the user accounts in the database").
+- [F] Runs recorded before accounts existed belong to the inactive `legacy` account and are visible to Admins only. Hand them to a real account with `docker compose exec app python -m backend.auth.store reassign-legacy <username> [table ...]`. Allowed tables: `fitgap_runs`, `fitgap_reviews`, `rollout_runs`, `workshop_sessions`, `workshop_decisions`, `evidence_runs`, `ask_runs`, `ask_reviews`; default all; a table that does not exist yet is skipped; it prints rows moved per table and is idempotent (`store.py:340-365,410-418`). It needs an image from commit `a52964c` or later; an older image prints the usage text.
+
+**Switching the Fit-Gap Copilot model.** [F] The model is a `.env` setting, not part of the image: set `FITGAP_COPILOT_MODEL` (falls back to `RAG_ANSWER_MODEL`, then `claude-opus-5`; `backend/agents/rollout/agent.py:41`). Procedure from the guide:
+1. `grep -n "FITGAP_COPILOT_MODEL\|RAG_ANSWER_MODEL" .env`
+2. `sed -i 's/^FITGAP_COPILOT_MODEL=.*/FITGAP_COPILOT_MODEL=claude-opus-5/' .env`, and append the line if it is missing.
+3. `docker compose up -d app`. Not `docker compose restart app`, which keeps the old container and its old environment; `up -d app` recreates only the app container.
+4. Check with `docker compose exec app printenv FITGAP_COPILOT_MODEL`. `GET /api/rollout/status` also returns the model in use (`backend/api/app.py:2465,2479`).
+
+The guide warns that scores from different models are not comparable (Opus and Sonnet differed by 8 points of GT alignment on the same India returns document; `docs/model-comparison.html`), so one model should be used for every country comparison.
+
+**Checking the network.** [F] `docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | grep solvay-spark-spine` should list five containers: `solvay-spark-spine-app-1`, `-solvay-postgres-1`, `-solvay-neo4j-1`, `-solvay-ollama-1`, `-solvay-hindsight-1`. The one-shot helpers have exited and do not appear (`docs/deployment-guide.html`).
+
+**Admin usage dashboard and estimated cost.** [F] The Admin tab (`/api/admin/users`, `/usage`, `/activity`, `/runs`; `backend/api/admin.py:25,91-300`) prices each run's recorded tokens with a hard-coded table in `backend/core/pricing.py:23-35`, in USD per million input/output tokens. There is **no environment variable** for prices. A model id matches exactly, or by its longest listed stem followed by `-` or `@`, after stripping an `anthropic.` prefix; an unlisted model is reported as unpriced (`pricing.py:38-51`). It is an over-estimate: cache reads are priced at the full input rate, and calls no run row records (scope guard, Ragas judge, Hindsight, embeddings) are not counted (`pricing.py:1-17`).
+
+| Model stem | Input $/M | Output $/M |
+|---|---|---|
+| `claude-fable-5-1`, `claude-fable-5` | 10.00 | 50.00 |
+| `claude-opus-5-5` | 4.00 | 20.00 |
+| `claude-opus-5`, `claude-opus-4-8`, `-4-7`, `-4-6` | 5.00 | 25.00 |
+| `claude-sonnet-5-5`, `claude-sonnet-5` | 2.00 | 10.00 |
+| `claude-sonnet-4-6` | 3.00 | 15.00 |
+| `claude-haiku-4-5` | 1.00 | 5.00 |
+
+[F] Each trace a request opens is tagged with the signed-in username, set by the auth middleware through the context variable `tracing.USER` (`backend/core/tracing.py:376-382,402`; `middleware.py:107-108`).
+
+### 7.8 Load tests (`loadtest/`)
+[F] Locust drives the app over HTTP and signs in like the browser, keeping the `spark_session` cookie (`loadtest/README.md:1-12`). Files: `locustfile.py` (simulated users), `sse.py` (times an SSE endpoint to its `done` event), `seed_users.py` (creates accounts through `/api/admin/users`; stdlib only), `mock_anthropic.py` (a FastAPI stand-in answering `POST /v1/messages`).
+
+Rules enforced in code:
+- Only `loadtest-*` accounts. `PREFIX = "loadtest-"` is fixed; Locust exits if `LOADTEST_USERNAME` is not a test account, and a user stops if its account is not one (`loadtest/locustfile.py:38-39,77-87,110-111`).
+- Only allowed hosts: `LOADTEST_ALLOWED_HOSTS`, default `localhost,127.0.0.1` (`locustfile.py:45-47,90-99`).
+- Claude calls are off by default: Ask and Evidence need `LOADTEST_LLM=1`; Fit-Gap and Copilot runs need `LOADTEST_HEAVY=1` (Copilot also `LOADTEST_ROLLOUT_SESSION`).
+
+Setup (`loadtest/README.md:33-46`):
+1. `python3 -m venv .venv-loadtest && .venv-loadtest/bin/pip install -r loadtest/requirements.txt`
+2. The app needs a fixed `AUTH_SECRET`, or a restart signs every test user out.
+3. `LOADTEST_PASSWORD=… ADMIN_USERNAME=… ADMIN_PASSWORD=… .venv/bin/python loadtest/seed_users.py --host http://localhost:8000 --count 20 --admin` creates `loadtest-01..20` (role user) and, with `--admin`, `loadtest-admin` (needed by `QualityUser`). Re-running resets passwords and reactivates.
+
+Profiles, run from `loadtest/` (`README.md:56-101`): reads only (`-u 200 -r 20`); Ask against the mock (`uvicorn mock_anthropic:app --port 8099`, then a second app on :8001 with `ANTHROPIC_BASE_URL=http://localhost:8099 ANTHROPIC_API_KEY=mock RAG_EVAL_SAMPLE=0`); a 1-user Fit-Gap smoke test against the real API; Copilot runs with an upload session id copied from the browser. Test the server as deployed, one uvicorn process without `--reload`. [F] The README notes each open stream holds one of Starlette's 40 threadpool threads, which is the app's practical limit on concurrent agent runs (`loadtest/README.md:113`).
 
 ---
 
@@ -585,6 +651,8 @@ A standalone generator (217 lines, stdlib only) that writes a hand-laid-out 1800
 6. `cohere` is still installed and `COHERE_API_KEY` is a leftover; neither is used.
 7. `LANGFUSE_BASE_URL` falls back inconsistently across `tracing.py` and `evaluation.py`.
 8. The Langfuse tracing environment defaults to `development` in code and is set to `production` in `.env.example`.
+9. `docs/deployment.md:50` still says "change every sign-in value". The only sign-in values left are `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET`; every other account is created in the app.
+10. The old names `APP_SECRET` and `APP_SESSION_HOURS` are still honoured as fallbacks (`backend/auth/sessions.py:20-25`) though no doc mentions them. A rebuild can drop them unless it must keep sessions from an older installation.
 
 ## 9. Gaps (not determinable from the repo)
 - The actual values of all secrets, and the real server hostname, TLS and reverse-proxy configuration. The proxy is only referenced by container name, `compose.yml:44-45`.

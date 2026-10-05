@@ -1,17 +1,17 @@
 # Solvay Spark Spine AI — Application Reconstruction Specification
 
-**Purpose.** This specification lets an AI agent or engineer rebuild a functionally equivalent Solvay Spark Spine AI from scratch, without access to the original source. It was reverse-engineered from the repository at commit `65b38f5` (2026-10-02).
+**Purpose.** This specification lets an AI agent or engineer rebuild a functionally equivalent Solvay Spark Spine AI from scratch, without access to the original source. It was first reverse-engineered from the repository at commit `65b38f5` (2026-10-02) and is current as of commit `1d37131` (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree. Line numbers cited are at that working tree.
 
 **How the spec is organised.** This file is the master spec. It covers architecture, build order and acceptance, and summarises every area. Six detailed sections back it up with exact formulas, DDL, prompts, thresholds and endpoint tables:
 
 | § | File | Covers |
 |---|---|---|
-| 01 | [01-infrastructure-build-deploy.md](01-infrastructure-build-deploy.md) | Stack and pinned versions, Dockerfiles, compose, `run.sh`, all ~75 env vars, filesystem state, registry/deploy |
-| 02 | [02-http-api-and-core.md](02-http-api-and-core.md) | FastAPI app, all 115 routes, auth cookies, Demo Mode, session attachments, Langfuse tracing |
+| 01 | [01-infrastructure-build-deploy.md](01-infrastructure-build-deploy.md) | Stack and pinned versions, Dockerfiles, compose, `run.sh`, every env var (accounts and load-test variables included), filesystem state, registry/deploy, operating the deployed server (accounts, model switch, Admin cost table), Locust load tests |
+| 02 | [02-http-api-and-core.md](02-http-api-and-core.md) | FastAPI app, all 126 routes, accounts and roles, the `spark_session` cookie, the `RequireUser` gate, run ownership, the Admin API and cost estimate, Demo Mode, session attachments, Langfuse tracing |
 | 03 | [03-ingestion.md](03-ingestion.md) | Document → Markdown: Docling, Tesseract, OpenCV table/flow detection, vision models (verbatim prompts), chunker |
-| 04 | [04-rag-database-evaluation.md](04-rag-database-evaluation.md) | **Complete Postgres DDL**, embeddings, BM25 + vector + RRF retrieval, answer prompt, Ragas judging, quality analytics |
-| 05 | [05-agents-and-knowledge-graph.md](05-agents-and-knowledge-graph.md) | Evidence Agent, InsightLens, Fit-Gap Copilot (all scoring formulas and quality gates), guardrails, knowledge-graph extraction, Neo4j, NL→Cypher |
-| 06 | [06-frontend-and-tests.md](06-frontend-and-tests.md) | React app, 12 tabs, every API client call, theme, Demo app, all tests, acceptance checklist |
+| 04 | [04-rag-database-evaluation.md](04-rag-database-evaluation.md) | **Complete Postgres DDL** (accounts, activity log and run-owner columns included), embeddings, BM25 + vector + RRF retrieval, answer prompt, Ragas judging, quality analytics |
+| 05 | [05-agents-and-knowledge-graph.md](05-agents-and-knowledge-graph.md) | Evidence Agent, InsightLens, Fit-Gap Copilot (all scoring formulas and quality gates; cut-off refusal and `amend_analysis`), run ownership, guardrails, knowledge-graph extraction, Neo4j, NL→Cypher |
+| 06 | [06-frontend-and-tests.md](06-frontend-and-tests.md) | React app, 13 tabs (12 + an Admin button for Admins, 11 for Users), account menu, Admin dashboard, every API client call, theme, Demo app, all tests, Locust load tests, acceptance checklist |
 
 **Notation used throughout.**
 - **FACT** / **[F]**: stated in the repository, cited as `file:line` (paths relative to the repository root).
@@ -42,7 +42,7 @@
                                      │  HTTP + SSE (text/event-stream over POST)
                                      ▼
 ┌───────────────────── FastAPI app  (one uvicorn process, :8000) ─────────────────────┐
-│ app_login gate (cookie app_session) · demo_mode (cookie demo_session)                │
+│ RequireUser gate (cookie spark_session; accounts in Postgres) · /login · /demo       │
 │ ContactRedaction ASGI middleware on /api/{evidence,fitgap,rollout,ask,quality}       │
 │                                                                                      │
 │  ingestion/        rag/                  agents/                     graph/          │
@@ -51,7 +51,8 @@
 │  table_cv/flow_cv   answer)              contact)  agent_eval        kg_nl2cypher    │
 │  vlm_api/vlm_ocr   ask_store evaluation  memory (Hindsight client)   graph_eval      │
 │  preview           quality coverage                                                  │
-│  core/: paths · uploads (per-session schemas) · tracing (Langfuse/OTel)              │
+│  auth/: store · passwords · sessions · middleware · deps · routes   api/admin        │
+│  core/: paths · uploads (per-session schemas) · tracing (Langfuse/OTel) · pricing    │
 └──────┬──────────┬──────────────┬──────────────┬─────────────┬───────────┬────────────┘
        │          │              │              │             │           │
   LibreOffice  Postgres 18    Ollama        Anthropic      Neo4j 5      Hindsight 0.10.1
@@ -64,9 +65,11 @@
 ### 1.3 Components and responsibilities
 | Component | Responsibility | Detail |
 |---|---|---|
-| `backend/api/app.py` | All HTTP routes (105), the SPA shell, lifespan (start tracing; sync the graph to Neo4j in the background) | §02 |
-| `backend/api/app_login.py`, `demo_mode.py` | Stateless HMAC-signed cookie sign-in for the app and for Demo Mode | §02 §3 |
-| `backend/core/` | `paths` (ROOT, DATA), `uploads` (per-session attachment stores), `tracing` (Langfuse, no-op without keys) | §02 §5–6 |
+| `backend/api/app.py` | 106 of the HTTP routes, the SPA shell, lifespan (start tracing; bootstrap the accounts and the first Admin; bring the run tables' owner columns up to date; sync the graph to Neo4j in the background) | §02 |
+| `backend/auth/` | Accounts (`users`, `activity_events`), scrypt passwords, the HMAC-signed `spark_session` cookie, the `RequireUser` gate, ownership helpers (`list_owner`/`read_owner`/`write_owner`), sign-in routes, account CLI | §02 §3 |
+| `backend/api/app_login.py`, `demo_mode.py` | `/login` page and the `RequireUser` install; Demo Mode pages on the same accounts and cookie | §02 §3e |
+| `backend/api/admin.py` | Admin API `/api/admin/*`: accounts, usage with estimated cost, activity log, everyone's runs | §02 §4m |
+| `backend/core/` | `paths` (ROOT, DATA), `uploads` (per-session attachment stores, each owned by one account), `tracing` (Langfuse, no-op without keys; traces tagged with the username), `pricing` (hard-coded list prices for the Admin cost estimate) | §02 §4m, §5–6 |
 | `backend/ingestion/` | Document → Markdown pipeline, preview rendering, chunking, BPML spreadsheet rendering | §03 |
 | `backend/rag/` | Corpus schema, embedding, BM25+vector+RRF retrieval, Claude answers, Ask history, Ragas evaluation, quality and coverage analytics, experiments | §04 |
 | `backend/agents/evidence` | Evidence Agent: claims scored by a fixed formula; Hindsight memory | §05 §2 |
@@ -79,7 +82,8 @@
 ### 1.4 Interaction patterns
 - [F] **Concurrency.** Heavy endpoints are plain `def` handlers running in Starlette's threadpool. Deferred work runs on daemon threads: Ragas judging after each answer, the upload pipeline stages, the Neo4j sync. There is **no job queue and no Celery**.
 - [F] **Streaming.** Long operations (convert batch, embed, ask, agents) return `text/event-stream` with `event:`/`data:` lines in response to a **POST**. The client parses the stream manually (`fetch` + reader), not with `EventSource`.
-- [F] **Persistence.** All state lives in Postgres: corpus, history, every agent run, decisions. The graph is cached in `data/knowledge_graph.json`. Scratch files go under `.workdir/`.
+- [F] **Accounts and ownership.** Every page and every `/api/*` route except `/api/health` and the login/logout/session routes needs a signed-in account (401 `Sign in first.` for `/api/*`, 303 to `/login?next=…` for pages). Every run (Ask, Evidence, InsightLens, Fit-Gap Copilot, including workshop sessions and decisions, and reviews) records its owner `user_id`. Users see only their own; someone else's run or upload session answers 404, as if missing. Admins read everyone's runs with `scope=all` but write only their own. Conversions (single uploads and batches) belong to the uploader alone, Admins included. Workshop decisions are shared by design: organisational memory readable by every signed-in user; each row records who decided it. Details in §02 §3.
+- [F] **Persistence.** All state lives in Postgres: accounts, activity log, corpus, history, every agent run, decisions. The graph is cached in `data/knowledge_graph.json`. Scratch files go under `.workdir/`.
 - [F] **Migrations.** There is no migration tool. Every store runs `CREATE … IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` lazily on first use. An empty database therefore bootstraps itself, apart from the corpus, which must be indexed.
 
 ---
@@ -98,6 +102,7 @@
 | Graph | neo4j driver 6.3.1; Neo4j `5-community` + APOC |
 | Memory | hindsight-client 0.10.1 ↔ hindsight-api 0.10.1 (LLM through LiteLLM) |
 | Exports | weasyprint 70.0 (needs pango/cairo/gdk-pixbuf), python-docx 1.2.0, openpyxl |
+| Load tests | Locust `>=2.32` (unpinned) in its own venv `.venv-loadtest`; not in the image |
 | Frontend | Node 22 (build image), React 19.3, @mui/material 9.4, emotion 11.14, d3 7.9, **mermaid 10.9.1 (exact)**, marked 12, dompurify 3.4, framer-motion 13.4, lucide-react 1.46, react-resizable-panels 4.12; dev: **typescript 5.9**, vite 8.3, @vitejs/plugin-react 6.1 |
 | System binaries | LibreOffice (`soffice`), Poppler (`pdftoppm`), Tesseract + `eng` data, Pango/Cairo/gdk-pixbuf, libGL/glib/xcb, DejaVu fonts, curl |
 
@@ -109,7 +114,7 @@
 
 | Dependency | Required? | Why | Behaviour if absent [F] |
 |---|---|---|---|
-| PostgreSQL 18 + pgvector | **Required** | Corpus, vectors, BM25 statistics, all run history, session attachments (`<db>_session`) | The app cannot serve Ask or the agents. The DB role must be able to `CREATE EXTENSION vector` and `CREATE DATABASE` |
+| PostgreSQL 18 + pgvector | **Required** | Accounts and activity log, corpus, vectors, BM25 statistics, all run history, session attachments (`<db>_session`) | Nobody can sign in, so nothing but `/api/health` and the sign-in pages is served [I]. The DB role must be able to `CREATE EXTENSION vector` and `CREATE DATABASE` |
 | Ollama + `bge-m3` | **Required** for indexing and for hybrid/vector search | Query and chunk embeddings | Keyword-only mode still works [I] |
 | Anthropic API key | **Required** for answers, agents, Cypher generation and judges | All LLM work | Endpoints error. Tests stub it |
 | LibreOffice + pdftoppm | Strongly recommended | Left-pane preview of the original document | Preview is unavailable. `/api/health` reports `soffice`/`pdftoppm` as null |
@@ -135,8 +140,11 @@
 | Experiments | `eval_*` — `rag/experiment_store.py` |
 | Agents | `evidence_runs`; `fitgap_*`; `rollout_*` + workshop tables (decisions append-only) — `agents/*/store.py` |
 | Graph | `graph_quality_runs` — `graph/graph_eval.py` |
+| Accounts | `users` (unique on `lower(username)`, role `admin`/`user`, `active`, `session_version`), `activity_events` (usage log); the built-in inactive `legacy` row — `auth/store.py` |
 
-[F] The sibling database `<main>_session` (always the main DB name plus `_session`, auto-created) holds the tables `upload_sessions` and `upload_files`, plus **one schema `u_<12hex>` per upload session**, each with its own `rag_documents`/`rag_chunks`. The TTL is 12 h, extended on every use; the cap is 12 files per session. Expired sessions are cleaned up lazily when certain endpoints are called.
+[F] Every run, review, workshop session and workshop decision table (`fitgap_runs`, `fitgap_reviews`, `rollout_runs`, `workshop_sessions`, `workshop_decisions`, `evidence_runs`, `ask_runs`, `ask_reviews`) gains `user_id bigint REFERENCES users(id)` plus an index, and rows recorded before accounts existed are handed to `legacy` (`auth/store.py:125-137,340-341`). Evidence retention (200) is per owner.
+
+[F] The sibling database `<main>_session` (always the main DB name plus `_session`, auto-created) holds the tables `upload_sessions` (with an owner `user_id` and no foreign key, because `users` is in the other database) and `upload_files`, plus **one schema `u_<12hex>` per upload session**, each with its own `rag_documents`/`rag_chunks`. The TTL is 12 h, extended on every use; the cap is 12 files per session. Expired sessions are cleaned up lazily when certain endpoints are called.
 
 [F] Hindsight owns a separate `hindsight` database (compose) or the embedded `~/.pg0` (local).
 
@@ -147,11 +155,12 @@
 |---|---|
 | `solvay-spark/<cat>/` and `solvay-spark/<cat>/markdown/*.md` | Client corpus: originals and converted Markdown (read-only in compose) |
 | `knowledge_base/` | Markdown added from the UI (`<stem>_<ext>.md`, category UNFILED unless chosen; the category is persisted as front matter), plus `BPML_Process.xlsx` → `BPML_Process_xlsx.md` |
-| `data/knowledge_graph.json` | Cached graph (currently 2,380 nodes / 4,772 edges / 8,368 chunks; depends on the corpus). Also `graph_eval_questions.json`; `spark_target_model.json` is unused |
-| `.workdir/<12hex>/` | Per-conversion job: `source.<ext>`, `name.txt`, `preview/page-NNNN.png`, `output.md`. Never garbage-collected |
-| `.workdir/batches/<id>/`, `.workdir/uploads/<sid>/`, `.workdir/kb<hash>/` | Batch convert, session attachment Markdown, previews of indexed originals |
+| `data/knowledge_graph.json` | Cached graph (currently 2,376 nodes / 4,752 edges / 8,368 chunks; depends on the corpus). Also `graph_eval_questions.json`; `spark_target_model.json` is unused |
+| `.workdir/<12hex>/` | Per-conversion job: `source.<ext>`, `name.txt`, `owner.txt` (uploader's user id), `preview/page-NNNN.png`, `output.md`. Never garbage-collected |
+| `.workdir/batches/<id>/`, `.workdir/uploads/<sid>/`, `.workdir/kb<hash>/` | Batch convert (with `owner.txt`), session attachment Markdown, previews of indexed originals (no `owner.txt`; a `shared` marker makes their pages readable by every signed-in user) |
 | `static/dist/` | Built SPA (committed to git, and rebuilt in the image) |
 | `docs/` | Read at runtime: eval questions, Langfuse dashboard JSON |
+| `.venv-loadtest/` | Locust's own venv (load tests only; git-ignored) |
 
 ### 4.3 Caches
 [F] There is no persistent content cache in ingestion. Embedding is skipped when the document **fingerprint** is unchanged: a hash of the embedding and chunking settings plus the body without front matter. Changing a category therefore never re-embeds.
@@ -166,17 +175,21 @@
 | Group | Variables |
 |---|---|
 | Required | `DATABASE_URL`, `ANTHROPIC_API_KEY`; compose also requires `POSTGRES_PASSWORD`, `NEO4J_PASSWORD` |
-| Sign-in | `APP_LOGIN` (`off` disables the gate), `APP_USERNAME`/`APP_PASSWORD` (default `test`/`test`), `APP_SECRET`; `DEMO_USERNAME`/`DEMO_PASSWORD` (default `solvay`/`solvay`), `DEMO_SECRET`. A missing secret means a random per-process secret, so a restart signs everyone out |
+| Accounts | `ADMIN_USERNAME`/`ADMIN_PASSWORD` (the first Admin, created or re-enabled at start-up only when there is no active Admin), `AUTH_SECRET` (falls back to `APP_SECRET`, then a random per-process secret, so a restart signs everyone out), `AUTH_SESSION_HOURS` (falls back to `APP_SESSION_HOURS`, then 12). Every other account is created in the Admin tab |
 | Services | `OLLAMA_HOST` (`http://127.0.0.1:11434`), `NEO4J_URI` (`bolt://127.0.0.1:7687`), `NEO4J_USER`, `NEO4J_PASSWORD` (empty = Cypher off), `HINDSIGHT_URL` (`http://127.0.0.1:8888`; empty = memory off) |
-| Models | `RAG_EMBED_MODEL=bge-m3`, `RAG_EMBED_DIMENSION=1024`, `RAG_EMBED_BATCH`, `RAG_HNSW_EF_SEARCH` (800), `RAG_ANSWER_MODEL` (`claude-opus-5`), `FITGAP_COPILOT_MODEL`, `CLAUDE_VLM_MODEL`, `OPENAI_API_KEY`, `OPENAI_VLM_MODEL` |
-| Copilot budgets | `ROLLOUT_MAX_TOOL_CALLS_ASIS` (20), `ROLLOUT_MAX_TOOL_CALLS` (30), `ROLLOUT_MAX_INPUT_TOKENS` (150000), `ROLLOUT_MAX_BILLED_TOKENS` (220000) |
+| Models | `RAG_EMBED_MODEL=bge-m3`, `RAG_EMBED_DIMENSION=1024`, `RAG_EMBED_BATCH`, `RAG_HNSW_EF_SEARCH` (800), `RAG_ANSWER_MODEL` (`claude-opus-5`), `FITGAP_COPILOT_MODEL` (falls back to `RAG_ANSWER_MODEL`; read at import, so a change needs the container recreated), `CLAUDE_VLM_MODEL`, `OPENAI_API_KEY`, `OPENAI_VLM_MODEL` |
+| Copilot budgets | `ROLLOUT_MAX_TOOL_CALLS_ASIS` (20), `ROLLOUT_MAX_TOOL_CALLS` (30), `ROLLOUT_MAX_INPUT_TOKENS` (150000), `ROLLOUT_MAX_BILLED_TOKENS` (220000), `ROLLOUT_MAX_TOKENS_OUT` (64000, `max_tokens` per Copilot response) |
 | Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` (`https://cloud.langfuse.com`), `LANGFUSE_TRACING_ENVIRONMENT` |
 | Hindsight server | `HINDSIGHT_MODEL` (`anthropic/claude-opus-5`), `HINDSIGHT_REFLECT_MODEL` (`anthropic/claude-sonnet-5`), `HINDSIGHT_REFLECT_TIMEOUT` (60) |
 | Compose / scripts | `TAG`, `APP_PORT`, `HINDSIGHT_TAG`, `PORT` (run.sh), `IMAGE`/`PLATFORM` (publish) |
+| Load tests only | `LOADTEST_USERNAME` (must start `loadtest-`), `LOADTEST_PASSWORD`, `LOADTEST_ACCOUNTS` (20), `LOADTEST_ALLOWED_HOSTS` (`localhost,127.0.0.1`), `LOADTEST_LLM`, `LOADTEST_HEAVY`, `LOADTEST_ROLLOUT_SESSION`/`_SUBJECT`/`_SCOPE`, `LOADTEST_FITGAP_STEPS`; `MOCK_FIRST_TOKEN_MS`, `MOCK_TOKENS_PER_SEC`, `MOCK_ANSWER_TOKENS`; `ANTHROPIC_BASE_URL` to point a second app at the mock |
+
+[F] **Removed** since `65b38f5`: `APP_LOGIN`, `APP_USERNAME`, `APP_PASSWORD`, `DEMO_USERNAME`, `DEMO_PASSWORD`, `DEMO_SECRET`, `DEMO_SESSION_HOURS`. There is no way to switch the sign-in off, and there are no demo credentials: Demo Mode uses the same accounts and cookie. Model prices for the Admin cost estimate are hard-coded in `backend/core/pricing.py`, with no environment variable.
 
 ### 5.2 Secrets and external accounts needed
 - An Anthropic API key with access to the three Claude model IDs above.
 - A Postgres superuser-capable role.
+- A first Admin's username and password (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, at least 8 characters) and a fixed `AUTH_SECRET` (`openssl rand -hex 32`).
 - Optional: Langfuse project keys, an OpenAI key, a Neo4j password.
 - Optional: registry credentials for `reg.ivolve.cloud` (a GitLab token with `write_registry`/`read_registry`).
 - Optional: an ngrok account (the demo URL is in `scripts/ngrok.sh`).
@@ -197,7 +210,7 @@ cd frontend && npm ci && npm run build && cd ..        # tsc --noEmit && vite bu
 # optional memory server:
 uv venv --python 3.13 hindsight-venv && uv pip install --python hindsight-venv/bin/python hindsight-api==0.10.1
 ```
-Then create `.env` from `.env.example` with at least `DATABASE_URL=postgresql://<user>:<pw>@localhost:5433/docling` and `ANTHROPIC_API_KEY`.
+Then create `.env` from `.env.example` with at least `DATABASE_URL=postgresql://<user>:<pw>@localhost:5433/docling`, `ANTHROPIC_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET`.
 
 [I] Port 5433 is a manual Homebrew Postgres configuration change and is not scripted.
 
@@ -224,14 +237,18 @@ Publish: `scripts/docker-publish.sh [app|hindsight]` runs buildx (or podman `--f
 ```bash
 brew services start postgresql@18
 ollama serve &
-./scripts/run.sh            # http://localhost:8000 ; sign in test / test
+./scripts/run.sh            # http://localhost:8000 ; sign in as ADMIN_USERNAME / ADMIN_PASSWORD
 ```
 `run.sh` runs these steps in order:
 1. Starts Hindsight (`scripts/hindsight.sh`, LiteLLM provider, 127.0.0.1:8888) if it is installed and `HINDSIGHT_URL` is not set empty.
 2. If `NEO4J_PASSWORD` is set: `podman machine start`, then `docker compose -f compose.neo4j.yml up -d` (container `docling-neo4j`, 127.0.0.1:7474/7687).
 3. `exec uvicorn backend.api.app:app --port ${PORT:-8000} --reload --reload-dir backend`.
 
-On startup the app logs the Langfuse status and spawns a thread that loads `data/knowledge_graph.json` into Neo4j, retrying for up to 120 s.
+On startup the app, in order (`backend/api/app.py:74-97`):
+1. logs the Langfuse status;
+2. runs `bootstrap_admin()` (`app.py:86`): creates `users`, `activity_events` and the `legacy` account, and, if there is no active Admin and both `ADMIN_USERNAME` and `ADMIN_PASSWORD` are set, creates that Admin (or re-enables an existing account of that name as an Admin). With either unset it logs `auth: WARNING -- there is no active Admin account…` and still starts. A password under 8 characters or a refused username (empty, spaces, `|`, over 64 characters, or `legacy`) also only logs `auth: WARNING -- ADMIN_PASSWORD/ADMIN_USERNAME was not used: … No Admin account was created.` and the app starts (`backend/auth/store.py:312-334`);
+3. runs `_ensure_run_tables()`, which adds the owner column to the ask, evidence, fitgap and rollout run tables and hands older runs to `legacy` (a failure is logged, not fatal);
+4. spawns a thread that loads `data/knowledge_graph.json` into Neo4j, retrying for up to 120 s.
 
 ### 7.2 First-time data load (empty database)
 [I] The order is derived from the code paths:
@@ -239,14 +256,17 @@ On startup the app logs the Langfuse status and spawns a thread that loads `data
    `python -m backend.ingestion.folder_to_md solvay-spark/<cat> [-r]`
    The converted files go to `solvay-spark/<cat>/markdown/`.
 2. Index it with `python -m backend.rag.rag …` (see §04 §8.1 for the CLI subcommands), or use the UI's Batch Convert → embed, or Add to knowledge base.
-3. Build the graph with `POST /api/graph/rebuild` (or the Spine → Rebuild button). This writes `data/knowledge_graph.json` and resyncs Neo4j.
+3. Build the graph with `POST /api/graph/rebuild` (or the Spine → Rebuild button). This writes `data/knowledge_graph.json` and resyncs Neo4j. The API needs a session: sign in with `POST /api/auth/login` and send the `spark_session` cookie.
 
 **Alternative:** `pg_restore` a dump made by `scripts/db-export.sh`.
 
 ### 7.3 Operating
 - Health: `GET /api/health`.
 - Stop: Ctrl+C stops uvicorn only. Stop the rest with `docker compose -f compose.neo4j.yml down`, `pkill -f hindsight-api`, `podman machine stop`.
-- Back up: `scripts/db-export.sh` writes `backup/spark-YYYY-MM-DD.dump` (custom format; holds the embeddings and history).
+- Back up: `scripts/db-export.sh` writes `backup/spark-YYYY-MM-DD.dump` (custom format; holds the accounts, the embeddings and history).
+- Accounts (§01 §7.7): `python -m backend.auth.store create-admin <username>` (prompts for the password), `… list`, `… reassign-legacy <username> [table ...]` (hands runs recorded before accounts existed from `legacy` to a real account). In compose, prefix with `docker compose exec app`. Everyone else's account is created, reset or deactivated in the Admin tab; accounts are never deleted.
+- Switching the Fit-Gap Copilot model: set `FITGAP_COPILOT_MODEL` in `.env`, then `docker compose up -d app`. `docker compose restart app` is not enough, because it keeps the old container and its environment, and the model is read at import. `GET /api/rollout/status` reports the model in use.
+- Load tests (§01 §7.8, §06 §8.4): Locust in `loadtest/` runs only as `loadtest-*` accounts (created by `loadtest/seed_users.py`), only against `LOADTEST_ALLOWED_HOSTS`, and makes no Claude calls unless `LOADTEST_LLM=1` or `LOADTEST_HEAVY=1`. The app needs a fixed `AUTH_SECRET` for it.
 
 ---
 
@@ -265,19 +285,26 @@ On startup the app logs the Langfuse status and spawns a thread that loads `data
 
 **Deploy sequence** (`docs/deployment.md`):
 1. On the dev machine, publish the images and export the database.
-2. On the server, copy `compose.yml`, `.env`, `solvay-spark/`, `knowledge_base/` and the dump.
+2. On the server, copy `compose.yml`, `.env` (with `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET` set before the first start), `solvay-spark/`, `knowledge_base/` and the dump.
 3. `docker compose up -d solvay-postgres solvay-ollama solvay-ollama-pull solvay-neo4j`.
 4. `pg_restore`.
 5. `up -d solvay-hindsight-db solvay-hindsight app`.
 6. Check `curl localhost:8000/api/health`.
+7. Sign in as `ADMIN_USERNAME` and create everyone else's account from the **Admin** tab.
 
-**Security posture** [F]: `/api/*` is **unauthenticated**; only the HTML pages are gated. Cookies lack the `secure` flag, and there is no CSRF protection, rate limiting or upload size cap. Production relies on a reverse proxy, VPN or allowlist, which lives outside this repository.
+**Security posture** [F]: accounts guard the pages and the API; a signed-out `/api/*` call gets 401 and only `/api/health` and the login/logout/session routes are exempt. Runs, upload sessions and conversions (single and batch) are owned, but workshop decisions, the corpus, knowledge base, graph (rebuild, Neo4j sync) and Cypher tools are shared by design, as the programme's common knowledge: any signed-in User can use them, including deleting knowledge-base files. The `spark_session` cookie is `HttpOnly`, `SameSite=Lax`, and **not** `Secure`, so the cookie and passwords travel in clear over plain HTTP. There is no CSRF token, no rate limiting (on sign-in either) and no upload size cap. [I] FastAPI's `/docs`, `/redoc` and `/openapi.json` are left on and, not being under `/api/`, are not gated. Production relies on a TLS reverse proxy, VPN or allowlist, which lives outside this repository.
 
 ---
 
 ## 9. Behaviour
 
 ### 9.1 Key workflows
+0. **Sign in and accounts** (§02 §3, §06 §2.1, §3.15):
+   - `/login` (or `/demo/login`) posts to `/api/auth/login`; scrypt-checked against `users`; success sets the `spark_session` cookie, a signed token `uid|session_version|expires|HMAC-SHA256`. A new password or deactivation bumps `session_version`, which signs that account out everywhere; the gate caches account lookups for 30 s per process.
+   - Two roles, `admin` and `user`. The first Admin comes from `ADMIN_USERNAME`/`ADMIN_PASSWORD` at start-up or from the CLI; every other account is created by an Admin (always as `user`, then promoted if wanted). The last active Admin cannot be demoted or deactivated, and nobody can demote or deactivate themselves.
+   - Every run is owned. Reviewer, facilitator and decision-maker names come from the account; typed names in the request are ignored. A User sees only their own runs and upload sessions; another's is 404. An Admin's history lists take `scope=mine|all` (a switch in the account menu); with `all` they show every owner, but an Admin writes (delete, review, decide, re-score) only their own runs. Runs from before accounts belong to the inactive `legacy` account until handed over with `reassign-legacy`. `/api/rollout/decisions` lists every account's decisions to every signed-in user: they are organisational memory, and each row records who decided it.
+   - A conversion belongs to its uploader: `/api/upload` and `/api/batch/upload` write `owner.txt` into the job folder, and every follow-up (`/api/convert/{id}`, `/api/docs/{id}/…`, `DELETE /api/docs/{id}`, `/api/batch/convert|download|embed`) answers 404 "Document/Batch not found" for anyone else, an Admin included, and for a job with no owner. The exception is a job that `POST /api/kb/files/open` returned for Doc vs MD (a `kb<hash>` copy, or an upload job whose original is in the knowledge base): it carries a `shared` marker, so every signed-in user can read its preview pages, media and Markdown, while only its uploader can convert, embed or delete it. Shared by design: workshop decisions (organisational memory; each row records who decided it), the corpus, the knowledge-base files (`/api/kb/*`), the graph and the Cypher tools.
+   - Every sign-in, failed sign-in, run, review, decision, workshop, export, delete and account change is logged to `activity_events`.
 1. **Convert** (`/convert`; §03):
    - Upload a file; LibreOffice → PDF → `pdftoppm -r 90` renders the preview pages.
    - "Convert to Markdown" routes by extension: openpyxl tables for xlsx; mail reader for msg/eml; ElementTree for xml; Docling for everything else.
@@ -318,9 +345,14 @@ On startup the app logs the Langfuse status and spawns a thread that loads `data
      - Divergence = 100 − alignment
    - The five-level standardisation outlook is computed **in the frontend** (`outlook.ts`).
    - Decisions are stored append-only. Facilitator mode keeps drafts.
+   - Output limits: each response may use up to `ROLLOUT_MAX_TOKENS_OUT` (64000) tokens, streamed. A submission in a response cut off at that limit is refused, never accepted, and the model is asked to resubmit more tightly; after 2 cut-offs the pass stops and the run fails rather than keeping a truncated register.
+   - A sent-back pass-2 submission is corrected with the **`amend_analysis`** tool, which sends only what changes and is merged into the held submission, then checked again like a full one. The full submission is replaced by an outline in the history to save tokens.
+   - Before pass 2's first turn the harness itself runs `list_sources`, `get_scope` (when a scope is named) and `compare_entities`, outside the tool budget. Quotes over 400 characters are shortened at a word boundary; list fields sent as text are parsed back into lists.
+   - The model comes from `FITGAP_COPILOT_MODEL` (falling back to `RAG_ANSWER_MODEL`, then `claude-opus-5`), read at import. The UI shows each run's duration (total and per pass), computed from the stored log in `timing.ts`.
    - Exports: Markdown pack, WeasyPrint PDF, workshop outcomes as md/pdf/docx/xlsx.
 7. **Spine / knowledge graph** (§05 §6):
-   - Deterministic extraction (**no LLM**) from the Markdown and the BPML hierarchy: 4 streams and 18 systems are hard-coded; regexes find process codes and tickets; the L1–L4 register adds structure.
+   - Deterministic extraction (**no LLM**) from the Markdown and the BPML hierarchy: 4 streams and 17 systems are hard-coded (the former `M3` "Infor M3" system was removed: "M3" in the corpus is an order type or a cubic metre); regexes find process codes and tickets; the L1–L4 register adds structure.
+   - Cleanup rules: an OCR-misread process code (`O0-160-070`, `Q-130-…`) is repaired to its `O-` form only if that code is known, else dropped; a step inside a section headed by a lettered process (`T-050-050`) is filed under that process when its code extends it; process names stop at markup. The current graph has 2,376 nodes and 4,752 edges.
    - Builds are byte-identical across hash seeds (enforced by a test).
    - The canvas shows nodes by type, an NL query highlights paths, and there are 5 presets.
    - The Cypher view generates queries with `claude-opus-5` using structured output, checks them with EXPLAIN in a read-only transaction (up to 3 attempts), and rejects writes.
@@ -330,16 +362,20 @@ On startup the app logs the Langfuse status and spawns a thread that loads `data
    - A Haiku scope classifier refuses off-scope questions.
    - Web search is gated: Sonnet with `web_search_20250305`, sap.com and europa.eu only, at most 2 searches.
    - Phone numbers and e-mail addresses are redacted, both in the ASGI middleware and before every store write and export.
-9. **Coverage, Doc vs MD, MD Viewer, RAG Metrics**: inspection and analytics pages (§06 §3).
+9. **Coverage, Doc vs MD, MD Viewer, RAG Metrics**: inspection and analytics pages (§06 §3). RAG Metrics and the `/api/quality*` endpoints, and Evidence memory reflect, are Admin-only.
+10. **Admin dashboard** (`/admin`; §02 §4m, §06 §3.15): KPI strip (runs, active accounts, tokens, estimated LLM cost), then Usage (runs per day, by account), Run history (open any run in its tool), Users (create, change role, activate/deactivate, reset password), Activity log, and a User × tool matrix (runs, tokens, run time or cost). Cost is an over-estimate at hard-coded list prices from `backend/core/pricing.py` (cache reads at the full input rate; scope guard, judges, memory and embeddings not counted); an unlisted model is reported as unpriced.
 
 ### 9.2 API
-[F] There are 115 routes in total:
-- 105 in `app.py`
-- 4 sign-in routes: `/login`, `/api/app/login`, `/api/app/logout`, `/api/app/session`
-- 6 Demo Mode routes under `/demo`
+[F] There are 126 routes in total, plus 1 static mount (`/assets`):
+- 106 in `app.py` (24 of them SPA pages, including `/admin`)
+- 10 in `backend/auth/routes.py`: login, logout and session under `/api/auth`, with `/api/app` and `/api/demo` as aliases, plus `POST /api/auth/password`
+- 1 in `app_login.py` (`/login`)
+- 3 Demo Mode routes (`/demo/login`, `/demo`, `/demo/{rest:path}`)
+- 6 Admin routes under `/api/admin` (`users` GET/POST, `users/{uid}` PATCH, `usage`, `activity`, `runs`)
 
 The route groups are:
 - SPA pages
+- `/api/auth*`, `/api/admin*`
 - `/api/convert*`, `/api/preview*`
 - `/api/graph*` and `/api/neo4j*`
 - `/api/kb*`, `/api/coverage`
@@ -351,39 +387,41 @@ The route groups are:
 The full method/path/body/response/side-effect table is in **§02 §4**. The matching client functions are in **§06 §4**.
 
 ### 9.3 UI
-[F] There are 12 tabs in 4 colour groups:
+[F] There are 13 tabs defined, in 5 colour groups. An Admin sees 12 tabs plus an **Admin** button beside the account menu; a User sees 11 (no RAG Metrics) and no Admin button:
 
 | Group | Tabs (path) |
 |---|---|
-| engine | Ask RAG `/ask`, RAG Metrics `/quality`, Spine `/graph`, Agent `/evidence`, InsightLens `/fit-gap`, Fit-Gap Copilot `/rollout` |
+| engine | Ask RAG `/ask`, RAG Metrics `/quality` (Admin only), Spine `/graph`, Agent `/evidence`, InsightLens `/fit-gap`, Fit-Gap Copilot `/rollout` |
 | convert | Convert `/convert`, Batch Convert `/batch` |
 | index | Add to knowledge base `/add-kb` |
 | inspect | Coverage `/coverage`, Doc vs MD `/review`, MD Viewer `/md-viewer` |
+| admin | Admin `/admin` (Admin only; a header button, never in the tab bar) |
 
-There is also a landing page at `/`. Every page stays mounted, so state survives tab switches. Light theme plus a dark Catppuccin Frappé theme (`localStorage.theme`).
+There is also a landing page at `/`. The account menu shows the username and role, the Admin's "my runs / everyone's runs" history switch, Change password and Sign out. A 401 from any `/api/*` call sends the browser to the sign-in page with `next`. Every page stays mounted, so state survives tab switches. Light theme plus a dark Catppuccin Frappé theme (`localStorage.theme`).
 
-Demo Mode at `/demo` shows only Spine and Fit-Gap Copilot as tabs, with Ask RAG and Agent in a sidebar. It hides model names, and Copilot downloads are marked `client=1`.
+Demo Mode at `/demo` uses the same accounts and cookie. It shows only Spine and Fit-Gap Copilot as tabs, with Ask RAG and Agent in a sidebar, and the Admin page at `/demo/admin` for Admins. It hides model names, and Copilot downloads are marked `client=1`.
 
 ---
 
 ## 10. Testing and validation
 
 ### 10.1 Existing suites (detail in §06 §8)
-- **Backend:** 22 self-running scripts with about 560 tests:
+- **Backend:** 23 self-running scripts with 592 tests (`test_auth` and `test_ownership` are new; `test_demo_mode` was removed):
   `for f in backend/tests/test_*.py; do .venv/bin/python "$f" || echo FAIL $f; done`
   - None of them need a live Anthropic key or Ollama; those are stubbed.
-  - The Postgres tests need `DATABASE_URL` and a role with CREATEDB; they create and drop `docling_test_*` databases.
+  - The Postgres tests (including `test_auth` and `test_ownership`) need `DATABASE_URL` and a role with CREATEDB; they create and drop `docling_test_*` databases.
   - The live part of `test_neo4j` skips when Neo4j is absent.
   - `test_evidence`, `test_knowledge_graph` and `test_graph_determinism` need the real corpus.
-- **Frontend:** 11 static source-consistency checks: `cd frontend && for f in test/*.mjs; do node "$f"; done`.
+- **Frontend:** 13 static source-consistency checks (`rollout-tabs` and `rollout-timing` are new): `cd frontend && for f in test/*.mjs; do node "$f"; done`.
   `quote-highlight.fixture.json` is empty in git; regenerate it first with `.venv/bin/python frontend/test/quote-highlight-fixture.py`.
+- **Load tests:** Locust in `loadtest/` (own venv `.venv-loadtest`). They sign in only as `loadtest-*` accounts, refuse any host outside `LOADTEST_ALLOWED_HOSTS` (default `localhost,127.0.0.1`), and make no Claude calls unless `LOADTEST_LLM=1` (Ask, Evidence) or `LOADTEST_HEAVY=1` (InsightLens, Copilot). `loadtest/mock_anthropic.py` stands in for Claude for a cost-free Ask test. Detail in §06 §8.4.
 - [F] There is no CI configuration, pytest config or npm test script.
 
 **These suites were not executed while this spec was written, so their current pass/fail state is unverified.**
 
 ### 10.2 Equivalence criteria for a rebuild
 A rebuilt system is functionally equivalent when all of the following hold:
-1. **Contract tests port and pass.** Port the backend tests' assertions; they encode the exact contracts: BPML round-trip, txt/csv passthrough, BM25 per-category statistics, recategorisation atomicity, judge arithmetic, Evidence scoring, Copilot scoring and gates (107 tests), graph determinism, guardrail behaviour, sign-in gating.
+1. **Contract tests port and pass.** Port the backend tests' assertions; they encode the exact contracts: BPML round-trip, txt/csv passthrough, BM25 per-category statistics, recategorisation atomicity, judge arithmetic, Evidence scoring, Copilot scoring, gates, cut-off refusal and amend merging (115 tests), graph determinism and cleanup rules, guardrail behaviour, account gating, session revocation, and run, conversion and decision ownership.
 2. **Deterministic outputs match.** Run these on the same corpus:
    - the graph JSON is byte-identical to `data/knowledge_graph.json`
    - for each chunk, the chunker output has the same text, heading path and token count
@@ -395,9 +433,10 @@ A rebuilt system is functionally equivalent when all of the following hold:
    - The Evidence Agent's quotes all pass verbatim verification.
    - Copilot runs pass the hard quality gates, using `docs/spark-fitgap-eval-golden-set.xlsx` as the reference.
 4. **API surface matches.** Every route in §02 §4 exists with the same method, path, SSE event names and response field names, because the frontend depends on them.
-5. **The UI acceptance checklist passes:** all 18 items in §06 §9.
+5. **The UI acceptance checklist passes:** all 29 items in §06 §9.
 6. **Operational checks pass:**
    - `/api/health` reports the binaries.
+   - A fresh database with `ADMIN_USERNAME`/`ADMIN_PASSWORD` set starts with that Admin and the `legacy` account; a dump from before accounts restores with its runs owned by `legacy`. A too-short `ADMIN_PASSWORD` or `ADMIN_USERNAME=legacy` logs a WARNING, creates no Admin and the app still starts.
    - The container passes its HEALTHCHECK.
    - `pg_restore` of a dump from the original works against the rebuilt schema, which proves schema compatibility.
 
@@ -420,6 +459,9 @@ A rebuilt system is functionally equivalent when all of the following hold:
 | The writer of `.workdir/app.log` | Unknown; probably an earlier script |
 | Exact visual layout and copy text of the largest components (graph canvas, rollout views) | Read `frontend/src` directly or use the `docs/demo-video/captures/*.png` screenshots |
 | Purpose of `docs/spark-fitgap-eval-golden-set.xlsx` | [I] Golden set for Copilot/InsightLens evaluation; not opened |
+| Current model list prices | `backend/core/pricing.py` hard-codes USD per million tokens; check them against the provider's price list when rebuilding |
+| The real accounts and their roles | Live data in the `users` table; not in git. A rebuild starts with one Admin from `ADMIN_USERNAME`/`ADMIN_PASSWORD` |
+| Load-test results | The tests were not run for this spec; the 40-thread limit and run times are as stated in `loadtest/README.md` |
 
 ### 11.2 Present in the design but not implemented
 - [F] InsightLens eval harness E1–E4 (`docs/insightlens-handover.md`) does not exist. `asis_dir` is accepted but never read.
@@ -434,6 +476,10 @@ A rebuilt system is functionally equivalent when all of the following hold:
 - `compose.neo4j.yml` references a root-level `kg_neo4j_load.py`. The module is now `backend/graph/kg_neo4j_load.py` (run it as `python -m backend.graph.kg_neo4j_load`). Its container name `docling-neo4j` is local-only; the server stack uses `solvay-neo4j`.
 - `fitgap/NOTES.md` relation names and the graph counts quoted in the docs are stale.
 - Node: the README says 20+, the image uses 22, and the dev machine runs 24. Use 22.
+- `docs/deployment.md:50` still says "change every sign-in value". The only sign-in values left are `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `AUTH_SECRET`; every other account is created in the app.
+- The `backend/api/app.py` docstring (`:4-6`) still says "no auth". Every `/api/*` route except health and sign-in now needs a session.
+- `APP_SECRET` and `APP_SESSION_HOURS` are still honoured as fallbacks for `AUTH_SECRET` and `AUTH_SESSION_HOURS` (`backend/auth/sessions.py:20-25`), though no doc mentions them. A rebuild can drop them unless it must keep sessions from an older installation.
+- `docs/fitgap/NOTES.md` and `entity-relationships.md` quote graph counts (2,390 / 4,789 / 8,867, and older "6 systems") that differ from the current file (2,376 / 4,752 / 8,368, 17 systems).
 
 ### 11.4 Quirks a faithful rebuild should reproduce or deliberately change
 - Batch convert defaults to the `claude` vision provider; single convert defaults to `qwen`.
@@ -443,17 +489,28 @@ A rebuilt system is functionally equivalent when all of the following hold:
 - The contact redactor works per streamed chunk, so an e-mail address split across two SSE chunks can leak [I].
 - The template graph answerer says "integration route", which contradicts the Evidence Agent's rule that "co-membership is not integration".
 - A dimension mismatch silently drops the whole corpus index.
+- Someone else's run, upload session, conversion or batch answers 404, never 403, so a guessed id does not confirm that it exists. `POST /api/uploads` with someone else's session id silently starts a new session instead.
+- Ask single-run deletion is not written to `activity_events` [I], while every other delete is.
+
+### 11.5 Known risks found in the code
+- [I] An unreachable database at start-up still stops the app: the lifespan calls `bootstrap_admin()` without catching connection errors (`backend/api/app.py:86`). A refused `ADMIN_USERNAME`/`ADMIN_PASSWORD` no longer does (§9.1).
+- [I] The account cache is per process (30 s). With more than one process, a deactivated account or a changed role could still be honoured for up to 30 s elsewhere. Today there is one process.
+- [F] `upload_sessions.user_id` has no foreign key, because `users` is in the main database and the sessions are in `<db>_session` (`backend/core/uploads.py:219-222`).
+- [F] Any signed-in User can rebuild the graph, resync Neo4j and delete knowledge-base files; these are shared by design. Runs, upload sessions and conversions are owned; workshop decisions are shared organisational memory that records who decided each.
+- [I] Copilot amend merges are not re-checked against the outline the model saw; schema validation and the quality gates are the only guard.
+- [I] The graph quality check re-detects process mentions without the known-code list, so a passage that names a process only through an OCR-misread code (repaired at build time) counts as a miss in `graph_evidence_validity`.
 
 ---
 
 ## 12. Recommended reconstruction order (for an executing agent)
 
 1. **Infrastructure.** Postgres 18 + pgvector, Ollama `bge-m3`, the system binaries, Python 3.12 venv with `requirements.txt -c constraints.txt`. Done when `import docling, tesserocr, cv2, ragas` succeeds.
-2. **`backend/core`.** paths, then tracing as a no-op wrapper, then uploads.
-3. **`backend/ingestion`** (§03). Port `test_converter`, `test_formats`, `test_bpml_markdown`, `test_originals`.
-4. **`backend/rag`.** Schema → index → search → answer → ask_store → evaluation → quality/coverage (§04). Port `test_rag`, `test_ask_store`, `test_evaluation`, `test_quality`, `test_coverage`, `test_category_durability`.
-5. **`backend/graph`.** Extraction, then Neo4j load, then NL→Cypher, then eval (§05 §6). Port `test_knowledge_graph`, `test_graph_determinism`, `test_graph_eval`, `test_neo4j`.
-6. **`backend/agents`.** Guardrails → shared fitgap tools → Evidence → InsightLens → Copilot (gates, scoring, exports) → agent_eval (§05). Port `test_guardrails`, `test_evidence`, `test_fitgap`, `test_rollout`, `test_agent_eval`.
-7. **`backend/api`.** All routes per §02 §4, sign-in and Demo Mode, the middleware, and the SPA fallback. Port `test_app_login`, `test_demo_mode`, `test_tracing`.
-8. **Frontend.** Vite multi-page app per §06. Port the `frontend/test/*.mjs` checks.
-9. **Packaging.** Dockerfiles and compose per §01. Verify against §10.2.
+2. **`backend/core`.** paths, then tracing as a no-op wrapper, then uploads (with the session owner column), then pricing.
+3. **`backend/auth`** (§02 §3, §04 §2.10). It comes this early because every run store's `create_schema` calls `own_table`, which needs the `users` table and the `legacy` row: store (DDL, `legacy`, `bootstrap_admin`, `own_table`, `reassign_legacy`, CLI) → passwords → sessions → middleware → deps → routes. Port `test_auth` (the parts that need no app routes).
+4. **`backend/ingestion`** (§03). Port `test_converter`, `test_formats`, `test_bpml_markdown`, `test_originals`.
+5. **`backend/rag`.** Schema → index → search → answer → ask_store → evaluation → quality/coverage (§04). Port `test_rag`, `test_ask_store`, `test_evaluation`, `test_quality`, `test_coverage`, `test_category_durability`.
+6. **`backend/graph`.** Extraction, then Neo4j load, then NL→Cypher, then eval (§05 §6). Port `test_knowledge_graph`, `test_graph_determinism`, `test_graph_eval`, `test_neo4j`.
+7. **`backend/agents`.** Guardrails → shared fitgap tools → Evidence → InsightLens → Copilot (gates, scoring, cut-off refusal, `amend_analysis`, exports) → agent_eval (§05). Every store takes an `owner`. Port `test_guardrails`, `test_evidence`, `test_fitgap`, `test_rollout`, `test_agent_eval`.
+8. **`backend/api`.** All routes per §02 §4 with their ownership rules (§02 §3d), the `RequireUser` gate, `/login` and Demo Mode, the Admin API (`admin.py`), the lifespan (`bootstrap_admin`, `_ensure_run_tables`), the redaction middleware, and the SPA fallback. Port `test_app_login`, `test_auth`, `test_ownership`, `test_tracing`.
+9. **Frontend.** Vite multi-page app per §06, including the account menu, session guard and Admin page. Port the `frontend/test/*.mjs` checks.
+10. **Packaging.** Dockerfiles and compose per §01. Verify against §10.2. Optionally port the Locust load tests (§01 §7.8) and run them as `loadtest-*` accounts only.

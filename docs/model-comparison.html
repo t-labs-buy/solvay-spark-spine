@@ -1,0 +1,3699 @@
+<!doctype html>
+<!--
+  data-nav on <html> picks the navigation behaviour:
+    "tabbed" — one section visible at a time, sidebar + prev/next pager
+    "scroll" — every section visible, sidebar is a table of contents
+  Change the attribute value on this line only. Do not find-and-replace the
+  value across the file; the CSS keys off the .js-tabbed class instead of the
+  attribute precisely so that this line stays the single source of truth.
+-->
+<html lang="en" data-nav="scroll">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Opus vs Sonnet — Fit-Gap Copilot model comparison</title>
+    <!-- One sentence: shown under the link when the page is shared in chat or
+         email, and in search results. -->
+    <meta name="description" content="Six Fit-Gap Copilot runs on the India returns process, three on Opus and three on Sonnet, comparing all four scores, dimension ratings, statutory calls and cost." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Noto+Sans+Elbasan&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Runs before first paint so a saved theme and the tabbed layout are
+      // applied without a flash of the wrong one.
+      (function () {
+        var r = document.documentElement;
+        try {
+          var t = localStorage.getItem("doc-theme");
+          if (t === "dark" || t === "light" || t === "paper")
+            r.setAttribute("data-theme", t);
+        } catch (e) {
+          /* private browsing — the toggle still works for this visit */
+        }
+        // The sidebar's links are generated from the sections at load, so the
+        // stylesheet needs to know whether that is going to happen at all.
+        r.classList.add("js");
+        // Sections stay visible by default, so the document still reads fine
+        // with JavaScript disabled; tabbing is opt-in via this class.
+        if (r.getAttribute("data-nav") !== "scroll")
+          r.classList.add("js-tabbed");
+      })();
+    </script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      :root {
+        /* Layout. --measure is the prose column — about 68 characters of
+           IBM Plex Mono at the body size, which is the line length long-form
+           reading wants. Widening it is a one-token change; everything else
+           below derives from it. It is deliberately NOT in ch: a custom
+           property in ch resolves against each element's own font size, so
+           the masthead would compute a different page width than the layout
+           and stop lining up with it. */
+        /* Retained as a reference value only — nothing is capped by it. */
+        --measure: 43.5rem;
+        --card-pad: 2.75rem;
+        /* The sidenote gutter is zero until the viewport can spare the room;
+           the min-width block further down turns it on. */
+        --sidenote-w: 0rem;
+        --sidenote-gap: 0rem;
+
+        /* Tells the browser which native widgets to draw — scrollbars, the
+           capture textarea, form controls. Set in every theme block. */
+        color-scheme: light;
+        --bg: #f6f8f8;
+        --head-bg: #efefed; /* page header band: a milky light grey */
+        --card: #ffffff;
+        --ink: #1c2529;
+        --muted: #56676d;
+        --accent: #0e6e68;
+        --accent-soft: #e2efed;
+        /* Disclosure. Indigo, deliberately not the teal accent, so a
+           collapsible block is never mistaken for a callout. */
+        --disclose-bg: #eceafb;
+        --disclose-ink: #4f46b8;
+        --search-where: #a8420a; /* search result titles: burnt orange */
+        --win-bg: #e8f3ea;
+        --win-border: #2e7d4f;
+        --warn-bg: #faf3e0;
+        --warn-border: #9a6a00;
+        --why-bg: #edf2f4;
+        --border: #d8e0e0;
+        --code-bg: #eef2f2;
+        --code-ink: #17332f;
+        /* Syntax tokens: Catppuccin Latte, darkened where the official hue
+           is too light to hold contrast on --code-bg. */
+        --tok-plain: #17332f;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+      /* Dark mode: Catppuccin Frappé — https://catppuccin.com/palette/ */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #303446; /* Base */
+          --head-bg: #292c3c; /* page header band: Mantle, a step below Base */
+          --card: #414559; /* Surface 0 */
+          --ink: #c6d0f5; /* Text */
+          --muted: #a5adce; /* Subtext 0 */
+          --accent: #81c8be; /* Teal */
+          --accent-soft: #51576d; /* Surface 1 */
+          --disclose-bg: #454063;
+          --disclose-ink: #babbf1; /* Lavender */
+          --search-where: #f7c4a3; /* search result titles: light peach */
+          --win-bg: #292c3c; /* Mantle */
+          --win-border: #a6d189; /* Green */
+          --warn-bg: #292c3c; /* Mantle */
+          --warn-border: #e5c890; /* Yellow */
+          --why-bg: #292c3c; /* Mantle */
+          --border: #51576d; /* Surface 1 */
+          --code-bg: #292c3c; /* Mantle */
+          --code-ink: #99d1db; /* Sky */
+          /* Syntax tokens: Catppuccin Frappé */
+          --tok-plain: #c6d0f5; /* Text */
+          --tok-com: #838ba7; /* Overlay 1 */
+          --tok-str: #a6d189; /* Green */
+          --tok-kw: #ca9ee6; /* Mauve */
+          --tok-num: #ef9f76; /* Peach */
+          --tok-fn: #8caaee; /* Blue */
+          --tok-typ: #e5c890; /* Yellow */
+          --tok-op: #81c8be; /* Teal */
+          --tok-var: #e78284; /* Red */
+        }
+      }
+      /* Manual toggle overrides — must win over the OS preference in both directions */
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #303446; /* Base */
+        --head-bg: #292c3c; /* page header band: Mantle, a step below Base */
+        --card: #414559; /* Surface 0 */
+        --ink: #c6d0f5; /* Text */
+        --muted: #a5adce; /* Subtext 0 */
+        --accent: #81c8be; /* Teal */
+        --accent-soft: #51576d; /* Surface 1 */
+        --disclose-bg: #454063;
+        --disclose-ink: #babbf1; /* Lavender */
+        --search-where: #f7c4a3; /* search result titles: light peach */
+        --win-bg: #292c3c; /* Mantle */
+        --win-border: #a6d189; /* Green */
+        --warn-bg: #292c3c; /* Mantle */
+        --warn-border: #e5c890; /* Yellow */
+        --why-bg: #292c3c; /* Mantle */
+        --border: #51576d; /* Surface 1 */
+        --code-bg: #292c3c; /* Mantle */
+        --code-ink: #99d1db; /* Sky */
+        /* Syntax tokens: Catppuccin Frappé */
+        --tok-plain: #c6d0f5; /* Text */
+        --tok-com: #838ba7; /* Overlay 1 */
+        --tok-str: #a6d189; /* Green */
+        --tok-kw: #ca9ee6; /* Mauve */
+        --tok-num: #ef9f76; /* Peach */
+        --tok-fn: #8caaee; /* Blue */
+        --tok-typ: #e5c890; /* Yellow */
+        --tok-op: #81c8be; /* Teal */
+        --tok-var: #e78284; /* Red */
+      }
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f8f8;
+        --head-bg: #efefed; /* page header band: a milky light grey */
+        --card: #ffffff;
+        --ink: #1c2529;
+        --muted: #56676d;
+        --accent: #0e6e68;
+        --accent-soft: #e2efed;
+        --disclose-bg: #eceafb;
+        --disclose-ink: #4f46b8;
+        --search-where: #a8420a; /* search result titles: burnt orange */
+        --win-bg: #e8f3ea;
+        --win-border: #2e7d4f;
+        --warn-bg: #faf3e0;
+        --warn-border: #9a6a00;
+        --why-bg: #edf2f4;
+        --border: #d8e0e0;
+        --code-bg: #eef2f2;
+        --code-ink: #17332f;
+        /* Syntax tokens: Catppuccin Latte */
+        --tok-plain: #17332f;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+      /* Paper: a warm, low-glare third theme for long reading sessions. The OS
+         never selects it — only the toggle, which cycles light → paper → dark.
+         The greys are warmed rather than replaced, so every component that is
+         tuned for contrast in the other two stays tuned here. */
+      :root[data-theme="paper"] {
+        color-scheme: light;
+        --bg: #f4f0e8;
+        --head-bg: #ebe4d6; /* page header band: a deeper warm paper */
+        --card: #fdfbf7;
+        --ink: #34312b;
+        --muted: #6a6358;
+        --accent: #0c635d;
+        --accent-soft: #e3ece8;
+        --disclose-bg: #ece7f5;
+        --disclose-ink: #4a41ad;
+        --search-where: #9c3d0b; /* search result titles: burnt orange, deepened for paper */
+        --win-bg: #ebf1e5;
+        --win-border: #44712f;
+        --warn-bg: #f8f0de;
+        --warn-border: #8a5c00;
+        --why-bg: #f6f2ea;
+        --border: #e3dccf;
+        --code-bg: #f6f1e7;
+        --code-ink: #34312b;
+        /* Syntax tokens: Catppuccin Latte, which sits on warm paper unchanged. */
+        --tok-plain: #34312b;
+        --tok-com: #7c7f93; /* Overlay 2 */
+        --tok-str: #40a02b; /* Green */
+        --tok-kw: #8839ef; /* Mauve */
+        --tok-num: #d9640b; /* Peach */
+        --tok-fn: #1e66f5; /* Blue */
+        --tok-typ: #a8710d; /* Yellow */
+        --tok-op: #179299; /* Teal */
+        --tok-var: #d20f39; /* Red */
+      }
+
+      /* Print: paper is white whatever theme is on screen, so the ink has to
+         be the light palette too — otherwise a reader in dark mode prints
+         pale text on white. A sixth copy of the light tokens, and the same
+         "change one, change all" rule applies; check.py compares them. */
+      @media print {
+        :root,
+        :root[data-theme] {
+          color-scheme: light;
+          --bg: #f6f8f8;
+          --head-bg: #efefed; /* page header band: a milky light grey */
+          --card: #ffffff;
+          --ink: #1c2529;
+          --muted: #56676d;
+          --accent: #0e6e68;
+          --accent-soft: #e2efed;
+          --disclose-bg: #eceafb;
+          --disclose-ink: #4f46b8;
+          --search-where: #a8420a; /* search result titles: burnt orange */
+          --win-bg: #e8f3ea;
+          --win-border: #2e7d4f;
+          --warn-bg: #faf3e0;
+          --warn-border: #9a6a00;
+          --why-bg: #edf2f4;
+          --border: #d8e0e0;
+          --code-bg: #eef2f2;
+          --code-ink: #17332f;
+          /* Syntax tokens: Catppuccin Latte */
+          --tok-plain: #17332f;
+          --tok-com: #7c7f93; /* Overlay 2 */
+          --tok-str: #40a02b; /* Green */
+          --tok-kw: #8839ef; /* Mauve */
+          --tok-num: #d9640b; /* Peach */
+          --tok-fn: #1e66f5; /* Blue */
+          --tok-typ: #a8710d; /* Yellow */
+          --tok-op: #179299; /* Teal */
+          --tok-var: #d20f39; /* Red */
+        }
+      }
+
+      /* Sidenotes need a gutter wide enough that it does not come out of the
+         prose. Below this width --sidenote-w stays 0, the section's right
+         padding collapses back to --card-pad, and .sidenote renders inline. */
+      /* :has() keeps the gutter out of documents that never use a sidenote —
+         otherwise every section pays 14rem of right padding for a feature the
+         page does not use. Where :has() is unsupported the gutter simply never
+         opens and sidenotes render inline, which is the same graceful fallback
+         used below 1440px. */
+      @media (min-width: 1440px) {
+        :root:has(.sidenote) {
+          --sidenote-w: 14rem;
+          --sidenote-gap: 1.75rem;
+        }
+      }
+
+      /* Reading progress. In scroll mode the rail tracks scroll depth; in
+         tabbed mode only one section is on screen at a time, so it tracks
+         position through the section sequence instead. */
+      .progress-rail {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        z-index: 20;
+        background: transparent;
+        pointer-events: none;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .progress-fill {
+          transition: width 0.12s linear;
+        }
+      }
+
+      .theme-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: var(--card);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.35rem 0.85rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .theme-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .theme-toggle:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      @media print {
+        .theme-toggle {
+          display: none;
+        }
+      }
+
+      figure.shot {
+        margin: 1.2rem 0;
+      }
+      figure.shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      figure.shot figcaption {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-top: 0.45rem;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 17px;
+        line-height: 1.65;
+        margin: 0;
+      }
+      main {
+        margin: 0;
+        padding: 2.5rem clamp(1rem, 3vw, 3rem) 6rem;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      .label,
+      nav,
+      .phase-tag {
+        font-family: "IBM Plex Mono", monospace;
+      }
+      h1 {
+        font-size: 2.1rem;
+        line-height: 1.15;
+        letter-spacing: -0.015em;
+        text-wrap: balance;
+        margin: 0.5rem 0 0.75rem;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 0 0 1rem;
+        letter-spacing: -0.01em;
+        text-wrap: balance;
+      }
+      h3 {
+        font-size: 1.08rem;
+        margin: 2rem 0 0.5rem;
+      }
+      h4 {
+        font-size: 0.98rem;
+        margin: 1.5rem 0 0.4rem;
+      }
+      p {
+        margin: 0 0 1rem;
+      }
+      a {
+        color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+      }
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+      /* Deep-link anchors, generated by the script on every section h2 and
+         h3. Hidden until the heading is hovered or the link is focused, so
+         they never compete with the title. */
+      .heading-anchor {
+        margin-left: 0.45em;
+        color: var(--muted);
+        font-weight: 400;
+        text-decoration: none;
+        opacity: 0;
+      }
+      h2:hover > .heading-anchor,
+      h3:hover > .heading-anchor,
+      .heading-anchor:focus-visible {
+        opacity: 1;
+      }
+      .heading-anchor:hover {
+        color: var(--accent);
+      }
+      @media (hover: none) {
+        .heading-anchor {
+          opacity: 0.5;
+        }
+      }
+      @media print {
+        .heading-anchor {
+          display: none;
+        }
+      }
+      h3[id] {
+        scroll-margin-top: 1.25rem;
+      }
+
+      /* The page header -- eyebrow, title, lede and meta strip -- sits on its
+         own band, bled out to the edges of <main>, so it reads as a masthead
+         apart from the sections below it. The negative margins undo <main>'s
+         padding; change them together with it. */
+      .page-head {
+        background: var(--head-bg);
+        border-bottom: 1px solid var(--border);
+        margin: -2.5rem calc(-1 * clamp(1rem, 3vw, 3rem)) 2.5rem;
+        padding: 2.5rem clamp(1rem, 3vw, 3rem) 0;
+      }
+      .page-head .meta-strip {
+        border-bottom: 0;
+        margin-bottom: 0;
+      }
+      /* Without a meta strip the lede closes the band, and needs the room. */
+      .page-head > .lede:last-child {
+        margin-bottom: 1.75rem;
+      }
+      .eyebrow {
+        font-family: "IBM Plex Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.72rem;
+        color: var(--accent);
+        font-weight: 600;
+        margin: 0;
+      }
+      .lede {
+        font-size: 1.12rem;
+        color: var(--muted);
+        margin-bottom: 0;
+        text-wrap: balance;
+      }
+
+      .meta-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.75rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 0.65rem 0;
+        margin: 1.75rem 0 2.5rem;
+      }
+      .meta-strip strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      /* --- Search ------------------------------------------------------------
+         Built by the script at load, in a header bar pinned to the top right
+         beside the theme toggle (the script moves the toggle into the bar), so
+         it can be reached from anywhere in a long page. Authors write no markup
+         for it, and with scripting off it does not exist. <html
+         data-search="off"> leaves it out of a page. Colours are tokens only;
+         the shadows match the toggle's. Below 900px the bar drops into the
+         page flow above the title, so it never covers the heading. */
+      .doc-topbar {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+      }
+      .doc-topbar .theme-toggle {
+        position: static;
+        flex: none;
+      }
+      .doc-search {
+        position: relative;
+        width: 22rem;
+        font-family: "IBM Plex Mono", monospace;
+      }
+      .doc-search-field {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.3rem 0.85rem;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .doc-search-field:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .doc-search-icon {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1;
+      }
+      .doc-search input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-size: 0.8rem;
+      }
+      .doc-search input::placeholder {
+        color: var(--muted);
+      }
+      .doc-search kbd {
+        font-family: inherit;
+        font-size: 0.72rem;
+        color: var(--muted);
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 0.05rem 0.4rem;
+        white-space: nowrap;
+      }
+      /* The dropdown under the box: the status line, then the hits. */
+      .doc-search-panel {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        width: min(40rem, calc(100vw - 2rem));
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+        padding: 0.35rem;
+      }
+      .doc-search-panel[hidden] {
+        display: none;
+      }
+      .doc-search-status {
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 0.35rem 0.6rem 0.4rem;
+      }
+      .doc-search-results {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: min(65vh, 32rem);
+        overflow: auto;
+      }
+      .doc-search-results:empty {
+        display: none;
+      }
+      .doc-search-results li {
+        margin: 0;
+      }
+      .doc-search-hit {
+        display: block;
+        padding: 0.55rem 0.7rem;
+        border-radius: 7px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .doc-search-hit:hover,
+      .doc-search-results li[aria-selected="true"] .doc-search-hit {
+        background: var(--accent-soft);
+      }
+      /* The result's section and subsection, in its own dark-orange token so
+         it reads apart from the teal matched words below it. The second
+         sanctioned exception to the single accent, after the disclosure pair;
+         --search-where is set in all six theme blocks, at 4.5:1 or better on
+         both the dropdown and the highlighted row. */
+      .doc-search-where {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--search-where);
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+      }
+      .doc-search-snippet {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--muted);
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+      .doc-search-snippet mark {
+        background: none;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      /* Every occurrence in the page, painted without touching the DOM
+         (CSS Custom Highlight API). Browsers without it skip this rule and
+         still scroll to the match. */
+      ::highlight(doc-search) {
+        background-color: var(--accent-soft);
+        color: var(--ink);
+      }
+      .doc-search-target {
+        outline: 2px solid var(--accent);
+        outline-offset: 4px;
+        border-radius: 4px;
+        transition: outline-color 0.8s ease;
+      }
+      .doc-search-target.doc-search-fade {
+        outline-color: transparent;
+      }
+      @media (max-width: 900px) {
+        .doc-topbar {
+          position: static;
+          margin: 0.75rem clamp(1rem, 3vw, 3rem) 0;
+        }
+        .doc-search {
+          flex: 1;
+          width: auto;
+        }
+        .doc-search-panel {
+          left: 0;
+          width: auto;
+        }
+      }
+      @media print {
+        .doc-topbar .doc-search {
+          display: none;
+        }
+      }
+
+      .layout {
+        display: flex;
+        gap: 1.75rem;
+        align-items: flex-start;
+      }
+      /* Nothing in this system is width-capped. The page fills the window and
+         every element — prose, tables, .cards, .flow, figures, code — runs the
+         full width of its section, so a paragraph and the table under it line
+         up. Do NOT reintroduce a max-width on .content, .layout, main or the
+         prose elements: capping the container crushes wide content (a table
+         cannot outgrow its box) and strands the sidebar collapse button, while
+         capping only the prose leaves paragraphs stranded beside full-width
+         tables. --measure survives below purely as a sizing reference. */
+      /* The sidebar's links are generated at load, so with scripting off there
+         is nothing in it and an empty card would just be furniture. */
+      html:not(.js) nav.sidebar {
+        display: none;
+      }
+      /* The sidebar is the one place that breaks from IBM Plex Mono: a
+         proportional face here separates navigation from document content at a
+         glance. Noto Sans Elbasan ships regular only, so the 600/700 weights
+         below are synthesised by the browser — intentional, do not "fix". */
+      /* A long document can list more sections than fit the window. The
+         sidebar is sticky, so without its own scroll the tabs below the fold
+         could never be reached: cap it at the viewport (less the sticky
+         offset above and the same gap below) and let it scroll inside,
+         without the scroll chaining out to the page at either end. */
+      nav.sidebar {
+        position: sticky;
+        top: 1.25rem;
+        max-height: calc(100vh - 2.5rem);
+        max-height: calc(100dvh - 2.5rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-gutter: stable;
+        flex: none;
+        width: 256px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.9rem;
+        font-family: "Noto Sans Elbasan", sans-serif;
+        font-size: 0.87rem;
+      }
+      /* .label matches the shared mono rule directly, so inheriting from
+         nav.sidebar is not enough — it needs the family restated here. */
+      nav.sidebar .label {
+        font-family: "Noto Sans Elbasan", sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--muted);
+        display: block;
+        margin: 0.2rem 0 0.6rem 0.4rem;
+      }
+      nav.sidebar a.tab {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem 0.65rem;
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--ink);
+        line-height: 1.3;
+        margin-bottom: 2px;
+      }
+      nav.sidebar a.tab .num {
+        flex: none;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--code-bg);
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      nav.sidebar a.tab:hover {
+        background: var(--accent-soft);
+      }
+      nav.sidebar a.tab.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      nav.sidebar a.tab.active .num {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: transparent;
+        color: #fff;
+      }
+      .sidebar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .sidebar-toggle {
+        flex: none;
+        width: 1.7rem;
+        height: 1.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--code-bg);
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1;
+        cursor: pointer;
+        margin: 0 0 0.5rem;
+      }
+      .sidebar-toggle:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .sidebar-toggle:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      nav.sidebar.collapsed {
+        width: auto;
+        padding: 0.6rem;
+      }
+      nav.sidebar.collapsed .sidebar-head {
+        justify-content: center;
+      }
+      nav.sidebar.collapsed .label {
+        display: none;
+      }
+      nav.sidebar.collapsed a.tab {
+        font-size: 0;
+        gap: 0;
+        padding: 0.4rem;
+        justify-content: center;
+      }
+      .content {
+        flex: 1;
+        min-width: 0;
+      }
+      .pager {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+      .pager button {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--accent);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 1rem;
+        cursor: pointer;
+        max-width: 48%;
+        text-align: left;
+      }
+      .pager button:hover {
+        border-color: var(--accent);
+      }
+      .pager button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .pager button:disabled {
+        visibility: hidden;
+      }
+      @media (max-width: 900px) {
+        /* align-items: stretch matters — with flex-start the stacked columns
+           size to their widest child (a long line in a <pre>), which pushes the
+           whole page sideways instead of letting the block scroll internally. */
+        .layout {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .content {
+          width: 100%;
+        }
+        nav.sidebar {
+          position: static;
+          width: 100%;
+          max-height: none;
+          display: flex;
+          overflow-x: auto;
+          overflow-y: hidden;
+          scrollbar-gutter: auto;
+          gap: 4px;
+          padding: 0.6rem;
+        }
+        nav.sidebar .label,
+        .sidebar-head {
+          display: none;
+        }
+        nav.sidebar a.tab {
+          flex: none;
+          white-space: nowrap;
+          margin-bottom: 0;
+        }
+        nav.sidebar.collapsed {
+          width: 100%;
+          padding: 0.6rem;
+        }
+        nav.sidebar.collapsed a.tab {
+          font-size: 0.87rem;
+          gap: 0.6rem;
+          padding: 0.5rem 0.65rem;
+          justify-content: flex-start;
+        }
+      }
+
+      section.phase {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        /* The right padding carries the sidenote gutter. With --sidenote-w at
+           0 it collapses back to --card-pad on its own, so this one rule
+           covers both the wide and the narrow layout. */
+        padding: 2rem
+          calc(var(--card-pad) + var(--sidenote-w) + var(--sidenote-gap))
+          1.75rem var(--card-pad);
+        margin-bottom: 2.25rem;
+        scroll-margin-top: 1.25rem;
+      }
+      @media (max-width: 640px) {
+        section.phase {
+          padding: 1.4rem 1.1rem;
+        }
+      }
+
+      /* Sidenote. Floats into the gutter the section's right padding reserves,
+         so it sits beside the paragraph it follows without pushing anything
+         down the page. Below the gutter breakpoint it becomes an ordinary
+         block in the reading column — same markup, no author decision. */
+      .sidenote {
+        float: right;
+        clear: right;
+        width: var(--sidenote-w);
+        margin: 0.35rem calc(-1 * (var(--sidenote-w) + var(--sidenote-gap)))
+          1.1rem 0;
+        padding-left: 0.8rem;
+        border-left: 2px solid var(--accent);
+        font-size: 0.78rem;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+      .sidenote .label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        color: var(--accent);
+        margin-bottom: 0.2rem;
+      }
+      .sidenote > :last-child {
+        margin-bottom: 0;
+      }
+      @media (max-width: 1439px) {
+        .sidenote {
+          float: none;
+          width: auto;
+          margin: 1.25rem 0;
+          padding: 0.7rem 1rem;
+          background: var(--why-bg);
+          border-left: none;
+          border-radius: 8px;
+        }
+      }
+      /* The .js-tabbed class is set on <html> by the head script when
+         data-nav="tabbed". Sections are visible by default, so the document
+         degrades to a plain scrolling page without JavaScript. */
+      .js-tabbed section.phase {
+        display: none;
+      }
+      .js-tabbed section.phase.active {
+        display: block;
+      }
+      /* Where the browser supports hidden="until-found", inactive sections
+         carry it instead, so Ctrl-F still finds their text: the match fires
+         beforematch, the script switches to that tab, and the browser scrolls
+         to the hit. The box has to stay laid out for that to work, so it is
+         collapsed to nothing rather than display: none. */
+      .js-tabbed section.phase[hidden="until-found"] {
+        display: block;
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+      html:not(.js-tabbed) .pager {
+        display: none;
+      }
+      .phase-tag {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        border-radius: 4px;
+        padding: 0.2rem 0.6rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .win,
+      .why,
+      .warn {
+        border-radius: 8px;
+        padding: 0.85rem 1.1rem;
+        margin: 1.25rem 0;
+        font-size: 0.95rem;
+      }
+      /* Tinted boxes carry no coloured leading edge: the tint and the
+         coloured label already say which kind of box it is, and a bar down
+         the left of every box reads as decoration. House rule -- check.py
+         reports one if it comes back. */
+      .win {
+        background: var(--win-bg);
+      }
+      .win .label,
+      .why .label,
+      .warn .label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        margin-bottom: 0.25rem;
+      }
+      .win .label {
+        color: var(--win-border);
+      }
+      .why {
+        background: var(--why-bg);
+      }
+      .why .label {
+        color: var(--accent);
+      }
+      .warn {
+        background: var(--warn-bg);
+      }
+      .warn .label {
+        color: var(--warn-border);
+      }
+      .win p:last-child,
+      .why p:last-child,
+      .warn p:last-child {
+        margin-bottom: 0;
+      }
+      .win ol:last-child,
+      .why ol:last-child,
+      .warn ol:last-child,
+      .win ul:last-child,
+      .why ul:last-child,
+      .warn ul:last-child {
+        margin-bottom: 0;
+      }
+
+      /* --- Disclosure -----------------------------------------------------
+         A collapsible block, and deliberately the one component that does not
+         look like a callout. .win/.why/.warn are tinted bands with a 4px left
+         edge and no interactivity; a disclosure is a bordered card with a solid
+         header bar and a button in it, so "this opens" is legible before a word
+         is read. Its own indigo token pair keeps it distinct from the teal
+         accent, the green .win and the amber .warn.
+
+         Native <details>: opens with no JavaScript, keyboard-operable for free,
+         and degrades to a plain visible block if scripts never run. */
+      details.disclose {
+        margin: 1.25rem 0;
+        border: 1px solid var(--disclose-ink);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--card);
+        font-size: 0.95rem;
+      }
+      details.disclose > summary {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.6rem 0.75rem 0.6rem 0.9rem;
+        background: var(--disclose-bg);
+        color: var(--disclose-ink);
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        list-style: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Safari and older Chrome draw their own triangle. */
+      details.disclose > summary::-webkit-details-marker {
+        display: none;
+      }
+      /* The glyph is swapped rather than rotated: once the summary is a flex
+         container a transform on the marker is unreliable, and two characters
+         say the same thing. */
+      details.disclose > summary::before {
+        content: "\25B8";
+        display: inline-block;
+        font-size: 1.05em;
+        line-height: 1;
+      }
+      details.disclose[open] > summary::before {
+        content: "\25BE";
+      }
+      /* The pill is the attention cue: a solid button that names the action, so
+         a closed block reads as an invitation rather than a heading that
+         happens to be clickable. */
+      details.disclose > summary::after {
+        content: "Show";
+        margin-left: auto;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: var(--disclose-ink);
+        color: var(--card);
+        font-size: 0.68rem;
+        letter-spacing: 0.09em;
+      }
+      details.disclose[open] > summary::after {
+        content: "Hide";
+      }
+      details.disclose > summary:hover::after {
+        opacity: 0.85;
+      }
+      details.disclose > summary:focus-visible {
+        outline: 2px solid var(--disclose-ink);
+        outline-offset: -2px;
+      }
+      details.disclose .disclose-body {
+        padding: 0.9rem 1.1rem 0.1rem;
+        border-top: 1px solid var(--border);
+      }
+      details.disclose .disclose-body > p:last-child {
+        margin-bottom: 0.8rem;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        /* Only the hover cue animates. Transitioning background-color here
+           would also animate the theme toggle, so the header bar would fade
+           while the rest of the page switched instantly. */
+        details.disclose > summary::after {
+          transition: opacity 0.15s ease;
+        }
+      }
+
+      /* --- Output capture --------------------------------------------------
+         A place for a reader to paste what a command printed, and keep it.
+         Built entirely from the existing tokens, so it needs no entry in the
+         theme blocks and introduces no new colour. The save/restore
+         script lives at the bottom of this file and no-ops when the document
+         contains no .capture blocks. */
+      .capture {
+        margin: 1.6rem 0 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--card);
+        overflow: hidden;
+      }
+      .capture-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.55rem 1rem;
+        background: var(--why-bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .capture-head .label {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .capture-head .count {
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .capture textarea {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 10rem;
+        resize: vertical;
+        border: 0;
+        outline: 0;
+        padding: 0.9rem 1.1rem;
+        background: var(--code-bg);
+        color: var(--code-ink);
+        font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
+          monospace;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        /* Command output is column-aligned; wrapping destroys the alignment,
+           so scroll instead. */
+        white-space: pre;
+        overflow-wrap: normal;
+        overflow-x: auto;
+      }
+      .capture textarea:focus {
+        box-shadow: inset 0 0 0 2px var(--accent);
+      }
+      .capture-foot {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        padding: 0.6rem 1rem;
+        border-top: 1px solid var(--border);
+      }
+      .capture-foot button {
+        font: inherit;
+        font-size: 0.82rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .capture-foot button.primary {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .capture-foot button:hover {
+        background: var(--accent-soft);
+      }
+      .capture-status {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      /* Green edge is the only "you are done" signal, and it uses the same
+         pair as the .win callout so the meaning carries across the document. */
+      .capture.is-saved {
+        border-color: var(--win-border);
+      }
+      .capture.is-saved .capture-head {
+        background: var(--win-bg);
+      }
+
+      pre {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        overflow-x: auto;
+        /* Commands read 2px larger than the 17px body text, so they stand out
+           from the prose that explains them. */
+        font-size: 19px;
+        line-height: 1.55;
+        margin: 0.75rem 0 1.25rem;
+      }
+      code,
+      pre {
+        font-family:
+          ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      }
+      p code,
+      li code,
+      td code {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.06em 0.35em;
+        /* 2px above the text around it, for the same reason as pre. */
+        font-size: calc(1em + 2px);
+        color: var(--code-ink);
+        overflow-wrap: anywhere;
+      }
+      .skill-invoke {
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      /* Copy button. The .codewrap wrapper and the button inside it are
+         injected by the script at the end of the file, so authors write a
+         plain <pre> and get this for free — and with JavaScript disabled
+         neither exists and the block is untouched. The wrapper carries the
+         <pre>'s vertical margin so the absolute positioning has a box that
+         does not move when the block scrolls sideways. */
+      .codewrap {
+        position: relative;
+        margin: 0.75rem 0 1.25rem;
+      }
+      .codewrap > pre {
+        margin: 0;
+        /* Room for the button so it never sits on top of the first line. */
+        padding-right: 4.25rem;
+      }
+      .copy-btn {
+        position: absolute;
+        top: 0.45rem;
+        right: 0.45rem;
+        background: var(--card);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.18rem 0.5rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        opacity: 0;
+      }
+      /* Revealed on hover, on keyboard focus, and while showing "Copied" —
+         and always on touch devices, which never hover. */
+      .codewrap:hover .copy-btn,
+      .copy-btn:focus-visible,
+      .copy-btn.copied {
+        opacity: 1;
+      }
+      @media (hover: none) {
+        .copy-btn {
+          opacity: 1;
+        }
+      }
+      .copy-btn:hover,
+      .copy-btn.copied {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .copy-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .copy-btn {
+          transition:
+            opacity 0.12s ease,
+            color 0.12s ease,
+            border-color 0.12s ease;
+        }
+      }
+
+      /* Syntax highlighting. The spans are painted by the highlighter at the
+         end of the file, which marks what it processed with data-hl. A block
+         with no language- class keeps --code-ink and stays monochrome, which
+         is what terminal output and ASCII diagrams want. */
+      [data-hl] {
+        color: var(--tok-plain);
+      }
+      .tok-com {
+        color: var(--tok-com);
+        font-style: italic;
+      }
+      .tok-str {
+        color: var(--tok-str);
+      }
+      .tok-kw {
+        color: var(--tok-kw);
+        font-weight: 600;
+      }
+      .tok-num {
+        color: var(--tok-num);
+      }
+      .tok-fn {
+        color: var(--tok-fn);
+      }
+      .tok-typ {
+        color: var(--tok-typ);
+      }
+      .tok-op {
+        color: var(--tok-op);
+      }
+      .tok-var {
+        color: var(--tok-var);
+      }
+
+      .tablewrap {
+        overflow-x: auto;
+        margin: 0.75rem 0 1.5rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.55rem 0.8rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+      td:first-child {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      @media (max-width: 640px) {
+        td:first-child {
+          white-space: normal;
+        }
+      }
+
+      ol.steps {
+        padding-left: 1.4rem;
+      }
+      ol.steps > li {
+        margin-bottom: 0.85rem;
+      }
+      ul {
+        padding-left: 1.4rem;
+      }
+      li {
+        margin-bottom: 0.35rem;
+      }
+
+      .flow {
+        display: flex;
+        align-items: stretch;
+        gap: 0.6rem;
+        margin: 1.25rem 0 1.75rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+      .flow-col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-width: 0;
+      }
+      .flow-main {
+        flex: 1.35;
+      }
+      .flow-role {
+        text-transform: uppercase;
+        letter-spacing: 0.11em;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-align: center;
+      }
+      .flow-box {
+        background: var(--why-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        flex: 1;
+      }
+      .flow-box strong {
+        display: block;
+        color: var(--accent);
+        margin-bottom: 0.3rem;
+      }
+      .flow-box span {
+        color: var(--muted);
+      }
+      .flow-box ol {
+        margin: 0;
+        padding-left: 1.15rem;
+        color: var(--muted);
+      }
+      .flow-box ol li {
+        margin-bottom: 0.25rem;
+      }
+      .flow-arrow {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        min-width: 6rem;
+        max-width: 7rem;
+        text-align: center;
+      }
+      .flow-arrow .lbl {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+      .flow-arrow::after {
+        color: var(--accent);
+        font-size: 1.5rem;
+        line-height: 1;
+      }
+      .a1::after {
+        content: "→";
+      }
+      .a2::after {
+        content: "⇄";
+      }
+      @media (max-width: 760px) {
+        .flow {
+          flex-direction: column;
+        }
+        .flow-arrow {
+          min-width: 0;
+          max-width: none;
+        }
+        .a1::after {
+          content: "↓";
+        }
+        .a2::after {
+          content: "⇅";
+        }
+      }
+
+      .phase-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: -0.4rem 0 1.3rem;
+      }
+      .chip {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.2rem 0.75rem;
+      }
+      .chip strong {
+        color: var(--accent);
+      }
+
+      .step-h {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 2.1rem 0 0.8rem;
+        padding-top: 1.4rem;
+        border-top: 1px dashed var(--border);
+      }
+      .step-h .n {
+        flex: none;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--card);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 0.8rem;
+        margin: 1rem 0 1.5rem;
+      }
+      .card {
+        background: var(--why-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        font-size: 0.92rem;
+      }
+      .card .card-title {
+        display: block;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        margin-bottom: 0.4rem;
+      }
+
+      .qa {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem 1.4rem 1.1rem;
+        margin: 2rem 0 1.5rem;
+      }
+      .qa .q {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.6rem;
+      }
+      .qa .q::before {
+        content: "Q — ";
+        color: var(--accent);
+      }
+      .qa > :last-child {
+        margin-bottom: 0;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+        margin: 1rem 0 1.5rem;
+      }
+      @media (max-width: 720px) {
+        .choice {
+          grid-template-columns: 1fr;
+        }
+      }
+      .choice-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        font-size: 0.92rem;
+      }
+      .choice-box.a {
+        border-top: 4px solid var(--accent);
+      }
+      .choice-box.b {
+        border-top: 4px solid var(--warn-border);
+      }
+      .choice-box .ct {
+        display: block;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.4rem;
+      }
+      .choice-box.a .ct {
+        color: var(--accent);
+      }
+      .choice-box.b .ct {
+        color: var(--warn-border);
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 0.85rem;
+        border-top: 1px solid var(--border);
+        padding-top: 1.5rem;
+        margin-top: 3rem;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        html {
+          scroll-behavior: smooth;
+        }
+      }
+      @media print {
+        /* A block someone happened to collapse on screen must still print. */
+        details.disclose > summary::before,
+        details.disclose > summary::after {
+          display: none;
+        }
+        details.disclose:not([open]) > *:not(summary) {
+          display: block;
+        }
+        /* Whatever was pasted must survive to paper; the buttons must not. */
+        .capture-foot {
+          display: none;
+        }
+        .capture textarea {
+          min-height: 0;
+          height: auto;
+          overflow: visible;
+          white-space: pre-wrap;
+        }
+        body {
+          background: #fff;
+        }
+        section.phase {
+          display: block !important;
+          content-visibility: visible !important;
+          border: none;
+          padding: 0;
+          margin-bottom: 1.5rem;
+          break-inside: avoid-page;
+        }
+        .layout {
+          display: block;
+        }
+        nav.sidebar,
+        .pager,
+        .copy-btn,
+        .progress-rail {
+          display: none;
+        }
+        .sidenote {
+          float: none;
+          width: auto;
+          margin: 1rem 0;
+          break-inside: avoid-page;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="progress-rail" aria-hidden="true">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <button
+      class="theme-toggle"
+      id="themeToggle"
+      type="button"
+      aria-live="polite"
+    >
+      <span id="themeIcon" aria-hidden="true">◐</span>
+      <span id="themeLabel">Dark mode</span>
+    </button>
+    <main>
+      <header class="page-head">
+        <p class="eyebrow">Fit-Gap Copilot · India customer returns</p>
+        <h1>Opus vs Sonnet: model comparison</h1>
+        <p class="lede">
+          Six Fit-Gap Copilot runs on identical inputs, three on Claude Opus and three on Claude Sonnet,
+          to find out why the scores for the India returns process move so much from one run to the next.
+        </p>
+        <div class="meta-strip">
+          <span><strong>Audience</strong> — Fit-Gap Copilot owners, L2C and rollout leads</span>
+          <span><strong>Runs</strong> — 6, all under the <code>solvay</code> account</span>
+          <span><strong>Date</strong> — 5 Oct 2026</span>
+        </div>
+      </header>
+
+      <div class="layout">
+        <nav class="sidebar" aria-label="Sections">
+          <div class="sidebar-head">
+            <span class="label">Contents</span>
+            <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true" aria-label="Minimize sidebar" title="Minimize sidebar">«</button>
+          </div>
+        </nav>
+        <div class="content">
+          <section class="phase" id="summary">
+            <span class="phase-tag">Summary</span>
+            <h2>What the comparison found</h2>
+            <p>
+              Opus scored the India returns process higher and far more consistently than Sonnet. The two models
+              also disagree on one question that drives two of the four scores: whether India’s GST, e-invoice (IRN)
+              and e-way bill rules count as <em>confirmed</em> legal requirements.
+            </p>
+            <div class="cards">
+              <div class="card"><span class="card-title">Opus is steadier</span>
+                GT alignment 52.5 – 58.8 across three runs, a 6.3-point spread. Sonnet ranged 38.8 – 52.5, a 13.7-point spread.</div>
+              <div class="card"><span class="card-title">Opus scores higher</span>
+                Average GT alignment 55.9 on Opus against 47.5 on Sonnet, from the same document, prompt and corpus.</div>
+              <div class="card"><span class="card-title">They read the law differently</span>
+                Opus never confirmed a statutory item. Sonnet confirmed 2 – 3 every run, which lifts Localization-adjusted and pins Harmonization near 40.</div>
+              <div class="card"><span class="card-title">Not the knowledge graph</span>
+                The earlier 62.5 came from the switch to Sonnet on 2 Oct and Sonnet’s run-to-run variation, not from a graph or corpus change.</div>
+            </div>
+            <div class="win">
+              <span class="label">The answer to “why do the scores differ so much?”</span>
+              <p>
+                Mostly the model, and for Sonnet also ordinary run-to-run variation in its 1 – 4 dimension ratings.
+                With the inputs held fixed, changing only the model moved average GT alignment by 8.4 points and
+                average Harmonization by 19.9 points.
+              </p>
+            </div>
+          </section>
+
+          <section class="phase" id="setup">
+            <span class="phase-tag">Method</span>
+            <h2>How the test was set up</h2>
+            <p>
+              Everything the run reads was held constant so that the model was the only variable. Each run was given
+              a fresh upload session holding the same file, so no run could see another’s working.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Input</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>As-Is document</td><td><code>India_Customer_Returns_As_Is_Sample.txt</code> (role: as_is), a fresh upload session per run</td></tr>
+<tr><td>Template process</td><td>BPML <code>4.10.2</code> Process Returns</td></tr>
+<tr><td>Country</td><td>India</td></tr>
+<tr><td>Question</td><td>“Attached is the customer return process document for India. Run the fit-gap copilot analysis”</td></tr>
+<tr><td>Prompt version</td><td><code>a9e82e08b923</code> (same for all six)</td></tr>
+<tr><td>Corpus snapshot</td><td><code>d5023f2bac362ea1</code> (same for all six)</td></tr>
+<tr><td>Account</td><td><code>solvay</code> (all six runs show in its history)</td></tr>
+<tr><td>Models</td><td><code>claude-opus-5</code> ×3 and <code>claude-sonnet-5</code> ×3; the only thing that varied</td></tr>
+<tr><td>Date</td><td>5 Oct 2026, 12:57 – 13:28 IST; the two models ran in parallel</td></tr>
+</tbody>
+</table>
+</div>
+            <div class="why">
+              <span class="label">Why three runs per model</span>
+              <p>
+                Six Opus runs on 25 Sep, on one file and one corpus snapshot, already ranged from 46.3 to 58.8. A single
+                run per model could not tell a model difference from ordinary variation. Three each is the minimum that
+                shows a spread; five each would give a firmer answer.
+              </p>
+            </div>
+          </section>
+
+          <section class="phase" id="scores">
+            <span class="phase-tag">Results</span>
+            <h2>The four scores, run by run</h2>
+            <p>
+              GT alignment rates the As-Is against the Global Template. SAP Best Practice rates it against SAP’s
+              scope item BKP. Localization-adjusted is GT alignment with confirmed legal divergence forgiven.
+              Harmonization potential is how much of the divergence could be closed.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th>Started</th><th>GT alignment</th><th>SAP Best Practice</th><th>Localization-adjusted</th><th>Harmonization potential</th><th>Localization share</th></tr></thead>
+<tbody>
+<tr><td><code>ro_2e2977c1e3</code></td><td>Opus</td><td>12:57</td><td>58.8</td><td>57.8</td><td>58.8</td><td>57.8</td><td>0.0%</td></tr>
+<tr><td><code>ro_1f6272dffa</code></td><td>Opus</td><td>13:06</td><td>56.3</td><td>56.3</td><td>56.3</td><td>60.5</td><td>0.0%</td></tr>
+<tr><td><code>ro_8b4f86ea90</code></td><td>Opus</td><td>13:15</td><td>52.5</td><td>55.6</td><td>52.5</td><td>62.1</td><td>0.0%</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td>Sonnet</td><td>12:57</td><td>51.3</td><td>45.0</td><td>68.9</td><td>40.8</td><td>36.1%</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td>Sonnet</td><td>13:08</td><td>38.8</td><td>35.7</td><td>50.5</td><td>41.3</td><td>19.1%</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td>Sonnet</td><td>13:19</td><td>52.5</td><td>52.5</td><td>66.5</td><td>38.4</td><td>29.5%</td></tr>
+</tbody>
+</table>
+</div>
+            <h3>Score bands</h3>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th>GT band</th><th>SAP BP band</th><th>Harmonization band</th></tr></thead>
+<tbody>
+<tr><td><code>ro_2e2977c1e3</code></td><td>Opus</td><td>Significant divergence</td><td>Significant divergence</td><td>Mixed; several valid local needs remain</td></tr>
+<tr><td><code>ro_1f6272dffa</code></td><td>Opus</td><td>Significant divergence</td><td>Significant divergence</td><td>Significant harmonization opportunity</td></tr>
+<tr><td><code>ro_8b4f86ea90</code></td><td>Opus</td><td>Significant divergence</td><td>Significant divergence</td><td>Significant harmonization opportunity</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td>Sonnet</td><td>Significant divergence</td><td>Significant divergence</td><td>Mixed; several valid local needs remain</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td>Sonnet</td><td>Major redesign / harmonization challenge</td><td>Major redesign / harmonization challenge</td><td>Mixed; several valid local needs remain</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td>Sonnet</td><td>Significant divergence</td><td>Significant divergence</td><td>Limited alignment opportunity without material business change</td></tr>
+</tbody>
+</table>
+</div>
+            <h3>Per model</h3>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Score</th><th>Opus range</th><th>Opus average</th><th>Opus spread</th><th>Sonnet range</th><th>Sonnet average</th><th>Sonnet spread</th></tr></thead>
+<tbody>
+<tr><td>GT alignment</td><td>52.5 – 58.8</td><td>55.9</td><td>6.3</td><td>38.8 – 52.5</td><td>47.5</td><td>13.7</td></tr>
+<tr><td>SAP Best Practice</td><td>55.6 – 57.8</td><td>56.6</td><td>2.2</td><td>35.7 – 52.5</td><td>44.4</td><td>16.8</td></tr>
+<tr><td>Localization-adjusted</td><td>52.5 – 58.8</td><td>55.9</td><td>6.3</td><td>50.5 – 68.9</td><td>62.0</td><td>18.4</td></tr>
+<tr><td>Harmonization potential</td><td>57.8 – 62.1</td><td>60.1</td><td>4.3</td><td>38.4 – 41.3</td><td>40.2</td><td>2.9</td></tr>
+</tbody>
+</table>
+</div>
+            <div class="why">
+              <span class="label">How Localization-adjusted is worked out</span>
+              <p>
+                Localization-adjusted = GT alignment + (100 − GT alignment) × the materiality-weighted share of deviations
+                that are a confirmed statutory or SAP-delivered localization. A suspected localization does not count. That is
+                why every Opus run shows Localization-adjusted equal to GT alignment: its share was 0%.
+              </p>
+            </div>
+          </section>
+
+          <section class="phase" id="dimensions">
+            <span class="phase-tag">Results</span>
+            <h2>Where GT alignment comes from: the seven dimension ratings</h2>
+            <p>
+              GT alignment is a weighted average of seven ratings, each 0 – 4 and turned into a percentage (rating ÷ 4).
+              Every point of difference between runs traces to one of these ratings. One step on Process flow moves the
+              score by 6.25 points; one step on Governance by 3.75; one step on any 10% dimension by 2.5.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Dimension</th><th>Weight</th><th>Opus<br><code>2e2977c1e3</code></th><th>Opus<br><code>1f6272dffa</code></th><th>Opus<br><code>8b4f86ea90</code></th><th>Sonnet<br><code>e14b14dc60</code></th><th>Sonnet<br><code>7f15d7ef59</code></th><th>Sonnet<br><code>5089e67e1f</code></th></tr></thead>
+<tbody>
+<tr><td>Process flow / sequence</td><td>25%</td><td>3</td><td>3</td><td>2</td><td>3</td><td>2</td><td>3</td></tr>
+<tr><td>Business rules / configuration</td><td>20%</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td>Roles / approvals / governance</td><td>15%</td><td>2</td><td>2</td><td>2</td><td>2</td><td>1</td><td>1</td></tr>
+<tr><td>Data / master data</td><td>10%</td><td>3</td><td>3</td><td>3</td><td>2</td><td>2</td><td>3</td></tr>
+<tr><td>Integration / technical execution</td><td>10%</td><td>2</td><td>1</td><td>2</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>Controls / compliance</td><td>10%</td><td>2</td><td>2</td><td>2</td><td>2</td><td>1</td><td>2</td></tr>
+<tr><td>Reporting / UX / operational handling</td><td>10%</td><td>2</td><td>2</td><td>2</td><td>1</td><td>1</td><td>2</td></tr>
+<tr><td><strong>GT alignment</strong></td><td>100%</td><td><strong>58.8</strong></td><td><strong>56.3</strong></td><td><strong>52.5</strong></td><td><strong>51.3</strong></td><td><strong>38.8</strong></td><td><strong>52.5</strong></td></tr>
+</tbody>
+</table>
+</div>
+            <p>
+              Sonnet’s run <code>ro_7f15d7ef59</code> is the outlier at 38.8: it rated Process flow 2, Governance 1, and
+              Integration, Controls and Reporting all 1. Opus never rated a dimension below 2 except one Integration 1, and
+              never rated Data below 3.
+            </p>
+            <h3>SAP Best Practice dimension ratings</h3>
+            <p>
+              The same seven dimensions, rated against SAP Best Practice instead of the template. A dash means the run left
+              that dimension unrated because the BKP documents say nothing about it; it is dropped and the other weights are
+              renormalised, rather than counted as zero.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Dimension</th><th>Weight</th><th>Opus<br><code>2e2977c1e3</code></th><th>Opus<br><code>1f6272dffa</code></th><th>Opus<br><code>8b4f86ea90</code></th><th>Sonnet<br><code>e14b14dc60</code></th><th>Sonnet<br><code>7f15d7ef59</code></th><th>Sonnet<br><code>5089e67e1f</code></th></tr></thead>
+<tbody>
+<tr><td>Process flow / sequence</td><td>25%</td><td>3</td><td>3</td><td>3</td><td>3</td><td>1</td><td>3</td></tr>
+<tr><td>Business rules / configuration</td><td>20%</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td>Roles / approvals / governance</td><td>15%</td><td>2</td><td>2</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>Data / master data</td><td>10%</td><td>2</td><td>3</td><td>3</td><td>2</td><td>2</td><td>3</td></tr>
+<tr><td>Integration / technical execution</td><td>10%</td><td>—</td><td>1</td><td>—</td><td>1</td><td>—</td><td>1</td></tr>
+<tr><td>Controls / compliance</td><td>10%</td><td>—</td><td>2</td><td>2</td><td>1</td><td>—</td><td>2</td></tr>
+<tr><td>Reporting / UX / operational handling</td><td>10%</td><td>2</td><td>2</td><td>2</td><td>1</td><td>—</td><td>2</td></tr>
+<tr><td><strong>SAP BP alignment</strong></td><td>—</td><td><strong>57.8</strong></td><td><strong>56.3</strong></td><td><strong>55.6</strong></td><td><strong>45.0</strong></td><td><strong>35.7</strong></td><td><strong>52.5</strong></td></tr>
+</tbody>
+</table>
+</div>
+          </section>
+
+          <section class="phase" id="deviations">
+            <span class="phase-tag">Results</span>
+            <h2>Deviations and workshop load</h2>
+            <p>
+              What each run found to discuss. Opus consistently found more deviations (13 – 15) and set aside more workshop
+              time (235 – 275 minutes). Sonnet’s first run found only 10 deviations and 120 minutes of workshop time.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th>Deviations</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th><th>Fit areas</th><th>Must discuss</th><th>Confirm</th><th>Workshop minutes</th></tr></thead>
+<tbody>
+<tr><td><code>ro_2e2977c1e3</code></td><td>Opus</td><td>13</td><td>1</td><td>6</td><td>5</td><td>1</td><td>6</td><td>11</td><td>2</td><td>275</td></tr>
+<tr><td><code>ro_1f6272dffa</code></td><td>Opus</td><td>15</td><td>1</td><td>4</td><td>9</td><td>1</td><td>6</td><td>11</td><td>4</td><td>275</td></tr>
+<tr><td><code>ro_8b4f86ea90</code></td><td>Opus</td><td>15</td><td>1</td><td>5</td><td>8</td><td>1</td><td>6</td><td>13</td><td>2</td><td>235</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td>Sonnet</td><td>10</td><td>1</td><td>5</td><td>3</td><td>1</td><td>5</td><td>8</td><td>2</td><td>120</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td>Sonnet</td><td>13</td><td>1</td><td>7</td><td>4</td><td>1</td><td>6</td><td>10</td><td>3</td><td>230</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td>Sonnet</td><td>13</td><td>1</td><td>5</td><td>5</td><td>2</td><td>6</td><td>7</td><td>6</td><td>140</td></tr>
+</tbody>
+</table>
+</div>
+          </section>
+
+          <section class="phase" id="localization">
+            <span class="phase-tag">Results</span>
+            <h2>The statutory disagreement</h2>
+            <p>
+              Each deviation is given a localization state. Only <code>CONFIRMED_STATUTORY</code> (or SAP-delivered) counts
+              toward Localization-adjusted. It also caps that deviation’s harmonization at 15 points, because a legal
+              obligation cannot be harmonised away.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th><code>CONFIRMED_STATUTORY</code></th><th><code>SUSPECTED</code></th><th><code>CORPORATE_POLICY</code></th><th><code>LOCAL_PREFERENCE</code></th><th><code>NOT_LOCALIZATION</code></th><th>Localization share</th></tr></thead>
+<tbody>
+<tr><td><code>ro_2e2977c1e3</code></td><td>Opus</td><td>0</td><td>4</td><td>3</td><td>3</td><td>3</td><td>0.0%</td></tr>
+<tr><td><code>ro_1f6272dffa</code></td><td>Opus</td><td>0</td><td>6</td><td>3</td><td>3</td><td>3</td><td>0.0%</td></tr>
+<tr><td><code>ro_8b4f86ea90</code></td><td>Opus</td><td>0</td><td>5</td><td>1</td><td>3</td><td>6</td><td>0.0%</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td>Sonnet</td><td>3</td><td>1</td><td>2</td><td>1</td><td>3</td><td>36.1%</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td>Sonnet</td><td>2</td><td>4</td><td>1</td><td>1</td><td>5</td><td>19.1%</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td>Sonnet</td><td>3</td><td>3</td><td>4</td><td>2</td><td>1</td><td>29.5%</td></tr>
+</tbody>
+</table>
+</div>
+            <h3>What Sonnet confirmed as statutory</h3>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Deviation</th><th>What the model confirmed as statutory</th></tr></thead>
+<tbody>
+<tr><td><code>ro_e14b14dc60</code></td><td><code>D5</code></td><td>India embeds a statutory electronic-invoicing (IRN) step with its own exception queue dire…</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td><code>D6</code></td><td>India adds a statutory transport-document control (e-way bill marked Sales Return) and a v…</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td><code>D8</code></td><td>India runs a statutory monthly GST credit-note reconciliation outside SAP (extract plus wo…</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td><code>GAP-05</code></td><td>India adds a statutory transport document (e-way bill) requirement plus a local warehouse-…</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td><code>GAP-09</code></td><td>India has an entire additional process stage (electronic credit note / IRN processing with…</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td><code>GAP-08</code></td><td>India requires IRN generation and an exception queue for failed e-invoices on GST credit n…</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td><code>GAP-09</code></td><td>India requires e-way-bill identification and invoice/challan details for qualifying return…</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td><code>GAP-12</code></td><td>India gates return-case closure on GST electronic-document/IRN status and monthly reconcil…</td></tr>
+</tbody>
+</table>
+</div>
+            <p>
+              Opus looked at the same GST, IRN and e-way bill steps and graded every one of them <code>SUSPECTED</code>. That
+              single difference explains the other two scores:
+            </p>
+            <ol class="steps">
+              <li><strong>Localization-adjusted</strong>: Sonnet’s sits 15 – 18 points above its GT alignment, Opus’s is equal to it.</li>
+              <li><strong>Harmonization potential</strong>: Sonnet’s is stuck at 38 – 41 because each confirmed item is capped at 15; Opus’s is 58 – 62.</li>
+            </ol>
+            <div class="warn">
+              <span class="label">Which model is right here is a human call</span>
+              <p>
+                Whether IRN, e-way bill and GST reconciliation are confirmed statutory obligations for returns is a legal
+                question. Sonnet based its confirmations on web search results about India e-invoicing. The India tax team
+                should settle it, so that the answer stops changing from one run to the next.
+              </p>
+            </div>
+          </section>
+
+          <section class="phase" id="cost">
+            <span class="phase-tag">Results</span>
+            <h2>Cost and run time</h2>
+            <p>
+              Cost is estimated from the token counts and the prices in <code>backend/core/pricing.py</code>
+              (Opus $5 / $25, Sonnet $2 / $10 per million input / output tokens).
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Model</th><th>Started</th><th>Finished</th><th>Minutes</th><th>Input tokens</th><th>Output tokens</th><th>Estimated cost (USD)</th></tr></thead>
+<tbody>
+<tr><td><code>ro_2e2977c1e3</code></td><td>Opus</td><td>12:57</td><td>13:05</td><td>8.4</td><td>141,508</td><td>48,470</td><td>$1.92</td></tr>
+<tr><td><code>ro_1f6272dffa</code></td><td>Opus</td><td>13:06</td><td>13:15</td><td>9.4</td><td>142,914</td><td>51,132</td><td>$1.99</td></tr>
+<tr><td><code>ro_8b4f86ea90</code></td><td>Opus</td><td>13:15</td><td>13:26</td><td>10.6</td><td>138,902</td><td>59,757</td><td>$2.19</td></tr>
+<tr><td><code>ro_e14b14dc60</code></td><td>Sonnet</td><td>12:57</td><td>13:08</td><td>11.1</td><td>162,716</td><td>73,533</td><td>$1.06</td></tr>
+<tr><td><code>ro_7f15d7ef59</code></td><td>Sonnet</td><td>13:08</td><td>13:19</td><td>10.2</td><td>162,529</td><td>68,926</td><td>$1.01</td></tr>
+<tr><td><code>ro_5089e67e1f</code></td><td>Sonnet</td><td>13:19</td><td>13:28</td><td>8.8</td><td>280,899</td><td>57,418</td><td>$1.14</td></tr>
+<tr><td><strong>Total</strong></td><td></td><td></td><td></td><td></td><td>1,029,468</td><td>359,236</td><td><strong>$9.31</strong></td></tr>
+</tbody>
+</table>
+</div>
+            <p>
+              Opus costs about twice as much per run ($1.92 – $2.19 against $1.01 – $1.14). Run times were similar,
+              8 – 11 minutes on both.
+            </p>
+          </section>
+
+          <section class="phase" id="history">
+            <span class="phase-tag">Context</span>
+            <h2>The earlier runs that prompted this</h2>
+            <p>
+              Before this test, eight runs had been made on the same India file. The six on 25 Sep used Opus; the two on
+              2 Oct used Sonnet, after <code>FITGAP_COPILOT_MODEL</code> in <code>.env</code> was changed. Prompt versions
+              also changed between most of the 25 Sep runs.
+            </p>
+            <div class="tablewrap">
+<table>
+<thead><tr><th>Run</th><th>Date</th><th>Model</th><th>GT alignment</th><th>SAP Best Practice</th><th>Localization-adjusted</th><th>Harmonization potential</th></tr></thead>
+<tbody>
+<tr><td><code>ro_00d7497fdc</code></td><td>25 Sep</td><td>Opus</td><td>58.8</td><td>—</td><td>67.6</td><td>57.6</td></tr>
+<tr><td><code>ro_040fe3ea63</code></td><td>25 Sep</td><td>Opus</td><td>52.5</td><td>55.0</td><td>52.5</td><td>60.9</td></tr>
+<tr><td><code>ro_c3458d7c30</code></td><td>25 Sep</td><td>Opus</td><td>46.3</td><td>60.9</td><td>46.3</td><td>61.8</td></tr>
+<tr><td><code>ro_318e7d15c3</code></td><td>25 Sep</td><td>Opus</td><td>56.3</td><td>53.8</td><td>56.3</td><td>56.2</td></tr>
+<tr><td><code>ro_14e828a735</code></td><td>25 Sep</td><td>Opus</td><td>52.5</td><td>59.7</td><td>52.5</td><td>60.3</td></tr>
+<tr><td><code>ro_879e0497a4</code></td><td>25 Sep</td><td>Opus</td><td>51.3</td><td>53.8</td><td>51.3</td><td>58.4</td></tr>
+<tr><td><code>ro_7334f1aed6</code></td><td>2 Oct</td><td>Sonnet</td><td>56.3</td><td>50.0</td><td>72.3</td><td>39.4</td></tr>
+<tr><td><code>ro_0eb213081e</code></td><td>2 Oct</td><td>Sonnet</td><td>62.5</td><td>50.0</td><td>76.2</td><td>39.1</td></tr>
+</tbody>
+</table>
+</div>
+            <div class="qa">
+              <p class="q">Was it because the knowledge graph was updated?</p>
+              <p>
+                No. The graph call (<code>compare_entities</code>) returned the same result in both periods: “2 shared,
+                0 new entities”. The only documents added to the corpus after 25 Sep, an ECC interim-process PDF and
+                <code>BPML_Process_xlsx</code>, were not cited by either 2 Oct run. And with the corpus held fixed, the
+                25 Sep runs still ranged 46.3 – 58.8.
+              </p>
+            </div>
+            <div class="qa">
+              <p class="q">Where did the 62.5 come from?</p>
+              <p>
+                From <code>ro_0eb213081e</code>, a Sonnet run on 2 Oct. Today’s three Sonnet runs scored 38.8 – 52.5 on
+                the same inputs, so 62.5 sits at the top of a wide Sonnet range rather than reflecting a real change.
+              </p>
+            </div>
+          </section>
+
+          <section class="phase" id="recommendations">
+            <span class="phase-tag">Next steps</span>
+            <h2>Recommendations</h2>
+            <div class="step-h"><span class="n">1</span>Use one model for every country comparison</div>
+            <p>
+              Scores from different models are not comparable. On these results that model should be Opus: it scores
+              more consistently, at about twice Sonnet’s cost per run.
+            </p>
+            <div class="warn">
+              <span class="label">The app is currently on Sonnet</span>
+              <p>
+                <code>.env</code> sets <code>FITGAP_COPILOT_MODEL=claude-sonnet-5</code>. Until that changes and the server
+                restarts, new runs from the app will keep showing Sonnet’s spread.
+              </p>
+            </div>
+            <div class="step-h"><span class="n">2</span>Let a person decide the statutory status of the India tax items</div>
+            <p>
+              Record the India tax team’s answer on IRN, e-way bill and GST reconciliation, so it no longer depends on how
+              a model reads web search results in a given run.
+            </p>
+            <div class="step-h"><span class="n">3</span>Make the dimension ratings less of a judgement call</div>
+            <p>
+              Harmonization is already scored by a fixed rule from each deviation’s proposed action. Giving the seven
+              dimension ratings explicit criteria in the same way would shrink the remaining spread. Until then, treat a
+              single run’s GT alignment as accurate to about ±5 points on Opus, and report a spread across a few runs when
+              the number matters.
+            </p>
+          </section>
+
+          <section class="phase" id="caveats">
+            <span class="phase-tag">Limits</span>
+            <h2>Caveats</h2>
+            <ol class="steps">
+              <li><strong>Small sample</strong>: three runs per model shows the direction, not a precise spread. Five each would cost about $22 in total.</li>
+              <li><strong>One document, one process</strong>: the result is for India returns (4.10.2). Another country or process may behave differently.</li>
+              <li><strong>A restarted process</strong>: the two models were started in parallel and collided while setting up the database tables; the first Sonnet process stopped before starting a run and was restarted. No run was lost or affected.</li>
+              <li><strong>Not committed</strong>: the script that ran these lives outside the repository. The six runs are stored in the database and can be opened from the <code>solvay</code> history.</li>
+            </ol>
+          </section>
+
+          <footer>
+            <p>
+              <strong>Source of the figures:</strong> every number on this page is read from the <code>rollout_runs</code> table
+              for the six run ids listed, plus <code>backend/agents/rollout/scoring.py</code> for how the scores are combined.
+            </p>
+            <p>Related: <a href="divergence-percentage-explainer.html">How the divergence percentages are worked out</a>.</p>
+          </footer>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        var STORE_THEME = "doc-theme";
+        var STORE_SIDEBAR = "doc-sidebar";
+
+        var root = document.documentElement;
+        var button = document.getElementById("themeToggle");
+        var icon = document.getElementById("themeIcon");
+        var label = document.getElementById("themeLabel");
+        var media = window.matchMedia("(prefers-color-scheme: dark)");
+
+        // light → paper → dark → light. Paper is toggle-only: no OS setting
+        // asks for it, so it can never be the resolved default.
+        var NEXT = { light: "paper", paper: "dark", dark: "light" };
+        var FACE = {
+          paper: { icon: "◑", label: "Paper mode" },
+          dark: { icon: "◐", label: "Dark mode" },
+          light: { icon: "☀", label: "Light mode" },
+        };
+
+        function currentTheme() {
+          var forced = root.getAttribute("data-theme");
+          if (forced === "dark" || forced === "light" || forced === "paper")
+            return forced;
+          return media.matches ? "dark" : "light";
+        }
+
+        // The button describes the mode you'll switch TO.
+        function render() {
+          var face = FACE[NEXT[currentTheme()]] || FACE.dark;
+          icon.textContent = face.icon;
+          label.textContent = face.label;
+        }
+
+        function apply(theme) {
+          root.setAttribute("data-theme", theme);
+          try {
+            localStorage.setItem(STORE_THEME, theme);
+          } catch (e) {
+            /* private browsing — toggle still works for this visit */
+          }
+          render();
+        }
+
+        button.addEventListener("click", function () {
+          apply(NEXT[currentTheme()] || "dark");
+        });
+
+        // A saved choice was already applied by the head script; with none, the
+        // OS preference rules and we track it live.
+        media.addEventListener("change", render);
+        render();
+
+        // --- Reading progress ---
+        // progressAt is reassigned in tabbed mode below; everything else here
+        // is mode-independent, so a document with no sidebar at all still
+        // gets a working rail.
+        var fill = document.getElementById("progressFill");
+        var progressAt = function () {
+          var h = document.documentElement.scrollHeight - window.innerHeight;
+          return h > 0 ? window.scrollY / h : 1;
+        };
+        function setProgress() {
+          if (!fill) return;
+          var f = Math.max(0, Math.min(1, progressAt()));
+          fill.style.width = f * 100 + "%";
+        }
+        var pTicking = false;
+        function reportProgress() {
+          if (pTicking) return;
+          pTicking = true;
+          window.requestAnimationFrame(function () {
+            pTicking = false;
+            setProgress();
+          });
+        }
+        window.addEventListener("scroll", reportProgress);
+        window.addEventListener("resize", reportProgress);
+        setProgress();
+
+        // --- Sidebar navigation ---
+        var sidebar = document.querySelector("nav.sidebar");
+        if (!sidebar) return;
+        var mode = root.classList.contains("js-tabbed") ? "tabbed" : "scroll";
+
+        // --- Sidebar contents, generated from the sections ---
+        // The section ids are the single source: a tab whose href points at
+        // nothing cannot be written, because no one writes the tabs. A section
+        // without an id is skipped rather than becoming a dead link.
+        var phases = Array.prototype.slice.call(
+          document.querySelectorAll(".content section.phase[id]"),
+        );
+        if (phases.length) {
+          Array.prototype.forEach.call(
+            sidebar.querySelectorAll("a.tab"),
+            function (a) {
+              a.parentNode.removeChild(a);
+            },
+          );
+          // data-nav-num renumbers everything after it as well, so putting
+          // 0 on a "read this first" preface leaves the first real step at 1
+          // rather than pushing it to 2.
+          var counter = 1;
+          phases.forEach(function (sec) {
+            var forced = sec.getAttribute("data-nav-num");
+            if (forced !== null && forced !== "" && !isNaN(Number(forced)))
+              counter = Number(forced);
+            var h2 = sec.querySelector("h2");
+            var a = document.createElement("a");
+            a.className = "tab";
+            a.href = "#" + sec.id;
+            var num = document.createElement("span");
+            num.className = "num";
+            num.textContent = forced !== null && forced !== "" ? forced
+              : String(counter);
+            counter += 1;
+            a.appendChild(num);
+            a.appendChild(
+              document.createTextNode(
+                sec.getAttribute("data-nav-label") ||
+                  (h2 ? h2.textContent.trim() : sec.id),
+              ),
+            );
+            sidebar.appendChild(a);
+          });
+        }
+
+        // --- Reading time (opt in) ---
+        // Off unless <html> carries data-readtime="on". The estimate was more
+        // noise than help on documents whose sections are commands to run
+        // rather than prose to read, so it is no longer written by default.
+        // When it is switched on: counted from the prose only, because code
+        // blocks are scanned rather than read and counting them would inflate
+        // every technical section past the point where the number means
+        // anything. A hand-written "Read — …" chip still wins.
+        if (root.getAttribute("data-readtime") === "on") {
+          phases.forEach(function (sec) {
+            var meta = sec.querySelector(".phase-meta");
+            if (meta && /Read\s*—/.test(meta.textContent)) return;
+            var copy = sec.cloneNode(true);
+            Array.prototype.forEach.call(
+              copy.querySelectorAll("pre, .phase-meta, .phase-tag"),
+              function (el) {
+                el.parentNode.removeChild(el);
+              },
+            );
+            var words = copy.textContent.trim().split(/\s+/).filter(Boolean);
+            if (!words.length) return;
+            if (!meta) {
+              meta = document.createElement("div");
+              meta.className = "phase-meta";
+              var h2 = sec.querySelector("h2");
+              if (h2) h2.parentNode.insertBefore(meta, h2.nextSibling);
+              else sec.insertBefore(meta, sec.firstChild);
+            }
+            var chip = document.createElement("span");
+            chip.className = "chip";
+            chip.appendChild(document.createTextNode("Read — "));
+            var strong = document.createElement("strong");
+            strong.textContent = Math.max(1, Math.round(words.length / 200))
+              + " min";
+            chip.appendChild(strong);
+            meta.appendChild(chip);
+          });
+        }
+
+        var tabs = Array.prototype.slice.call(
+          sidebar.querySelectorAll("a.tab"),
+        );
+        var sections = tabs.map(function (t) {
+          return document.querySelector(t.getAttribute("href"));
+        });
+
+        function titleOf(i) {
+          return tabs[i].textContent.replace(/^\s*\d+\s*/, "").trim();
+        }
+        tabs.forEach(function (t, i) {
+          t.title = titleOf(i);
+        });
+
+        function markActive(idx) {
+          tabs.forEach(function (t, i) {
+            t.classList.toggle("active", i === idx);
+            if (i === idx) t.setAttribute("aria-current", "page");
+            else t.removeAttribute("aria-current");
+          });
+          keepInView(tabs[idx]);
+        }
+
+        // The sidebar scrolls on its own when it lists more sections than fit
+        // the window, so the active tab can sit below its fold. Bring it into
+        // the sidebar's view by moving the sidebar alone: scrollIntoView would
+        // also scroll the page, fighting the reader mid-scroll.
+        function keepInView(tab) {
+          var nav = tab && tab.closest("nav.sidebar");
+          if (!nav || nav.scrollHeight <= nav.clientHeight) return;
+          var navBox = nav.getBoundingClientRect();
+          var tabBox = tab.getBoundingClientRect();
+          var pad = 8;
+          if (tabBox.top < navBox.top + pad)
+            nav.scrollTop -= navBox.top + pad - tabBox.top;
+          else if (tabBox.bottom > navBox.bottom - pad)
+            nav.scrollTop += tabBox.bottom - (navBox.bottom - pad);
+        }
+
+        if (mode === "tabbed") {
+          // Only one section is on screen, so scroll depth says nothing about
+          // progress through the document. Count position in the sequence,
+          // with scroll depth filling in the fraction of the current section.
+          progressAt = function () {
+            var h = document.documentElement.scrollHeight - window.innerHeight;
+            var within = h > 0 ? window.scrollY / h : 0;
+            return tabs.length ? (currentIndex() + within) / tabs.length : 1;
+          };
+
+          var prevBtn = document.getElementById("pagerPrev");
+          var nextBtn = document.getElementById("pagerNext");
+
+          // Resolve the hash to a tab index; a hash may also point at an
+          // anchor INSIDE a section, in which case we activate that
+          // section's tab and remember the element to scroll to.
+          function resolveHash() {
+            var h = location.hash;
+            for (var i = 0; i < tabs.length; i++) {
+              if (tabs[i].getAttribute("href") === h)
+                return { idx: i, el: null };
+            }
+            if (h.length > 1) {
+              var el = null;
+              try {
+                el = document.getElementById(h.slice(1));
+              } catch (e) {}
+              if (el) {
+                for (var j = 0; j < sections.length; j++) {
+                  if (sections[j] && sections[j].contains(el))
+                    return { idx: j, el: el };
+                }
+              }
+            }
+            return { idx: 0, el: null };
+          }
+
+          function currentIndex() {
+            return resolveHash().idx;
+          }
+
+          // Ctrl-F cannot see into display: none, so where the browser
+          // supports it, hidden sections use hidden="until-found" instead.
+          // A find hit fires beforematch on the section and the browser drops
+          // the attribute itself; we switch tabs without scrolling to the top,
+          // because the browser is about to scroll to the match.
+          var findable = "onbeforematch" in document.documentElement;
+
+          function showSection(idx, scrollTop) {
+            sections.forEach(function (s, i) {
+              if (!s) return;
+              s.classList.toggle("active", i === idx);
+              if (!findable) return;
+              if (i === idx) s.removeAttribute("hidden");
+              else s.setAttribute("hidden", "until-found");
+            });
+            markActive(idx);
+            if (prevBtn && nextBtn) {
+              prevBtn.disabled = idx === 0;
+              nextBtn.disabled = idx === tabs.length - 1;
+              prevBtn.textContent =
+                idx > 0 ? "← Back: " + titleOf(idx - 1) : "";
+              nextBtn.textContent =
+                idx < tabs.length - 1 ? "Next: " + titleOf(idx + 1) + " →" : "";
+            }
+            if (scrollTop) window.scrollTo(0, 0);
+            setProgress();
+          }
+
+          if (prevBtn)
+            prevBtn.addEventListener("click", function () {
+              var i = currentIndex();
+              if (i > 0) location.hash = tabs[i - 1].getAttribute("href");
+            });
+          if (nextBtn)
+            nextBtn.addEventListener("click", function () {
+              var i = currentIndex();
+              if (i < tabs.length - 1)
+                location.hash = tabs[i + 1].getAttribute("href");
+            });
+
+          function syncToHash(initial) {
+            var r = resolveHash();
+            showSection(r.idx, !initial && !r.el);
+            if (r.el) r.el.scrollIntoView();
+          }
+          window.addEventListener("hashchange", function () {
+            syncToHash(false);
+          });
+          if (findable)
+            sections.forEach(function (s, i) {
+              if (!s) return;
+              s.addEventListener("beforematch", function () {
+                // pushState, not location.hash: no hashchange, so no jump
+                // to the top of the page underneath the find.
+                history.pushState(null, "", tabs[i].getAttribute("href"));
+                showSection(i, false);
+              });
+            });
+          syncToHash(true);
+
+          // Search (and anything else) asks for an element to be shown with a
+          // "doc:reveal" event; switch to the tab that holds it, without the
+          // jump to the top a hash change would cause.
+          document.addEventListener("doc:reveal", function (ev) {
+            var el = ev.detail;
+            for (var i = 0; i < sections.length; i++) {
+              if (sections[i] && sections[i].contains(el)) {
+                if (i !== currentIndex()) {
+                  history.pushState(null, "", tabs[i].getAttribute("href"));
+                  showSection(i, false);
+                }
+                return;
+              }
+            }
+          });
+        } else {
+          // Scroll mode: highlight the section currently under the reader.
+          var ticking = false;
+          function spy() {
+            ticking = false;
+            var line = window.scrollY + 140;
+            var idx = 0;
+            for (var i = 0; i < sections.length; i++) {
+              if (sections[i] && sections[i].offsetTop <= line) idx = i;
+            }
+            markActive(idx);
+            setProgress();
+          }
+          window.addEventListener("scroll", function () {
+            if (!ticking) {
+              ticking = true;
+              window.requestAnimationFrame(spy);
+            }
+          });
+          window.addEventListener("resize", spy);
+          spy();
+        }
+
+        // --- Sidebar minimize toggle ---
+        var sidebarToggle = document.getElementById("sidebarToggle");
+        if (sidebarToggle) {
+          function renderSidebar(collapsed) {
+            sidebar.classList.toggle("collapsed", collapsed);
+            sidebarToggle.textContent = collapsed ? "»" : "«";
+            sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+            var verb = collapsed ? "Expand sidebar" : "Minimize sidebar";
+            sidebarToggle.setAttribute("aria-label", verb);
+            sidebarToggle.title = verb;
+          }
+
+          var sidebarSaved = null;
+          try {
+            sidebarSaved = localStorage.getItem(STORE_SIDEBAR);
+          } catch (e) {}
+          renderSidebar(sidebarSaved === "collapsed");
+
+          sidebarToggle.addEventListener("click", function () {
+            var collapsed = !sidebar.classList.contains("collapsed");
+            renderSidebar(collapsed);
+            try {
+              localStorage.setItem(
+                STORE_SIDEBAR,
+                collapsed ? "collapsed" : "expanded",
+              );
+            } catch (e) {}
+          });
+        }
+
+        // --- Links off-site open in a new tab ---
+        // Only links to another origin. In-page #hash links, and relative
+        // links to sibling pages in the same documentation set, stay in this
+        // tab — otherwise walking through a set of pages piles up tabs.
+        // Under file:// every relative link resolves to file: and stays too.
+        Array.prototype.forEach.call(
+          document.querySelectorAll("a[href]"),
+          function (a) {
+            if (/^https?:$/.test(a.protocol) && a.host !== location.host) {
+              a.setAttribute("target", "_blank");
+              a.setAttribute("rel", "noopener");
+            }
+          },
+        );
+      })();
+
+      // --- Heading anchors -------------------------------------------------
+      // Every section h2 and h3 gets a "#" link, so a reader can copy a link
+      // to exactly the part they mean. A section's h2 points at the section
+      // id; an h3 keeps its own id or is given one from its text. Runs after
+      // the sidebar is built, so the "#" never leaks into a tab label.
+      (function () {
+        var used = {};
+        Array.prototype.forEach.call(
+          document.querySelectorAll("[id]"),
+          function (el) {
+            used[el.id] = true;
+          },
+        );
+        function slug(text) {
+          var base =
+            text
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "") || "section";
+          var id = base;
+          for (var n = 2; used[id]; n++) id = base + "-" + n;
+          used[id] = true;
+          return id;
+        }
+        function addAnchor(h, id) {
+          var a = document.createElement("a");
+          a.className = "heading-anchor";
+          a.href = "#" + id;
+          a.textContent = "#";
+          a.setAttribute("aria-label", "Link to this heading");
+          h.appendChild(a);
+        }
+        Array.prototype.forEach.call(
+          document.querySelectorAll("section.phase[id] > h2"),
+          function (h) {
+            addAnchor(h, h.parentNode.id);
+          },
+        );
+        Array.prototype.forEach.call(
+          document.querySelectorAll("section.phase h3"),
+          function (h) {
+            if (!h.id) h.id = slug(h.textContent);
+            addAnchor(h, h.id);
+          },
+        );
+        // A link to a generated id arrived before that id existed, so the
+        // navigation script could not resolve it. Replay it now.
+        var target = location.hash.length > 1 &&
+          document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        if (target && target.tagName === "H3") {
+          if (document.documentElement.classList.contains("js-tabbed"))
+            window.dispatchEvent(new HashChangeEvent("hashchange"));
+          else target.scrollIntoView();
+        }
+      })();
+
+      // --- Syntax highlighting -------------------------------------------
+      // A self-contained tokenizer: no library, no network request, nothing
+      // to keep up to date. It highlights any <pre> or <code> that carries a
+      // language-* class and leaves everything else alone, so unmarked blocks
+      // stay monochrome — the right result for terminal output and diagrams.
+      //
+      // To add a language, add one def() entry. To highlight nothing, delete
+      // this whole IIFE; the document degrades to plain <pre> blocks.
+      (function () {
+        // Sticky (/y) regexes only ever match at the current offset, which is
+        // what lets the scanner below try rules in priority order.
+        var WS = /\s+/y;
+        var PUNC = /[(){}\[\].,;:@#$\\]+/y;
+        var OP = /[-+*/%=!<>&|^~?]+/y;
+        var NUM =
+          /(?:0[xXbBoO][0-9a-fA-F_]+|\d[\d_]*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?)(?:[A-Za-z_][A-Za-z0-9_]*)?/y;
+        var IDENT = /[A-Za-z_$][A-Za-z0-9_$]*/y;
+        var CALL = /\s*\(/y;
+
+        var C_LINE = { c: "com", re: /\/\/[^\n]*/y };
+        var C_HASH = { c: "com", re: /#[^\n]*/y };
+        var C_DASH = { c: "com", re: /--[^\n]*/y };
+        var C_BLOCK = { c: "com", re: /\/\*[\s\S]*?(?:\*\/|$)/y };
+        // Built by concatenation so the HTML parser never sees a bare comment
+        // opener inside this script element.
+        var C_HTML = {
+          c: "com",
+          re: new RegExp("<!" + "--[\\s\\S]*?(?:--" + ">|$)", "y"),
+        };
+
+        var S_DQ = { c: "str", re: /"(?:\\[\s\S]|[^"\\\n])*"?/y };
+        var S_SQ = { c: "str", re: /'(?:\\[\s\S]|[^'\\\n])*'?/y };
+        var S_BT = { c: "str", re: /`(?:\\[\s\S]|[^`\\])*`?/y };
+        var S_PY = {
+          c: "str",
+          re: /(?:[rRbBuUfF]{1,3})?(?:"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\[\s\S]|[^"\\\n])*"?|'(?:\\[\s\S]|[^'\\\n])*'?)/y,
+        };
+        var V_DOLLAR = {
+          c: "var",
+          re: /\$(?:\{[^}\n]*\}|[A-Za-z_][A-Za-z0-9_]*|[0-9?*@#!$-])/y,
+        };
+        var V_AT = { c: "var", re: /@[A-Za-z_][A-Za-z0-9_.]*/y };
+
+        function words(s) {
+          var o = {},
+            a = String(s || "").split(/\s+/);
+          for (var i = 0; i < a.length; i++) if (a[i]) o[a[i]] = 1;
+          return o;
+        }
+
+        var LANGS = {};
+        // rules order: whitespace, comments, strings, language extras, then
+        // the numeric/identifier/punctuation fallbacks every language shares.
+        function def(names, o) {
+          var spec = {
+            ci: !!o.ci,
+            caps: o.caps !== false,
+            noCall: !!o.noCall,
+            kw: words(o.kw),
+            lit: words(o.lit),
+            typ: words(o.typ),
+            vars: words(o.vars),
+            rules: [{ c: null, re: WS }].concat(o.rules || []).concat(
+              o.bare
+                ? []
+                : [
+                    { c: "num", re: NUM },
+                    { c: "ident", re: IDENT },
+                    { c: null, re: PUNC },
+                    { c: "op", re: OP },
+                  ],
+            ),
+          };
+          var list = names.split(" ");
+          for (var i = 0; i < list.length; i++) LANGS[list[i]] = spec;
+        }
+
+        // --- Language definitions ---
+        // Keyword lists for case-insensitive languages (ci: true) must be
+        // written in lower case; lookups are lowercased before matching.
+
+        def("python", {
+          rules: [C_HASH, S_PY, V_AT],
+          kw: "and as assert async await break class continue def del elif else except finally for from global if import in is lambda match case nonlocal not or pass raise return try while with yield",
+          lit: "True False None NotImplemented Ellipsis",
+          vars: "self cls",
+          typ: "int str float bool bytes list dict set tuple frozenset object type len range print open enumerate zip map filter sum min max abs round sorted reversed isinstance issubclass getattr setattr hasattr super property staticmethod classmethod Exception ValueError TypeError KeyError IndexError AttributeError RuntimeError StopIteration NotImplementedError",
+        });
+
+        def("javascript", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, S_BT],
+          kw: "async await break case catch class const continue debugger default delete do else export extends finally for from function get if import in instanceof let new of return set static super switch this throw try typeof var void while with yield",
+          lit: "true false null undefined NaN Infinity",
+          typ: "Array Object String Number Boolean Promise Map Set WeakMap WeakSet Symbol Proxy Reflect JSON Math Date RegExp Error TypeError console window document process globalThis require module exports",
+        });
+
+        def("typescript", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, S_BT, V_AT],
+          kw: "abstract any as asserts async await bigint boolean break case catch class const constructor continue declare default delete do else enum export extends finally for from function get if implements import in infer instanceof interface is keyof let namespace never new number object of override private protected public readonly return satisfies set static string super switch symbol this throw try type typeof unique unknown var void while yield",
+          lit: "true false null undefined NaN Infinity",
+          typ: "Array Object String Number Boolean Promise Map Set Record Partial Pick Omit Readonly Awaited ReturnType Symbol JSON Math Date RegExp Error console window document process",
+        });
+
+        def("java", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract assert break case catch class const continue default do else enum extends final finally for goto if implements import instanceof interface native new package permits private protected public record return sealed static strictfp super switch synchronized this throw throws transient try var void volatile while yield",
+          lit: "true false null",
+          typ: "boolean byte char double float int long short String Integer Long Double Float Boolean Character Object List Map Set ArrayList HashMap HashSet Optional Stream Collectors System Exception RuntimeException Thread",
+        });
+
+        def("kotlin", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract actual annotation as break by catch class companion const constructor continue crossinline data do else enum expect external final finally for fun get if import in infix init inline inner interface internal is lateinit noinline object open operator out override package private protected public reified return sealed set suspend tailrec this throw try typealias val var vararg when where while",
+          lit: "true false null",
+          typ: "String Int Long Short Byte Double Float Boolean Char List Map Set MutableList MutableMap MutableSet Array Unit Any Nothing Pair Triple Sequence Flow",
+        });
+
+        def("go", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_BT, S_SQ],
+          kw: "break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var",
+          lit: "true false nil iota",
+          typ: "string bool byte rune error any int int8 int16 int32 int64 uint uint8 uint16 uint32 uint64 uintptr float32 float64 complex64 complex128 make new len cap append copy delete panic recover close print println",
+        });
+
+        def("rust", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "as async await break const continue crate dyn else enum extern fn for if impl in let loop match mod move mut pub ref return static struct super trait type unsafe use where while",
+          lit: "true false None Some Ok Err self Self",
+          typ: "i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool char str String Vec VecDeque Option Result Box Rc Arc RefCell Mutex HashMap HashSet BTreeMap Iterator",
+        });
+
+        def("cpp", {
+          rules: [
+            C_LINE,
+            C_BLOCK,
+            { c: "var", re: /^[ \t]*#[A-Za-z]+/y, bol: true },
+            S_DQ,
+            S_SQ,
+          ],
+          kw: "alignas alignof asm auto break case catch class concept const consteval constexpr const_cast continue co_await co_return co_yield decltype default delete do dynamic_cast else enum explicit export extern for friend goto if inline mutable namespace new noexcept operator private protected public register reinterpret_cast requires return sizeof static static_assert static_cast struct switch template this thread_local throw try typedef typeid typename union using virtual volatile while",
+          lit: "true false nullptr NULL",
+          typ: "bool char short int long float double void signed unsigned wchar_t char8_t char16_t char32_t size_t ssize_t ptrdiff_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t std string wstring vector array map unordered_map set unordered_set pair tuple optional variant shared_ptr unique_ptr weak_ptr",
+        });
+
+        def("csharp", {
+          rules: [C_LINE, C_BLOCK, S_DQ, S_SQ, V_AT],
+          kw: "abstract as async await base break case catch checked class const continue default delegate do else enum event explicit extern finally fixed for foreach get goto if implicit in init interface internal is lock namespace new operator out override params partial private protected public readonly record ref return sealed set sizeof stackalloc static struct switch this throw try typeof unchecked unsafe using var virtual void volatile where while with yield",
+          lit: "true false null",
+          typ: "bool byte sbyte char decimal double float int uint long ulong short ushort object string dynamic Console List Dictionary HashSet Task Func Action Nullable Exception IEnumerable IQueryable LINQ DateTime Guid",
+        });
+
+        def("php", {
+          rules: [C_LINE, C_HASH, C_BLOCK, S_DQ, S_SQ, V_DOLLAR],
+          kw: "abstract and array as break callable case catch class clone const continue declare default do echo else elseif empty enum extends final finally fn for foreach function global goto if implements include include_once instanceof insteadof interface isset list match namespace new or print private protected public readonly require require_once return static switch throw trait try unset use var while xor yield",
+          lit: "true false null TRUE FALSE NULL",
+          typ: "int float string bool array object mixed void never self parent Exception ArrayObject Closure Generator",
+        });
+
+        def("ruby", {
+          rules: [
+            C_HASH,
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /[@$]{1,2}[A-Za-z_]\w*/y },
+          ],
+          kw: "alias and begin break case class def defined? do else elsif end ensure for if in module next not or redo rescue retry return self super then undef unless until when while yield require require_relative attr_accessor attr_reader attr_writer include extend private protected public",
+          lit: "true false nil",
+          typ: "String Symbol Integer Float Array Hash Range Struct Proc Time File Dir Kernel Comparable Enumerable StandardError puts print p raise lambda",
+        });
+
+        def("swift", {
+          rules: [C_LINE, C_BLOCK, S_DQ, V_AT],
+          kw: "actor as associatedtype async await break case catch class continue default defer deinit do else enum extension fallthrough fileprivate final for func guard if import in indirect init inout internal is lazy let mutating open operator private protocol public repeat rethrows return self static struct subscript super switch throw throws try typealias var weak where while",
+          lit: "true false nil",
+          typ: "Int Int8 Int16 Int32 Int64 UInt Double Float String Character Bool Array Dictionary Set Optional Any AnyObject Result Data URL Date UUID Error Codable Equatable Hashable",
+        });
+
+        def("sql", {
+          ci: true,
+          caps: false,
+          rules: [C_DASH, C_BLOCK, S_SQ, S_DQ, { c: "str", re: /`[^`\n]*`?/y }],
+          kw: "add all alter analyze and as asc begin between by cascade case cast check column commit constraint create cross database default delete desc distinct do drop else end escape except exists explain foreign from full grant group having if ilike in index inner insert intersect into is join key left like limit not null nulls offset on only or order outer over partition primary procedure references rename replace restrict returning revoke right rollback row rows schema select set similar table temporary then to transaction trigger truncate union unique unlogged update using vacuum values view when where window with",
+          lit: "true false null",
+          typ: "bigint bigserial boolean bytea char character date decimal double float int integer interval json jsonb money numeric real serial smallint text time timestamp timestamptz uuid varchar array precision",
+        });
+
+        def("bash", {
+          noCall: true,
+          caps: false,
+          rules: [
+            C_HASH,
+            S_DQ,
+            S_SQ,
+            V_DOLLAR,
+            { c: "typ", re: /--?[A-Za-z][A-Za-z0-9-]*/y, aws: true },
+            // Paths, so the slashes in ~/.claude/skills don't read as operators.
+            { c: null, re: /[~.]?(?:\/[\w.@%+-]*)+/y },
+          ],
+          kw: "if then elif else fi for while until do done case esac function in select return break continue local export readonly declare typeset source alias unalias unset trap eval exec shift set shopt",
+          lit: "true false",
+          typ: "echo printf read cd pwd ls cp mv rm mkdir rmdir touch cat less head tail grep egrep sed awk sort uniq wc cut tr find xargs tee chmod chown ln df du ps kill sudo ssh scp rsync curl wget tar zip unzip git gh npm npx pnpm yarn node deno python python3 pip pip3 uv poetry go cargo rustc java mvn gradle docker podman kubectl helm terraform make cmake jq yq open which env date sleep exit test",
+        });
+
+        def("json", {
+          caps: false,
+          rules: [
+            { c: "fn", re: /"(?:\\[\s\S]|[^"\\])*"(?=\s*:)/y },
+            S_DQ,
+            C_LINE,
+          ],
+          lit: "true false null",
+        });
+
+        def("yaml", {
+          caps: false,
+          noCall: true,
+          rules: [
+            C_HASH,
+            { c: "fn", re: /[A-Za-z_][A-Za-z0-9_. /-]*(?=\s*:(?:\s|$))/y },
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /[&*][A-Za-z_][\w-]*|!!?[\w/-]+/y },
+            // Bare scalars like ubuntu-latest: one token, not word-dash-word.
+            { c: null, re: /[A-Za-z_][\w.]*(?:-[\w.]+)+/y },
+          ],
+          lit: "true false null yes no on off ~",
+        });
+
+        def("markup", {
+          bare: true,
+          rules: [
+            C_HTML,
+            { c: "kw", re: /<[!?][A-Za-z][\w-]*/y },
+            { c: "fn", re: /<\/?[A-Za-z][\w:.-]*/y },
+            { c: "op", re: /\/?>/y },
+            S_DQ,
+            S_SQ,
+            { c: "typ", re: /[A-Za-z_:@#[][\w:.\]-]*(?=\s*=)/y },
+            { c: "var", re: /&[\w#]+;/y },
+            { c: null, re: /[^<>"'&]+/y },
+          ],
+        });
+
+        def("css", {
+          bare: true,
+          rules: [
+            C_BLOCK,
+            { c: "kw", re: /@[\w-]+/y },
+            S_DQ,
+            S_SQ,
+            { c: "var", re: /--[\w-]+/y },
+            { c: "num", re: /#[0-9a-fA-F]{3,8}\b/y },
+            { c: "typ", re: /[.#][A-Za-z_][\w-]*|::?[A-Za-z-]+/y },
+            { c: "fn", re: /[-A-Za-z][\w-]*(?=\s*:)/y },
+            { c: "num", re: /(?:\d+\.?\d*|\.\d+)(?:%|[A-Za-z]+)?/y },
+            { c: null, re: /[A-Za-z_][\w-]*/y },
+            { c: null, re: PUNC },
+            { c: "op", re: OP },
+          ],
+        });
+
+        def("abap", {
+          ci: true,
+          caps: false,
+          noCall: true,
+          rules: [
+            { c: "com", re: /[*][^\n]*/y, bol: true },
+            { c: "com", re: /"[^\n]*/y },
+            S_SQ,
+            { c: "str", re: /\|(?:\\[\s\S]|[^|\\\n])*\|?/y },
+            { c: "var", re: /@?[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+/y },
+          ],
+          kw: "append assign at begin binary by call case catch change changing check class clear close collect commit concatenate condense constants continue create data define delete describe do else elseif end endcase endclass enddo endform endfunction endif endloop endmethod endmodule endselect endtry endwhile events exceptions exit export exporting field for form format free from function get if implementation import importing in include index inheriting initial insert interface into is key leave like line load local locale loop message method methods modify module move new not of on open or others parameters perform private protected public raise raising read receiving redefinition ref refresh replace report return returning rollback screen search select set shift skip sort split start structure submit subtract sum table tables text then to transfer translate try type types uline up update using value when where while with work write",
+          lit: "abap_true abap_false abap_undefined space",
+          typ: "char string int i f p n d t x xstring c decfloat16 decfloat34 utclong abap_bool sy syst standard sorted hashed",
+        });
+
+        def("plaintext text txt none log console output diff", { bare: true });
+
+        var ALIAS = {
+          js: "javascript",
+          jsx: "javascript",
+          mjs: "javascript",
+          cjs: "javascript",
+          node: "javascript",
+          ts: "typescript",
+          tsx: "typescript",
+          py: "python",
+          py3: "python",
+          rb: "ruby",
+          rs: "rust",
+          kt: "kotlin",
+          kts: "kotlin",
+          golang: "go",
+          c: "cpp",
+          "c++": "cpp",
+          h: "cpp",
+          hpp: "cpp",
+          objc: "cpp",
+          cs: "csharp",
+          "c#": "csharp",
+          sh: "bash",
+          shell: "bash",
+          zsh: "bash",
+          ksh: "bash",
+          sql92: "sql",
+          psql: "sql",
+          mysql: "sql",
+          plsql: "sql",
+          yml: "yaml",
+          jsonc: "json",
+          json5: "json",
+          html: "markup",
+          htm: "markup",
+          xml: "markup",
+          svg: "markup",
+          vue: "markup",
+          xhtml: "markup",
+          scss: "css",
+          sass: "css",
+          less: "css",
+        };
+
+        function esc(s) {
+          return s
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
+
+        function classify(word, spec, src, end) {
+          var key = spec.ci ? word.toLowerCase() : word;
+          if (spec.kw[key]) return "kw";
+          if (spec.lit[key]) return "num";
+          if (spec.vars[key]) return "var";
+          // Checked before the type list so a builtin being *called*
+          // (range(n), make(m)) reads as a call, not as a type name.
+          if (!spec.noCall) {
+            CALL.lastIndex = end;
+            if (CALL.exec(src)) return "fn";
+          }
+          if (spec.typ[key]) return "typ";
+          // Conventional CamelCase for types in the C-family languages.
+          if (spec.caps && /^[A-Z]/.test(word) && /[a-z]/.test(word))
+            return "typ";
+          return null;
+        }
+
+        function paint(src, spec) {
+          var out = "",
+            i = 0,
+            n = src.length,
+            rules = spec.rules;
+          while (i < n) {
+            var hit = false;
+            for (var r = 0; r < rules.length; r++) {
+              var rule = rules[r];
+              if (rule.bol && i !== 0 && src.charAt(i - 1) !== "\n") continue;
+              if (rule.aws && i !== 0 && !/\s/.test(src.charAt(i - 1)))
+                continue;
+              rule.re.lastIndex = i;
+              var m = rule.re.exec(src);
+              if (!m || !m[0]) continue;
+              var cls = rule.c;
+              if (cls === "ident")
+                cls = classify(m[0], spec, src, i + m[0].length);
+              out += cls
+                ? '<span class="tok-' + cls + '">' + esc(m[0]) + "</span>"
+                : esc(m[0]);
+              i += m[0].length;
+              hit = true;
+              break;
+            }
+            // No rule matched this character — emit it verbatim and move on,
+            // so an unexpected byte can never stall the scanner.
+            if (!hit) {
+              out += esc(src.charAt(i));
+              i++;
+            }
+          }
+          return out;
+        }
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll('pre[class*="lang"], code[class*="lang"]'),
+          function (el) {
+            // A <pre class="language-x"><code>…</code></pre> is handled once,
+            // by whichever of the two carries the class.
+            if (el.tagName === "PRE" && el.querySelector("code")) return;
+            var m = /(?:^|\s)(?:language|lang)-([\w+#.-]+)/.exec(
+              el.className || "",
+            );
+            if (!m) return;
+            var name = m[1].toLowerCase();
+            name = ALIAS[name] || name;
+            var spec = LANGS[name];
+            if (!spec) return;
+            el.innerHTML = paint(el.textContent, spec);
+            el.setAttribute("data-hl", name);
+            if (el.tagName === "CODE" && el.parentNode.tagName === "PRE")
+              el.parentNode.setAttribute("data-hl", name);
+          },
+        );
+      })();
+
+      // --- Copy buttons ----------------------------------------------------
+      // Every <pre> gets wrapped in .codewrap with a copy button. Doing it
+      // here rather than in the markup means authors never write the wrapper,
+      // and a document with JavaScript off keeps plain, unwrapped blocks.
+      //
+      // Runs after the highlighter on purpose: highlighting rewrites innerHTML
+      // but leaves textContent identical, so what gets copied is the original
+      // source either way — but wrapping first would put the button inside the
+      // node the highlighter overwrites.
+      (function () {
+        var COPY = "Copy";
+
+        function write(text) {
+          if (navigator.clipboard && navigator.clipboard.writeText)
+            return navigator.clipboard.writeText(text);
+          // Fallback for browsers that withhold the async clipboard API on
+          // file:// pages — these documents are usually opened from disk.
+          return new Promise(function (resolve, reject) {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.top = "-1000px";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try {
+              ok = document.execCommand("copy");
+            } catch (e) {
+              ok = false;
+            }
+            document.body.removeChild(ta);
+            if (ok) resolve();
+            else reject();
+          });
+        }
+
+        // A <pre> renders without the newline that follows its opening tag,
+        // but textContent keeps it — drop it so the copy matches what is on
+        // screen. Leading indentation on the first real line is preserved.
+        function source(pre) {
+          return pre.textContent.replace(/^\n/, "").replace(/\s+$/, "");
+        }
+
+        Array.prototype.forEach.call(
+          document.querySelectorAll("pre"),
+          function (pre) {
+            // Already wrapped by hand? Leave it alone rather than nesting a
+            // second wrapper and a second button around it.
+            var parent = pre.parentNode;
+            if (parent && parent.classList.contains("codewrap")) return;
+
+            var wrap = document.createElement("div");
+            wrap.className = "codewrap";
+            parent.insertBefore(wrap, pre);
+            wrap.appendChild(pre);
+
+            var btn = document.createElement("button");
+            btn.className = "copy-btn";
+            btn.type = "button";
+            btn.textContent = COPY;
+            btn.setAttribute("aria-label", "Copy code to clipboard");
+            wrap.appendChild(btn);
+
+            var timer = null;
+            function flash(msg) {
+              btn.textContent = msg;
+              btn.classList.add("copied");
+              clearTimeout(timer);
+              timer = setTimeout(function () {
+                btn.textContent = COPY;
+                btn.classList.remove("copied");
+                // Leave focus alone; blurring here would trap keyboard users.
+              }, 1600);
+            }
+
+            btn.addEventListener("click", function () {
+              write(source(pre)).then(
+                function () {
+                  flash("Copied");
+                },
+                function () {
+                  flash("Failed");
+                },
+              );
+            });
+          },
+        );
+      })();
+
+      // --- Output capture -------------------------------------------------
+      // Gives every .capture[data-capture] block a textarea that remembers
+      // what was typed into it. Does nothing at all when the document has no
+      // .capture blocks, so it costs an unused page one querySelectorAll.
+      //
+      // Storage is localStorage, which means: this browser, this machine,
+      // never uploaded. It can also throw outright (private window, site data
+      // blocked, thumbnail capture), so every read and write is guarded and
+      // the page still renders correctly with nothing stored.
+      (function () {
+        var boxes = [].slice.call(
+          document.querySelectorAll(".capture[data-capture]"),
+        );
+        if (!boxes.length) return;
+
+        // Set data-capture-store on <html> to give a document its own bucket.
+        // Two documents opened from the same origin share localStorage, so
+        // leaving the default makes the second one overwrite the first.
+        var STORE =
+          document.documentElement.getAttribute("data-capture-store") ||
+          "doc-captures";
+
+        function readAll() {
+          try {
+            return JSON.parse(localStorage.getItem(STORE) || "{}") || {};
+          } catch (e) {
+            return {};
+          }
+        }
+        function writeAll(data) {
+          try {
+            localStorage.setItem(STORE, JSON.stringify(data));
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+        function stamp() {
+          var d = new Date();
+          return (
+            ("0" + d.getHours()).slice(-2) +
+            ":" +
+            ("0" + d.getMinutes()).slice(-2)
+          );
+        }
+        function label(box) {
+          var el = box.querySelector(".capture-head .label");
+          return el
+            ? el.textContent.replace(/^Output\s*[\u2014-]\s*/, "").trim()
+            : box.getAttribute("data-capture");
+        }
+        function describe(box, saved) {
+          var ta = box.querySelector("textarea");
+          var count = box.querySelector(".count");
+          var n = ta.value.length;
+          if (count) count.textContent = n ? n.toLocaleString() + " characters" : "";
+          box.classList.toggle("is-saved", !!saved && n > 0);
+        }
+
+        var data = readAll();
+
+        boxes.forEach(function (box) {
+          var key = box.getAttribute("data-capture");
+          var ta = box.querySelector("textarea");
+          var status = box.querySelector(".capture-status");
+          var entry = data[key];
+
+          if (entry && typeof entry.text === "string") {
+            ta.value = entry.text;
+            if (status) status.textContent = entry.at ? "Saved " + entry.at : "Saved";
+            describe(box, true);
+          } else {
+            describe(box, false);
+          }
+
+          ta.addEventListener("input", function () {
+            if (status) status.textContent = "Unsaved changes";
+            box.classList.remove("is-saved");
+            describe(box, false);
+          });
+
+          var saveBtn = box.querySelector('[data-act="save"]');
+          if (saveBtn)
+            saveBtn.addEventListener("click", function () {
+              var all = readAll();
+              var at = stamp();
+              all[key] = { text: ta.value, at: at, label: label(box) };
+              if (writeAll(all)) {
+                if (status)
+                  status.textContent = ta.value.trim()
+                    ? "Saved " + at
+                    : "Saved (empty)";
+                describe(box, true);
+              } else if (status) {
+                status.textContent = "Could not save - browser storage is blocked";
+              }
+            });
+
+          var clearBtn = box.querySelector('[data-act="clear"]');
+          if (clearBtn)
+            clearBtn.addEventListener("click", function () {
+              ta.value = "";
+              var all = readAll();
+              delete all[key];
+              writeAll(all);
+              if (status) status.textContent = "Cleared";
+              describe(box, false);
+            });
+        });
+
+        // --- Optional collector -----------------------------------------
+        // Present only if the document includes the .capture[data-collect]
+        // block. Assembles every box into one pasteable lump, marking the
+        // ones left empty so "skipped" stays distinguishable from "blank".
+        var collectBtn = document.getElementById("collectBtn");
+        var collectBox = document.getElementById("collectBox");
+        var collectStatus = document.getElementById("collectStatus");
+        var collectCount = document.getElementById("collectCount");
+        if (!collectBox) return;
+
+        function rule() {
+          return new Array(61).join("=");
+        }
+        function gather() {
+          var lines = ["Captured " + new Date().toString(), ""];
+          var filled = 0;
+          boxes.forEach(function (box) {
+            var ta = box.querySelector("textarea");
+            lines.push(rule(), label(box), rule());
+            if (ta.value.trim()) {
+              lines.push(ta.value.replace(/\s+$/, ""));
+              filled++;
+            } else {
+              lines.push("(not filled in)");
+            }
+            lines.push("");
+          });
+          collectBox.value = lines.join("\n");
+          if (collectCount)
+            collectCount.textContent =
+              filled + " of " + boxes.length + " filled in";
+          if (collectStatus)
+            collectStatus.textContent =
+              filled === boxes.length
+                ? "All boxes have content."
+                : boxes.length - filled + " still empty.";
+        }
+        if (collectBtn) collectBtn.addEventListener("click", gather);
+
+        var copyBtn = document.getElementById("copyAllBtn");
+        if (copyBtn)
+          copyBtn.addEventListener("click", function () {
+            if (!collectBox.value) gather();
+            function done(ok) {
+              if (!collectStatus) return;
+              collectStatus.textContent = ok
+                ? "Copied to clipboard."
+                : "Could not copy - select the text above and copy manually.";
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(collectBox.value).then(
+                function () {
+                  done(true);
+                },
+                function () {
+                  done(false);
+                },
+              );
+            } else {
+              collectBox.removeAttribute("readonly");
+              collectBox.select();
+              var ok = false;
+              try {
+                ok = document.execCommand("copy");
+              } catch (e) {
+                ok = false;
+              }
+              collectBox.setAttribute("readonly", "readonly");
+              done(ok);
+            }
+          });
+
+        // Two presses, because this throws away work and there is no undo.
+        var wipeBtn = document.getElementById("wipeBtn");
+        if (wipeBtn) {
+          var wipeLabel = wipeBtn.textContent;
+          wipeBtn.addEventListener("click", function () {
+            if (wipeBtn.getAttribute("data-armed") !== "1") {
+              wipeBtn.setAttribute("data-armed", "1");
+              wipeBtn.textContent = "Press again to erase";
+              if (collectStatus) collectStatus.textContent = "This cannot be undone.";
+              setTimeout(function () {
+                wipeBtn.removeAttribute("data-armed");
+                wipeBtn.textContent = wipeLabel;
+              }, 5000);
+              return;
+            }
+            try {
+              localStorage.removeItem(STORE);
+            } catch (e) {}
+            boxes.forEach(function (box) {
+              box.querySelector("textarea").value = "";
+              var st = box.querySelector(".capture-status");
+              if (st) st.textContent = "";
+              describe(box, false);
+            });
+            collectBox.value = "";
+            if (collectCount) collectCount.textContent = "";
+            if (collectStatus) collectStatus.textContent = "All saved output erased.";
+            wipeBtn.removeAttribute("data-armed");
+            wipeBtn.textContent = wipeLabel;
+          });
+        }
+      })();
+
+      // --- Search ------------------------------------------------------------
+      // A box in the header bar, beside the theme toggle, that finds text
+      // anywhere in the document,
+      // including sections a tabbed page is hiding and blocks a disclosure has
+      // folded away. Built here, so a page needs no markup for it; with
+      // <html data-search="off"> it is left out. Matching ignores case and
+      // accents and wants every word typed; when nothing has them all it falls
+      // back to results with some of them, and says so. Opening a result asks
+      // the navigation to reveal its section (the "doc:reveal" event), scrolls
+      // to it, and paints every occurrence with the CSS Custom Highlight API,
+      // which colours text without editing the DOM the other scripts built.
+      (function () {
+        var root = document.documentElement;
+        if (root.getAttribute("data-search") === "off") return;
+        var content = document.querySelector(".content") ||
+          document.querySelector("main");
+        if (!content) return;
+        var sections = Array.prototype.slice.call(
+          content.querySelectorAll("section.phase"),
+        );
+        if (!sections.length) return;
+
+        // --- The box ---
+        var box = document.createElement("div");
+        box.className = "doc-search";
+        box.setAttribute("role", "search");
+        var field = document.createElement("label");
+        field.className = "doc-search-field";
+        var icon = document.createElement("span");
+        icon.className = "doc-search-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "⌕";
+        var input = document.createElement("input");
+        input.type = "search";
+        input.placeholder = "Search this document";
+        input.setAttribute("aria-label", "Search this document");
+        input.setAttribute("autocomplete", "off");
+        input.setAttribute("spellcheck", "false");
+        input.setAttribute("role", "combobox");
+        input.setAttribute("aria-expanded", "false");
+        input.setAttribute("aria-controls", "docSearchResults");
+        var hint = document.createElement("kbd");
+        hint.textContent = "/";
+        hint.title = "Press / or Ctrl+K to search";
+        field.appendChild(icon);
+        field.appendChild(input);
+        field.appendChild(hint);
+        var panel = document.createElement("div");
+        panel.className = "doc-search-panel";
+        panel.hidden = true;
+        var status = document.createElement("div");
+        status.className = "doc-search-status";
+        status.setAttribute("aria-live", "polite");
+        var list = document.createElement("ol");
+        list.className = "doc-search-results";
+        list.id = "docSearchResults";
+        list.setAttribute("role", "listbox");
+        panel.appendChild(status);
+        panel.appendChild(list);
+        box.appendChild(field);
+        box.appendChild(panel);
+        // The header bar: the search, then the theme toggle, moved in so the
+        // two sit side by side at the top right instead of overlapping.
+        var bar = document.createElement("div");
+        bar.className = "doc-topbar";
+        var toggle = document.getElementById("themeToggle");
+        if (toggle) {
+          toggle.parentNode.insertBefore(bar, toggle);
+          bar.appendChild(box);
+          bar.appendChild(toggle);
+        } else {
+          document.body.insertBefore(bar, document.body.firstChild);
+          bar.appendChild(box);
+        }
+        function show(on) {
+          panel.hidden = !on;
+          input.setAttribute("aria-expanded", String(on));
+        }
+
+        // --- Text, folded so that indexes still line up ---
+        // One character in, one character out: lower case, accents dropped.
+        // Keeping the length is what lets a match in the folded text be cut
+        // out of the original for the snippet.
+        function fold(s) {
+          var out = "";
+          for (var i = 0; i < s.length; i++) {
+            var c = s.charAt(i);
+            var d = c.normalize ? c.normalize("NFD").charAt(0) : c;
+            out += d.toLowerCase().charAt(0) || c;
+          }
+          return out;
+        }
+        // Text nodes worth searching: not the "#" heading links, not the copy
+        // buttons, not the capture boxes' own controls.
+        function skip(node) {
+          var el = node.parentNode;
+          return !!(el && el.closest &&
+            el.closest(".heading-anchor, .copy-btn, .capture-foot, .capture-head .count"));
+        }
+        function textOf(el) {
+          var out = "";
+          var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (var n = walker.nextNode(); n; n = walker.nextNode())
+            if (!skip(n)) out += n.nodeValue;
+          return out.replace(/\s+/g, " ").trim();
+        }
+
+        // --- The index, built on first use so every other script has run ---
+        var BLOCKS = "h2, h3, h4, p, li, pre, tr, dt, dd, summary, figcaption, " +
+          ".card, .flow-box, .chip, .phase-tag, .choice-box, .capture textarea";
+        var index = null;
+        function build() {
+          index = [];
+          sections.forEach(function (sec, si) {
+            var h2 = sec.querySelector("h2");
+            var label = sec.getAttribute("data-nav-label") ||
+              (h2 ? textOf(h2) : sec.id || "Section " + (si + 1));
+            var sub = "";
+            var els = Array.prototype.slice.call(sec.querySelectorAll(BLOCKS));
+            els.forEach(function (el) {
+              if (/^H[34]$/.test(el.tagName)) sub = textOf(el);
+              // Only the outermost block: a list inside a card is searched
+              // as part of the card, not a second time on its own.
+              var up = el.parentNode.closest ? el.parentNode.closest(BLOCKS) : null;
+              if (up && sec.contains(up)) return;
+              var text = el.tagName === "TEXTAREA" ? el.value : textOf(el);
+              if (!text) return;
+              index.push({
+                el: el,
+                sec: sec,
+                si: si,
+                where: /^H[234]$/.test(el.tagName) || !sub ? label : label + " › " + sub,
+                heading: /^H[234]$/.test(el.tagName),
+                text: text,
+                folded: fold(text),
+              });
+              index[index.length - 1].packed = pack(index[index.length - 1].folded);
+            });
+          });
+        }
+
+        // --- Matching ---
+        // Two views of every text: folded (case and accents ignored), and
+        // packed — letters and digits only, with a map back to the original
+        // positions. The packed view is what lets "login" find "Log in",
+        // "setup" find "set up", "email" find "e-mail" and "ivolve-network"
+        // find "ivolve network": spaces, hyphens and punctuation stop
+        // mattering, while the map keeps every mark on the real characters.
+        var LETTER = /[\p{L}\p{N}]/u;
+        function pack(folded) {
+          var s = "";
+          var map = [];
+          for (var i = 0; i < folded.length; i++) {
+            if (LETTER.test(folded.charAt(i))) {
+              s += folded.charAt(i);
+              map.push(i);
+            }
+          }
+          return { s: s, map: map };
+        }
+        function termsOf(q) {
+          var t = fold(q).split(/\s+/).filter(Boolean);
+          // Single letters match everywhere and say nothing; keep them only
+          // when they are all the reader typed.
+          var long = t.filter(function (w) { return w.length > 1; });
+          return (long.length ? long : t).map(function (w) {
+            return { t: w, p: pack(w).s };
+          });
+        }
+        // Every place a term occurs, as [start, end) in the original text.
+        // The packed view is used only for terms of three or more letters:
+        // shorter ones would join across words and match almost anything.
+        function ranges(folded, packed, term) {
+          var out = [];
+          var at = folded.indexOf(term.t);
+          while (at >= 0) {
+            out.push([at, at + term.t.length]);
+            at = folded.indexOf(term.t, at + term.t.length);
+          }
+          if (term.p.length >= 3) {
+            at = packed.s.indexOf(term.p);
+            while (at >= 0) {
+              out.push([packed.map[at], packed.map[at + term.p.length - 1] + 1]);
+              at = packed.s.indexOf(term.p, at + term.p.length);
+            }
+          }
+          return out;
+        }
+        function has(e, term) {
+          return e.folded.indexOf(term.t) >= 0 ||
+            (term.p.length >= 3 && e.packed.s.indexOf(term.p) >= 0);
+        }
+        function score(entry, terms, phrase) {
+          var s = 0;
+          terms.forEach(function (term) {
+            if (has(entry, term)) s += entry.heading ? 4 : 1;
+          });
+          if (phrase && entry.packed.s.indexOf(phrase) >= 0) s += 3;
+          return s;
+        }
+        function search(q) {
+          var terms = termsOf(q);
+          if (!terms.length) return { hits: [], terms: [], partial: false };
+          var phrase = terms.length > 1 ? pack(fold(q)).s : "";
+          var hits = index.filter(function (e) {
+            return terms.every(function (term) { return has(e, term); });
+          });
+          var partial = false;
+          if (!hits.length && terms.length > 1) {
+            partial = true;
+            hits = index.filter(function (e) {
+              return terms.some(function (term) { return has(e, term); });
+            });
+          }
+          hits = hits.map(function (e, i) {
+            return { e: e, s: score(e, terms, phrase), i: i };
+          });
+          hits.sort(function (a, b) { return b.s - a.s || a.i - b.i; });
+          return { hits: hits.map(function (h) { return h.e; }), terms: terms, partial: partial };
+        }
+
+        // --- Snippets: the text around the first match, matches marked ---
+        function merge(list) {
+          list.sort(function (a, b) { return a[0] - b[0]; });
+          var merged = [];
+          list.forEach(function (r) {
+            var last = merged[merged.length - 1];
+            if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+            else merged.push(r.slice());
+          });
+          return merged;
+        }
+        function allRanges(entry, terms) {
+          var out = [];
+          terms.forEach(function (term) {
+            out = out.concat(ranges(entry.folded, entry.packed, term));
+          });
+          return merge(out);
+        }
+        function snippet(entry, terms) {
+          var found = allRanges(entry, terms);
+          var first = found.length ? found[0][0] : 0;
+          var from = Math.max(0, first - 60);
+          var to = Math.min(entry.text.length, first + 140);
+          // Start and end on a word, not halfway through one.
+          if (from > 0) {
+            var sp = entry.text.indexOf(" ", from);
+            if (sp >= 0 && sp < first) from = sp + 1;
+          }
+          if (to < entry.text.length) {
+            var end = entry.text.lastIndexOf(" ", to);
+            if (end > first) to = end;
+          }
+          var frag = document.createDocumentFragment();
+          if (from > 0) frag.appendChild(document.createTextNode("… "));
+          var at = from;
+          found.forEach(function (r) {
+            var s = Math.max(r[0], from);
+            var e = Math.min(r[1], to);
+            if (e <= s || s < at) return;
+            if (s > at) frag.appendChild(document.createTextNode(entry.text.slice(at, s)));
+            var m = document.createElement("mark");
+            m.textContent = entry.text.slice(s, e);
+            frag.appendChild(m);
+            at = e;
+          });
+          if (at < to) frag.appendChild(document.createTextNode(entry.text.slice(at, to)));
+          if (to < entry.text.length) frag.appendChild(document.createTextNode(" …"));
+          return frag;
+        }
+
+        // --- Results ---
+        var LIMIT = 60;
+        var current = { hits: [], terms: [] };
+        var selected = -1;
+        var rendered = "";
+        function select(i) {
+          var items = list.children;
+          if (!items.length) return;
+          selected = (i + items.length) % items.length;
+          Array.prototype.forEach.call(items, function (li, j) {
+            li.setAttribute("aria-selected", String(j === selected));
+          });
+          input.setAttribute("aria-activedescendant", items[selected].id);
+          items[selected].scrollIntoView({ block: "nearest" });
+        }
+        function render(q) {
+          rendered = q;
+          list.textContent = "";
+          selected = -1;
+          input.removeAttribute("aria-activedescendant");
+          if (!q.trim()) {
+            status.textContent = "";
+            show(false);
+            paint([]);
+            return;
+          }
+          if (!index) build();
+          current = search(q);
+          var hits = current.hits;
+          var secs = {};
+          hits.forEach(function (h) { secs[h.si] = true; });
+          var nsec = Object.keys(secs).length;
+          if (!hits.length) {
+            status.textContent = "No matches for “" + q.trim() + "”.";
+          } else {
+            status.textContent = (current.partial
+              ? "No result has every word — showing results with some of them. "
+              : "") + hits.length + (hits.length === 1 ? " match" : " matches") +
+              " in " + nsec + (nsec === 1 ? " section" : " sections") +
+              (hits.length > LIMIT ? ", first " + LIMIT + " shown" : "") +
+              ". ↑ ↓ to move, Enter to open, Esc to clear.";
+          }
+          hits.slice(0, LIMIT).forEach(function (h, i) {
+            var li = document.createElement("li");
+            li.id = "docSearchHit" + i;
+            li.setAttribute("role", "option");
+            li.setAttribute("aria-selected", "false");
+            var a = document.createElement("a");
+            a.className = "doc-search-hit";
+            a.href = h.sec.id ? "#" + h.sec.id : "#";
+            a.tabIndex = -1;
+            var where = document.createElement("span");
+            where.className = "doc-search-where";
+            where.textContent = h.where;
+            var snip = document.createElement("span");
+            snip.className = "doc-search-snippet";
+            snip.appendChild(snippet(h, current.terms));
+            a.appendChild(where);
+            a.appendChild(snip);
+            a.addEventListener("click", function (ev) {
+              ev.preventDefault();
+              open(h);
+            });
+            li.appendChild(a);
+            list.appendChild(li);
+          });
+          show(true);
+        }
+
+        // --- Painting every occurrence ---
+        var canPaint = !!(window.CSS && CSS.highlights && window.Highlight);
+        function paint(terms, scope) {
+          if (!canPaint) return;
+          if (!terms.length) {
+            CSS.highlights.delete("doc-search");
+            return;
+          }
+          var list = [];
+          var walker = document.createTreeWalker(scope || content, NodeFilter.SHOW_TEXT);
+          for (var n = walker.nextNode(); n && list.length < 2000; n = walker.nextNode()) {
+            if (skip(n)) continue;
+            var f = fold(n.nodeValue);
+            var p = pack(f);
+            var node = n;
+            var found = [];
+            terms.forEach(function (term) {
+              found = found.concat(ranges(f, p, term));
+            });
+            merge(found).forEach(function (x) {
+              var r = document.createRange();
+              r.setStart(node, x[0]);
+              r.setEnd(node, x[1]);
+              list.push(r);
+            });
+          }
+          // Highlight takes ranges as separate arguments, not a list.
+          var hl = new Highlight();
+          list.forEach(function (r) { hl.add(r); });
+          CSS.highlights.set("doc-search", hl);
+        }
+
+        // --- Opening a result ---
+        var fadeTimer = null;
+        function open(h) {
+          var el = h.el;
+          // A match inside a folded disclosure: unfold it first.
+          for (var d = el.closest("details"); d; d = d.parentNode.closest("details"))
+            d.open = true;
+          // Close the dropdown so the match is not hidden under it; focusing
+          // the box again brings the same results back.
+          show(false);
+          input.blur();
+          document.dispatchEvent(new CustomEvent("doc:reveal", { detail: el }));
+          // Painting is a nicety: if it fails, still take the reader there.
+          try {
+            paint(current.terms, h.sec);
+          } catch (e) {}
+          var old = document.querySelector(".doc-search-target");
+          if (old) old.classList.remove("doc-search-target", "doc-search-fade");
+          el.classList.add("doc-search-target");
+          clearTimeout(fadeTimer);
+          fadeTimer = setTimeout(function () {
+            el.classList.add("doc-search-fade");
+            setTimeout(function () {
+              el.classList.remove("doc-search-target", "doc-search-fade");
+            }, 900);
+          }, 1800);
+          // Straight away: the section was just shown, and asking for its
+          // position makes the browser lay it out. Waiting for a frame would
+          // leave the scroll to a callback some browsers throttle.
+          el.scrollIntoView({ block: "center" });
+        }
+
+        // --- Keys ---
+        var timer = null;
+        input.addEventListener("input", function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () { render(input.value); }, 120);
+        });
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            select(selected + 1);
+          } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            select(selected - 1);
+          } else if (ev.key === "Enter") {
+            ev.preventDefault();
+            clearTimeout(timer);
+            if (rendered !== input.value) render(input.value);
+            var h = current.hits[selected >= 0 ? selected : 0];
+            if (h) open(h);
+          } else if (ev.key === "Escape") {
+            if (input.value) {
+              input.value = "";
+              render("");
+            } else input.blur();
+          }
+        });
+        input.addEventListener("focus", function () {
+          if (input.value.trim()) {
+            if (rendered !== input.value) render(input.value);
+            else show(true);
+          }
+        });
+        // A click anywhere outside the box closes the dropdown.
+        document.addEventListener("mousedown", function (ev) {
+          if (!box.contains(ev.target)) show(false);
+        });
+        document.addEventListener("keydown", function (ev) {
+          var t = ev.target;
+          var typing = t && (t.isContentEditable ||
+            /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+          var slash = ev.key === "/" && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
+          var k = (ev.key === "k" || ev.key === "K") && (ev.ctrlKey || ev.metaKey);
+          if (!slash && !k) return;
+          ev.preventDefault();
+          input.focus();
+          input.select();
+          box.scrollIntoView({ block: "nearest" });
+        });
+      })();
+    </script>
+  </body>
+</html>

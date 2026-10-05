@@ -399,6 +399,35 @@
         font-size: 1.08rem;
         margin: 2rem 0 0.5rem;
       }
+      /* Subsections are numbered within their section -- 1), 2), 3) -- so a
+         reader can see where one ends and the next begins. A counter, not
+         typed numbers: it renumbers itself when a subsection is added or
+         moved, and the heading text (ids, search, links) stays clean. Only
+         sections with two or more h3s are numbered; a lone "1)" says nothing.
+         data-subsections="off" on a section opts out, for one whose headings
+         already carry their own "Step 1 ·" numbering. */
+      section.phase {
+        counter-reset: subsection;
+      }
+      section.phase > h3 {
+        counter-increment: subsection;
+      }
+      section.phase:not([data-subsections="off"]):has(> h3 ~ h3) > h3::before {
+        content: counter(subsection) ") ";
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+      }
+      /* A hairline between subsections, so the end of one is visible before
+         the next heading is read. Above every subsection h3 but the first:
+         the h2 already marks where a section starts. Solid and in --border,
+         so it stays quieter than .step-h's dashed rule and follows the theme.
+         Drawn in sections with data-subsections="off" too -- the line marks
+         a boundary, not a number. */
+      section.phase > h3 ~ h3 {
+        border-top: 1px solid var(--border);
+        padding-top: 1.75rem;
+        margin-top: 2.25rem;
+      }
       h4 {
         font-size: 0.98rem;
         margin: 1.5rem 0 0.4rem;
@@ -2921,6 +2950,71 @@ scp -i ~/Downloads/ivolve-cloud-server.pem compose.yml ubuntu@13.204.129.141:~/s
               </button>
             </p>
 
+            <h3 id="switch-model">Switch the Fit-Gap Copilot model</h3>
+            <p>
+              The model is a setting in the server's <code>.env</code>, not part of the
+              image, so switching it needs no rebuild, push or pull. Set
+              <code>FITGAP_COPILOT_MODEL</code>; when it is missing, the Fit-Gap Copilot
+              falls back to <code>RAG_ANSWER_MODEL</code>. On the server, first see what
+              is set now:
+            </p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+grep -n "FITGAP_COPILOT_MODEL\|RAG_ANSWER_MODEL" .env</pre>
+            <p>Then change the line, or add it if it is missing (Opus shown here):</p>
+            <pre class="language-bash">
+sed -i 's/^FITGAP_COPILOT_MODEL=.*/FITGAP_COPILOT_MODEL=claude-opus-5/' .env
+grep -q '^FITGAP_COPILOT_MODEL=' .env || echo 'FITGAP_COPILOT_MODEL=claude-opus-5' &gt;&gt; .env
+docker compose up -d app</pre>
+            <p>Check the running app picked it up:</p>
+            <pre class="language-bash">
+docker compose exec app printenv FITGAP_COPILOT_MODEL</pre>
+            <p>The Fit-Gap Copilot page shows the model it is using too.</p>
+            <div class="warn">
+              <span class="label">Use up -d, not restart</span>
+              <p>
+                <code>docker compose restart app</code> reuses the old container with its old
+                settings, so the new model never takes effect. <code>up -d app</code> sees
+                that <code>.env</code> changed and recreates only the app container; the
+                database, graph and memory services are not touched.
+              </p>
+            </div>
+            <div class="why">
+              <span class="label">Why it matters which model</span>
+              <p>
+                Scores from different models are not comparable: on the same India returns
+                document, Opus and Sonnet differed by 8 points of GT alignment on average.
+                Pick one model for every country comparison. See
+                <a href="model-comparison.html">Opus vs Sonnet: model comparison</a>.
+              </p>
+            </div>
+
+            <h3 id="reassign-legacy">Give pre-account runs to an account</h3>
+            <p>
+              Runs recorded before accounts existed belong to a built-in
+              <code>legacy</code> account that cannot sign in, so only Admins see them. To
+              move them into a real account's history, run this on the server (here, to
+              <code>solvay</code>):
+            </p>
+            <pre class="language-bash">
+cd ~/solvay-spark-spine
+docker compose exec app python -m backend.auth.store reassign-legacy solvay</pre>
+            <p>
+              It prints how many rows moved from each table. Name tables after the username
+              to move only those, e.g. <code>reassign-legacy solvay fitgap_runs</code>.
+              Running it again is harmless: once <code>legacy</code> owns nothing, it moves
+              nothing.
+            </p>
+            <div class="warn">
+              <span class="label">Needs the current image</span>
+              <p>
+                The command arrived with commit <code>a52964c</code>. If the server prints the
+                usage text instead of a count, it is still on an older image: publish from
+                your Mac and pull on the server first, as in
+                <a href="#update">After changing the code</a>.
+              </p>
+            </div>
+
             <h3 id="rename-services">Moving a running server to the solvay- names</h3>
             <p>
               Once only, on a server still running the older <code>compose.yml</code>,
@@ -3226,7 +3320,7 @@ docker compose up -d solvay-postgres</pre>
           </section>
 
           <!-- ═══════════════════════════════ 14. Public access -->
-          <section class="phase" id="public" data-nav-label="Open the app to the team (reverse proxy)">
+          <section class="phase" id="public" data-nav-label="Open the app to the team (reverse proxy)" data-subsections="off">
             <span class="phase-tag">Going public · Server, AWS and DNS</span>
             <h2>Open the app to the team with a web address</h2>
             <div class="phase-meta">

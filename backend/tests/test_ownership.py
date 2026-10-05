@@ -12,7 +12,8 @@ who may see them, not how they were made. The promises:
     nothing;
   * an Admin can read anyone's run, and list everyone's with scope=all, but
     cannot delete or decide on another's;
-  * runs from before accounts are handed to `legacy`;
+  * runs from before accounts are handed to `legacy`, and can be handed on
+    from there to a real account;
   * retention and "clear history" act on one account, not everyone;
   * the usage dashboard counts each account's runs and tokens.
 """
@@ -194,6 +195,25 @@ def test_runs_from_before_accounts_go_to_legacy() -> None:
     assert any(r["id"] == "ev_old" and r["owner"] == "legacy" for r in rows)
 
 
+def test_legacy_runs_can_be_handed_to_an_account() -> None:
+    conn = store.connect()
+    for bad in ("nobody", "legacy"):
+        try:
+            store.reassign_legacy(conn, bad)
+            raise AssertionError(f"{bad!r} should have been refused")
+        except store.AccountError:
+            pass
+    try:
+        store.reassign_legacy(conn, "bob", ["users"])
+        raise AssertionError("a table outside OWNED_TABLES should have been refused")
+    except store.AccountError:
+        pass
+    moved = store.reassign_legacy(conn, "Bob", ["evidence_runs"])
+    assert moved == {"evidence_runs": 1}
+    assert "ev_old" in ids(client("bob").get("/api/evidence/runs").json())
+    assert store.reassign_legacy(conn, "bob")["evidence_runs"] == 0, "nothing left to move"
+
+
 def test_retention_is_per_account() -> None:
     conn = store.connect()
     for i in range(3):
@@ -250,6 +270,7 @@ TESTS = [
     test_reviews_are_signed_by_the_account,
     test_an_admin_reads_everyone_but_changes_only_their_own,
     test_runs_from_before_accounts_go_to_legacy,
+    test_legacy_runs_can_be_handed_to_an_account,
     test_retention_is_per_account,
     test_clear_history_clears_only_ones_own,
     test_usage_counts_each_account,

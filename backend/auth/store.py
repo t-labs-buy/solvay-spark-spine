@@ -21,6 +21,8 @@ CLI:
 
     python -m backend.auth.store create-admin <username>    # prompts for the password
     python -m backend.auth.store list
+    python -m backend.auth.store reassign-legacy <username> [table ...]
+        # hand what `legacy` owns (default: every owned table) to an account
 """
 
 from __future__ import annotations
@@ -319,6 +321,36 @@ def bootstrap_admin(conn=None) -> str:
     return f"auth: created Admin account {name!r} from ADMIN_USERNAME"
 
 
+# Every table own_table() is called on. A fixed list, because the name goes
+# into the SQL.
+OWNED_TABLES = ("fitgap_runs", "fitgap_reviews", "rollout_runs", "workshop_sessions",
+                "workshop_decisions", "evidence_runs", "ask_runs", "ask_reviews")
+
+
+def reassign_legacy(conn, username: str, tables: list[str] | None = None) -> dict[str, int]:
+    """Give what `legacy` owns in `tables` (default: all of them) to
+    `username`, so it shows in that account's history. Returns the rows moved
+    per table; a table that does not exist yet is skipped."""
+    tables = list(tables or OWNED_TABLES)
+    unknown = [t for t in tables if t not in OWNED_TABLES]
+    if unknown:
+        raise AccountError(f"Not an owned table: {', '.join(unknown)}."
+                           f" Choose from {', '.join(OWNED_TABLES)}.")
+    name = (username or "").strip()
+    r = conn.execute("SELECT id FROM users WHERE lower(username) = lower(%s)", (name,)).fetchone()
+    if r is None or name.lower() == LEGACY:
+        raise AccountError(f'There is no account called "{name}".')
+    lid = legacy_id(conn)
+    moved = {}
+    with conn.transaction():
+        for t in tables:
+            if conn.execute("SELECT to_regclass(%s)", (t,)).fetchone()[0] is None:
+                continue
+            moved[t] = conn.execute(f"UPDATE {t} SET user_id = %s WHERE user_id = %s",
+                                    (r[0], lid)).rowcount
+    return moved
+
+
 # --- activity ----------------------------------------------------------------
 
 
@@ -360,6 +392,15 @@ def _cli(argv: list[str]) -> int:
         for u in list_users(connect()):
             print(f"{u['id']:>4}  {u['username']:<24} {u['role']:<6} "
                   f"{'active' if u['active'] else 'inactive'}")
+        return 0
+    if len(argv) >= 2 and argv[0] == "reassign-legacy":
+        try:
+            moved = reassign_legacy(connect(), argv[1], argv[2:])
+        except AccountError as exc:
+            print(exc)
+            return 1
+        for t, n in moved.items():
+            print(f"{t:<20} {n:>4} moved from {LEGACY} to {argv[1]}")
         return 0
     print(__doc__)
     return 2

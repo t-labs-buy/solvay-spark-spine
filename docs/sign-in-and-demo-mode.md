@@ -65,7 +65,13 @@ server takes them from the signed-in account.
 Accounts are never deleted. An account that should no longer sign in is
 deactivated, so its runs keep an owner. Runs recorded before accounts existed
 belong to a built-in account called `legacy`. Only Admins can see those runs,
-and `legacy` cannot sign in.
+and `legacy` cannot sign in. To hand them to a real account so it sees them in
+its history:
+
+```bash
+.venv/bin/python -m backend.auth.store reassign-legacy <username>              # everything legacy owns
+.venv/bin/python -m backend.auth.store reassign-legacy <username> fitgap_runs  # one table
+```
 
 ## The Admin tab
 

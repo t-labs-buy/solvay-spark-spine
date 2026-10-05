@@ -5,8 +5,10 @@ Every route needs an Admin (deps.require_admin).
 Usage is read from the run tables themselves, which already record the
 tokens and the time each run took -- adding a second copy of those numbers
 would only give them a way to disagree. Sign-ins and the other things a run
-table does not hold come from activity_events. LLM cost is not stored here;
-it is in Langfuse, per trace, under each user's username.
+table does not hold come from activity_events. LLM cost is not stored
+either: it is estimated from each run's model and tokens at list prices
+(backend/core/pricing.py, which says why it is an estimate). The bill itself
+is in the Anthropic Console, and per trace in Langfuse.
 """
 
 from __future__ import annotations
@@ -18,18 +20,20 @@ from pydantic import BaseModel, Field
 
 from backend.auth import middleware, store
 from backend.auth.deps import require_admin
+from backend.core import pricing
 
 router = APIRouter(prefix="/api/admin")
 
 # One row per run, whatever the tool, in the shape the usage queries read.
 # Fit-Gap and Rollout record no `seconds`, so their duration is the span.
+# Ask records the model that wrote the answer as `answer_model`.
 # A table that does not exist yet (a fresh database where that tool has never
 # run) is left out rather than failing the whole dashboard; see _runs_sql.
 _RUN_TABLES = {
-    "evidence": ("evidence_runs", "seconds"),
-    "ask": ("ask_runs", "seconds"),
-    "fitgap": ("fitgap_runs", "EXTRACT(EPOCH FROM (finished_at - started_at))"),
-    "rollout": ("rollout_runs", "EXTRACT(EPOCH FROM (finished_at - started_at))"),
+    "evidence": ("evidence_runs", "seconds", "model"),
+    "ask": ("ask_runs", "seconds", "answer_model"),
+    "fitgap": ("fitgap_runs", "EXTRACT(EPOCH FROM (finished_at - started_at))", "model"),
+    "rollout": ("rollout_runs", "EXTRACT(EPOCH FROM (finished_at - started_at))", "model"),
 }
 TOOLS = tuple(_RUN_TABLES)
 
@@ -37,18 +41,20 @@ TOOLS = tuple(_RUN_TABLES)
 def _runs_sql(conn) -> str:
     present = {r[0] for r in conn.execute(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()"
-        " AND table_name = ANY(%s)", ([t for t, _ in _RUN_TABLES.values()],)).fetchall()}
+        " AND table_name = ANY(%s)", ([t for t, _, _ in _RUN_TABLES.values()],)).fetchall()}
     parts = [
         f"SELECT '{tool}' AS tool, id, user_id, started_at, status,"
         f" COALESCE({secs}, 0)::float AS seconds,"
         f" COALESCE(input_tokens, 0)::bigint AS input_tokens,"
-        f" COALESCE(output_tokens, 0)::bigint AS output_tokens FROM {table}"
-        for tool, (table, secs) in _RUN_TABLES.items() if table in present
+        f" COALESCE(output_tokens, 0)::bigint AS output_tokens,"
+        f" {model}::text AS model FROM {table}"
+        for tool, (table, secs, model) in _RUN_TABLES.items() if table in present
     ]
     if not parts:
         return ("SELECT NULL::text AS tool, NULL::text AS id, NULL::bigint AS user_id,"
                 " NULL::timestamptz AS started_at, NULL::text AS status, 0::float AS seconds,"
-                " 0::bigint AS input_tokens, 0::bigint AS output_tokens WHERE false")
+                " 0::bigint AS input_tokens, 0::bigint AS output_tokens,"
+                " NULL::text AS model WHERE false")
     return " UNION ALL ".join(parts)
 
 
@@ -136,13 +142,15 @@ def usage(start: date | None = None, end: date | None = None, user_id: int | Non
     who = " AND user_id = %s" if user_id is not None else ""
     args: list = [lo, hi] + ([user_id] if user_id is not None else [])
 
+    # Per model as well as per tool, because the price is per model; the
+    # models are folded back into their tool below.
     per_tool = conn.execute(
-        f"""SELECT user_id, tool, count(*),
+        f"""SELECT user_id, tool, model, count(*),
                    count(*) FILTER (WHERE status = 'failed'),
                    COALESCE(sum(seconds), 0), COALESCE(sum(input_tokens), 0),
                    COALESCE(sum(output_tokens), 0)
             FROM ({runs}) r WHERE started_at >= %s AND started_at < %s{who}
-            GROUP BY user_id, tool""", args).fetchall()
+            GROUP BY user_id, tool, model""", args).fetchall()
     logins = conn.execute(
         f"""SELECT user_id, count(*) FILTER (WHERE action = 'login'),
                    count(*) FILTER (WHERE action = 'login_failed')
@@ -170,24 +178,40 @@ def usage(start: date | None = None, end: date | None = None, user_id: int | Non
                 "active": u["active"] if u else False,
                 "last_login_at": u["last_login_at"] if u else None,
                 "last_seen_at": u["last_seen_at"] if u else None,
-                "tools": {t: {"runs": 0, "failed": 0, "seconds": 0.0,
-                              "input_tokens": 0, "output_tokens": 0} for t in TOOLS},
+                "tools": {t: {"runs": 0, "failed": 0, "seconds": 0.0, "input_tokens": 0,
+                              "output_tokens": 0, "cost_usd": 0.0, "unpriced_runs": 0}
+                          for t in TOOLS},
                 "runs": 0, "failed": 0, "seconds": 0.0, "input_tokens": 0, "output_tokens": 0,
+                "cost_usd": 0.0, "unpriced_runs": 0,
                 "logins": 0, "failed_logins": 0,
             }
         return by_user[uid]
 
-    for uid, tool, n, failed, secs, tin, tout in per_tool:
+    unpriced_models: set[str] = set()
+    for uid, tool, model, n, failed, secs, tin, tout in per_tool:
         if uid is None:
             continue
         r = row(uid)
-        r["tools"][tool] = {"runs": n, "failed": failed, "seconds": round(float(secs), 1),
-                            "input_tokens": int(tin), "output_tokens": int(tout)}
-        r["runs"] += n
-        r["failed"] += failed
-        r["seconds"] = round(r["seconds"] + float(secs), 1)
-        r["input_tokens"] += int(tin)
-        r["output_tokens"] += int(tout)
+        t = r["tools"][tool]
+        usd = pricing.cost(model, int(tin), int(tout))
+        if usd is None and (tin or tout):
+            unpriced_models.add(model or "unknown")
+        for into in (t, r):
+            into["runs"] += n
+            into["failed"] += failed
+            into["seconds"] = round(into["seconds"] + float(secs), 1)
+            into["input_tokens"] += int(tin)
+            into["output_tokens"] += int(tout)
+            if usd is None:
+                into["unpriced_runs"] += n if (tin or tout) else 0
+            else:
+                into["cost_usd"] += usd
+    # Cents are rounded once, here, per cell; a row's and the period's totals
+    # are sums of rounded cells, so the page's columns add up to the cent.
+    for r in by_user.values():
+        for t in r["tools"].values():
+            t["cost_usd"] = round(t["cost_usd"], 2)
+        r["cost_usd"] = round(sum(t["cost_usd"] for t in r["tools"].values()), 2)
     for uid, ok, bad in logins:
         if uid is None:
             continue
@@ -217,6 +241,10 @@ def usage(start: date | None = None, end: date | None = None, user_id: int | Non
         "seconds": round(sum(r["seconds"] for r in rows), 1),
         "input_tokens": sum(r["input_tokens"] for r in rows),
         "output_tokens": sum(r["output_tokens"] for r in rows),
+        "cost_usd": round(sum(r["cost_usd"] for r in rows), 2),
+        "cost_by_tool": {t: round(sum(r["tools"][t]["cost_usd"] for r in rows), 2) for t in TOOLS},
+        "unpriced_runs": sum(r["unpriced_runs"] for r in rows),
+        "unpriced_models": sorted(unpriced_models),
         "logins": sum(r["logins"] for r in rows),
         "failed_logins": sum(r["failed_logins"] for r in rows) + failed_unknown,
         # Real accounts only: `legacy` holds old runs, it is not somebody.

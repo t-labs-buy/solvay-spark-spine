@@ -6,12 +6,13 @@
  *
  *  Every colour comes from the theme palette, so the dark theme stays Frappé
  *  and nothing here writes a hex. Every mark carries a native <title>, so
- *  hovering anything says what it is without a tooltip library.
+ *  hovering anything says what it is without a tooltip library -- except
+ *  DailyBars, whose hover card is drawn by hand (see there for why).
  */
 import { Box, Typography, alpha, useTheme } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import * as d3 from "d3";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { FailureType, QualityPoint, QualitySubject } from "../../api";
 
@@ -250,8 +251,13 @@ export function AgreementMatrix({ matrix, buckets }: { matrix: number[][]; bucke
  *
  *  Bars rather than lines: a day is a bucket, and an empty day should look
  *  empty rather than be interpolated across. Each tool keeps one colour from
- *  the theme everywhere it appears on the page, and every bar segment carries
- *  a <title> with the day, the tool and the count. */
+ *  the theme everywhere it appears on the page.
+ *
+ *  Hovering (or tabbing to) a day highlights its column and opens a card with
+ *  that day's runs broken down by tool, busiest first; the tools with no runs
+ *  are named on one line at the foot, so a missing colour is never a guess. The card is HTML laid
+ *  over the SVG, not a <title>: the browser's own tooltip is a line of grey
+ *  text, slow to appear, and cannot show colour. */
 export function DailyBars<K extends string>({ days, keys, colours, labels, height = 160 }: {
   days: ({ day: string } & Record<K, number>)[];
   keys: K[];
@@ -260,6 +266,7 @@ export function DailyBars<K extends string>({ days, keys, colours, labels, heigh
   height?: number;
 }) {
   const theme = useTheme();
+  const [hover, setHover] = useState<number | null>(null);
   const width = 720;
   const pad = { top: 10, right: 8, bottom: 22, left: 30 };
   const totals = days.map((d) => keys.reduce((n, k) => n + (d[k] || 0), 0));
@@ -269,48 +276,128 @@ export function DailyBars<K extends string>({ days, keys, colours, labels, heigh
   const y = d3.scaleLinear().domain([0, max]).nice().range([height - pad.bottom, pad.top]);
   const ticks = y.ticks(Math.min(4, max));
   const every = Math.max(1, Math.ceil(days.length / 10));
-  const label = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const date = (iso: string) => new Date(`${iso}T00:00:00`);
+  const label = (iso: string) => date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const step = x.step();
+  const gap = step - x.bandwidth();
+
+  const shown = hover === null ? null : days[hover];
+  const card = shown && (() => {
+    const total = totals[hover!];
+    const rows = [...keys].filter((k) => shown[k]).sort((a, b) => shown[b] - shown[a]);
+    const idle = keys.filter((k) => !shown[k]);
+    // Beside the column, on whichever side has room.
+    const right = (x(shown.day) ?? 0) + x.bandwidth() / 2 < width * 0.6;
+    const edge = right ? (x(shown.day) ?? 0) + x.bandwidth() + gap / 2 : (x(shown.day) ?? 0) - gap / 2;
+    return (
+      <Box key={shown.day} role="status" aria-live="polite" sx={{
+        position: "absolute", top: 0, left: `${(edge / width) * 100}%`, zIndex: 2, pointerEvents: "none",
+        transform: right ? "translateX(10px)" : "translateX(calc(-100% - 10px))",
+        width: 232, p: 1.5, borderRadius: 2,
+        bgcolor: "background.paper", border: 1, borderColor: "divider",
+        boxShadow: `0 12px 32px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.5 : 0.16)}`,
+        animation: "dailyBarsIn 120ms ease-out",
+        "@keyframes dailyBarsIn": {
+          from: { opacity: 0, transform: `${right ? "translateX(4px)" : "translateX(calc(-100% - 4px))"}` },
+          to: { opacity: 1 },
+        },
+      }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary" }}>
+          {date(shown.day).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, mt: 0.25, mb: total ? 1.25 : 0 }}>
+          <Typography sx={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{total}</Typography>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            {total === 1 ? "run" : "runs"}{total ? " across every tool" : " this day"}
+          </Typography>
+        </Box>
+        {rows.map((k) => {
+          const n = shown[k];
+          const share = n / total;
+          return (
+            <Box key={k} sx={{ display: "grid", gridTemplateColumns: "10px 1fr auto", alignItems: "center",
+                               columnGap: 1, py: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: "3px", bgcolor: colours[k] }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3 }} noWrap>{labels[k]}</Typography>
+                <Box sx={{ mt: 0.4, height: 4, borderRadius: 2, bgcolor: alpha(theme.palette.text.primary, 0.08), overflow: "hidden" }}>
+                  <Box sx={{ width: `${share * 100}%`, height: "100%", bgcolor: colours[k], borderRadius: 2 }} />
+                </Box>
+              </Box>
+              <Box sx={{ textAlign: "right", minWidth: 44 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{n}</Typography>
+                <Typography sx={{ fontSize: 10.5, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
+                  {Math.round(share * 100)}%
+                </Typography>
+              </Box>
+            </Box>
+          );
+        })}
+        {total > 0 && idle.length > 0 && (
+          <Typography sx={{ mt: 1, pt: 1, borderTop: 1, borderColor: "divider", fontSize: 11.5, color: "text.secondary" }}>
+            No runs: {idle.map((k) => labels[k]).join(" · ")}
+          </Typography>
+        )}
+      </Box>
+    );
+  })();
 
   return (
-    <Box component="svg" viewBox={`0 0 ${width} ${height}`} role="img"
-         aria-label="Runs per day by tool" sx={{ width: "100%", height: "auto", display: "block" }}>
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)}
-                stroke={alpha(theme.palette.text.primary, 0.08)} />
-          <text x={pad.left - 6} y={y(t)} dy="0.32em" textAnchor="end" fontSize={10}
-                fill={theme.palette.text.secondary}>{t}</text>
-        </g>
-      ))}
-      {days.map((d, i) => {
-        let base = 0;
-        return (
-          <g key={d.day}>
-            {keys.map((k) => {
-              const n = d[k] || 0;
-              if (!n) return null;
-              const y0 = y(base), y1 = y(base + n);
-              base += n;
-              return (
-                <rect key={k} x={x(d.day)} width={x.bandwidth()} y={y1} height={Math.max(0, y0 - y1)}
-                      fill={colours[k]}>
-                  <title>{`${label(d.day)} · ${labels[k]}: ${n} run${n === 1 ? "" : "s"}`}</title>
-                </rect>
-              );
-            })}
-            {totals[i] === 0 && (
-              <rect x={x(d.day)} width={x.bandwidth()} y={y(0) - 1} height={1}
-                    fill={alpha(theme.palette.text.primary, 0.15)}>
-                <title>{`${label(d.day)}: no runs`}</title>
-              </rect>
-            )}
-            {i % every === 0 && (
-              <text x={(x(d.day) ?? 0) + x.bandwidth() / 2} y={height - 6} textAnchor="middle"
-                    fontSize={10} fill={theme.palette.text.secondary}>{label(d.day)}</text>
-            )}
+    <Box sx={{ position: "relative" }} onMouseLeave={() => setHover(null)}>
+      <Box component="svg" viewBox={`0 0 ${width} ${height}`} role="img"
+           aria-label="Runs per day by tool" sx={{ width: "100%", height: "auto", display: "block" }}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)}
+                  stroke={alpha(theme.palette.text.primary, 0.08)} />
+            <text x={pad.left - 6} y={y(t)} dy="0.32em" textAnchor="end" fontSize={10}
+                  fill={theme.palette.text.secondary}>{t}</text>
           </g>
-        );
-      })}
+        ))}
+        {hover !== null && (
+          <rect x={(x(days[hover].day) ?? 0) - gap / 2} width={step} y={pad.top}
+                height={height - pad.bottom - pad.top} rx={3}
+                fill={alpha(theme.palette.primary.main, 0.08)} />
+        )}
+        {days.map((d, i) => {
+          let base = 0;
+          const dim = hover !== null && hover !== i;
+          return (
+            <g key={d.day}>
+              {keys.map((k) => {
+                const n = d[k] || 0;
+                if (!n) return null;
+                const y0 = y(base), y1 = y(base + n);
+                base += n;
+                return (
+                  <rect key={k} x={x(d.day)} width={x.bandwidth()} y={y1} height={Math.max(0, y0 - y1)}
+                        fill={colours[k]} fillOpacity={dim ? 0.35 : 1}
+                        style={{ transition: "fill-opacity 120ms" }} />
+                );
+              })}
+              {totals[i] === 0 && (
+                <rect x={x(d.day)} width={x.bandwidth()} y={y(0) - 1} height={1}
+                      fill={alpha(theme.palette.text.primary, 0.15)} />
+              )}
+              {i % every === 0 && (
+                <text x={(x(d.day) ?? 0) + x.bandwidth() / 2} y={height - 6} textAnchor="middle"
+                      fontSize={10} fill={theme.palette.text.secondary}
+                      fontWeight={hover === i ? 700 : 400}>{label(d.day)}</text>
+              )}
+              {/* The whole column answers the pointer, not just the bar: a short
+                  bar, or an empty day, is still easy to hover. */}
+              <rect x={(x(d.day) ?? 0) - gap / 2} width={step} y={pad.top}
+                    height={height - pad.top} fill="transparent" tabIndex={0}
+                    aria-label={`${label(d.day)}: ${totals[i]} run${totals[i] === 1 ? "" : "s"}`
+                      + keys.filter((k) => d[k]).map((k) => `, ${labels[k]} ${d[k]}`).join("")}
+                    style={{ cursor: "default", outline: "none" }}
+                    onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)}
+                    onBlur={() => setHover((h) => (h === i ? null : h))} />
+            </g>
+          );
+        })}
+      </Box>
+      {card}
     </Box>
   );
 }

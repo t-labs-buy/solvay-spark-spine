@@ -2462,6 +2462,11 @@ export interface UsageNumbers {
   seconds: number;
   input_tokens: number;
   output_tokens: number;
+  /** Estimated at list prices from each run's model and tokens, rounded to
+   *  the cent (backend/core/pricing.py says why it is an estimate). */
+  cost_usd: number;
+  /** Runs whose model has no price, so are left out of cost_usd. */
+  unpriced_runs: number;
 }
 
 export interface UsageRow extends UsageNumbers {
@@ -2483,6 +2488,8 @@ export interface UsageReport {
   totals: Omit<UsageNumbers, "runs"> & {
     runs: number; logins: number; failed_logins: number; active_users: number;
     by_tool: Record<UsageTool, number>;
+    cost_by_tool: Record<UsageTool, number>;
+    unpriced_models: string[];
   };
   users: UsageRow[];
   daily: ({ day: string } & Record<UsageTool, number>)[];

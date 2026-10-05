@@ -7,39 +7,48 @@
  *    Users     create accounts, change a role, reset a password, deactivate
  *    Usage     runs, failures, time and tokens per account and per tool
  *    Activity  sign-ins, runs, reviews and account changes, newest first
+ *    User × tool  a table of every account against every tool, heaviest
+ *              account first, in runs, tokens or run time
  *
  *  Only an Admin reaches this page's data; the server refuses anyone else,
- *  and the tab is not shown to them. LLM cost is not here -- it is in
- *  Langfuse, per trace, filed under each username. */
+ *  and the tab is not shown to them. LLM cost is an estimate at list prices
+ *  from each run's model and tokens (backend/core/pricing.py); the bill is in
+ *  the Anthropic Console, and per trace in Langfuse. */
 import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
+  Alert, Avatar, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControlLabel, MenuItem, Paper, Select, Stack, Switch, Tab, Table, TableBody, TableCell,
-  TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
+  TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import { ExternalLink, KeyRound, RefreshCw, UserPlus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { alpha, useTheme } from "@mui/material/styles";
+import { ExternalLink, FlaskConical, Globe2, KeyRound, MessageSquareText, RefreshCw, Scale, UserPlus } from "lucide-react";
+import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  admin, type ActivityEvent, type AdminRun, type AdminUser, type UsageReport, type UsageTool,
+  admin, type ActivityEvent, type AdminRun, type AdminUser, type UsageNumbers, type UsageReport, type UsageTool,
 } from "../api";
 import type { Account } from "../auth";
 import { DailyBars } from "../components/quality/charts";
 import { Empty, Kpi, MONO, Panel, RADIUS } from "../components/quality/parts";
 import { when } from "../components/RunHistoryDrawer";
 
-type View = "users" | "usage" | "runs" | "activity";
+type View = "users" | "usage" | "runs" | "activity" | "matrix";
 const VIEWS: { value: View; label: string }[] = [
   { value: "usage", label: "Usage" },
   { value: "runs", label: "Run history" },
   { value: "users", label: "Users" },
   { value: "activity", label: "Activity" },
+  { value: "matrix", label: "User × tool" },
 ];
 
 const TOOL_LABEL: Record<UsageTool, string> = {
   ask: "Ask RAG", evidence: "Agent", fitgap: "InsightLens", rollout: "Fit-Gap Copilot",
 };
 const TOOLS: UsageTool[] = ["ask", "evidence", "fitgap", "rollout"];
+// The same icons as the tabs in the top bar (App.tsx), so a tool looks the same here.
+const TOOL_ICON: Record<UsageTool, ReactElement> = {
+  ask: <MessageSquareText size={14} />, evidence: <FlaskConical size={14} />,
+  fitgap: <Scale size={14} />, rollout: <Globe2 size={14} />,
+};
 
 const RANGES = [
   { days: 7, label: "Last 7 days" },
@@ -53,6 +62,12 @@ const num = (n: number) => n.toLocaleString();
 const tokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 const hours = (s: number) => (s >= 3600 ? `${(s / 3600).toFixed(1)} h` : s >= 60 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s`);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+// "$1,234.56" in every locale: the currency style would print "US$" in
+// en-GB, the locale this page's dates come out in.
+const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const COST_NOTE = "Estimated at Anthropic list prices from each run's model and recorded tokens. "
+  + "On the high side: cached input is priced at the full rate. Not included: the scope guard, "
+  + "the answer-quality judge, agent memory and embeddings. The bill is in the Anthropic Console.";
 
 function remembered(): View {
   try {
@@ -141,11 +156,14 @@ export default function AdminPage({ active, account, onOpenRun, canOpen = () => 
                sub={t ? TOOLS.map((k) => `${TOOL_LABEL[k]} ${t.by_tool[k]}`).join(" · ") : ""} />
           <Kpi label="Active accounts" value={t ? `${t.active_users} / ${users.length}` : "–"} tone="muted"
                status="signed in or ran something" sub="in the period" />
-          <Kpi label="Sign-ins" value={t ? num(t.logins) : "–"} tone={t && t.failed_logins ? "warn" : "muted"}
-               status={t ? `${num(t.failed_logins)} failed` : ""} sub="failed includes unknown usernames" />
           <Kpi label="Tokens" value={t ? tokens(tokenTotal) : "–"} tone="muted"
                status={t ? `${tokens(t.input_tokens)} in · ${tokens(t.output_tokens)} out` : ""}
                sub={t ? `${hours(t.seconds)} of run time` : ""} />
+          <Kpi label="Est. LLM cost" value={t ? usd(t.cost_usd) : "–"} tone={t?.unpriced_runs ? "warn" : "muted"}
+               status={t ? (t.unpriced_runs
+                 ? `${t.unpriced_runs} runs on ${t.unpriced_models.join(", ")} not priced`
+                 : "at list prices · see note below") : ""}
+               sub={t ? TOOLS.map((k) => `${TOOL_LABEL[k]} ${usd(t.cost_by_tool[k])}`).join(" · ") : ""} />
         </Stack>
         <Tabs value={view} onChange={(_, v) => choose(v)} sx={{ minHeight: 40, mt: 0.5,
           "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontSize: 13.5 } }}>
@@ -157,7 +175,7 @@ export default function AdminPage({ active, account, onOpenRun, canOpen = () => 
 
       {view !== "users" && (
         <Stack direction="row" spacing={1.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
-          {view === "usage" && (
+          {(view === "usage" || view === "matrix") && (
             <Select size="small" value={days} onChange={(e) => setDays(Number(e.target.value))} sx={selectSx}>
               {RANGES.map((r) => <MenuItem key={r.days} value={r.days}>{r.label}</MenuItem>)}
             </Select>
@@ -189,6 +207,10 @@ export default function AdminPage({ active, account, onOpenRun, canOpen = () => 
       )}
       {view === "activity" && (
         <ActivityView active={active && view === "activity"} userId={userId || null} tick={tick} />
+      )}
+      {view === "matrix" && usage && (
+        <MatrixView usage={usage} period={RANGES.find((r) => r.days === days)?.label ?? ""}
+                    onPickUser={(id) => { setUserId(id); choose("runs"); }} />
       )}
     </Box>
   );
@@ -226,7 +248,7 @@ function UsageView({ usage, colours, onPickUser }: {
                   <TableCell align="right">Failed</TableCell>
                   <TableCell align="right">Tokens</TableCell>
                   <TableCell align="right">Run time</TableCell>
-                  <TableCell align="right">Sign-ins</TableCell>
+                  <TableCell align="right">Est. cost</TableCell>
                   <TableCell>Last seen</TableCell>
                 </TableRow>
               </TableHead>
@@ -265,9 +287,7 @@ function UsageView({ usage, colours, onPickUser }: {
                       {tokens(u.input_tokens + u.output_tokens)}
                     </TableCell>
                     <TableCell align="right" sx={{ fontFamily: MONO, fontSize: 12.5 }}>{hours(u.seconds)}</TableCell>
-                    <TableCell align="right" sx={{ fontFamily: MONO, fontSize: 12.5 }}>
-                      {u.logins}{u.failed_logins ? <Box component="span" sx={{ color: "warning.main" }}> +{u.failed_logins} failed</Box> : null}
-                    </TableCell>
+                    <TableCell align="right" sx={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600 }}>{usd(u.cost_usd)}</TableCell>
                     <TableCell sx={{ fontSize: 12.5, color: "text.secondary", whiteSpace: "nowrap" }}>
                       {u.last_seen_at ? when(u.last_seen_at) : "never"}
                     </TableCell>
@@ -279,9 +299,372 @@ function UsageView({ usage, colours, onPickUser }: {
         )}
       </Panel>
       <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
-        Runs made before accounts existed are counted under <b>legacy</b>. LLM cost per run is in
-        Langfuse, where each trace carries the username.
+        Runs made before accounts existed are counted under <b>legacy</b>. Est. cost: {COST_NOTE}
       </Typography>
+    </Stack>
+  );
+}
+
+// --- User × tool --------------------------------------------------------------
+
+/** Whole seconds as "4h 06m 25s" -- the same three units in every cell, so
+ *  a column adds up by eye (which "23 min" beside "3.5 h" does not), and each
+ *  unit is spelled out rather than left to a header. */
+const clock = (s: number) => {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m ${String(sec).padStart(2, "0")}s`;
+};
+
+type Measure = "runs" | "tokens" | "seconds" | "cost";
+// Exact values only, never rounded to "2.6M" or "4.3 h": every Total is
+// checked against its row by eye, and rounded parts never add up to a
+// rounded whole.
+// `column` is the unit printed under every column heading; `said` puts a
+// value in a sentence with its unit, for the summary line, tooltips and legend.
+const MEASURES: { value: Measure; label: string; unit: string; hint: string; column: string;
+                  show: (n: number) => string; said: (n: number) => string }[] = [
+  { value: "runs", label: "Runs", unit: "runs", hint: "number of runs", column: "runs",
+    show: num, said: (n) => `${num(n)} run${n === 1 ? "" : "s"}` },
+  { value: "tokens", label: "Tokens", unit: "tokens", hint: "LLM tokens, input + output", column: "tokens",
+    show: num, said: (n) => `${num(n)} token${n === 1 ? "" : "s"}` },
+  { value: "seconds", label: "Run time", unit: "run time", hint: "run time in hours, minutes, seconds", column: "h · m · s",
+    show: clock, said: (n) => `${clock(n)} of run time` },
+  // Held in whole cents, like seconds above, so the columns add up exactly.
+  { value: "cost", label: "Cost", unit: "cost", hint: "estimated LLM cost in US dollars, at list prices", column: "USD",
+    show: (c) => usd(c / 100), said: (c) => `${usd(c / 100)} of estimated cost` },
+];
+
+// Seconds are whole here, and every total below is the sum of the whole
+// cells, so a row's Total is exactly what its cells add up to on screen.
+/** A share to one decimal, so a small but real share is never shown as 0%
+ *  and a near-total one never as 100%. */
+const pct = (part: number, whole: number) => {
+  if (!part || !whole) return "0%";
+  const p = (part / whole) * 100;
+  return p < 0.1 ? "<0.1%" : p > 99.9 && part < whole ? ">99.9%" : `${p.toFixed(1).replace(/\.0$/, "")}%`;
+};
+
+const measureOf = (n: UsageNumbers, m: Measure) =>
+  m === "runs" ? n.runs : m === "tokens" ? n.input_tokens + n.output_tokens
+    : m === "cost" ? Math.round(n.cost_usd * 100) : Math.round(n.seconds);
+
+/** Every account against every tool, as plain numbers. Rows are ranked by
+ *  the account's total, so the heaviest user is the first row, and the Total
+ *  column gives each account's share of everything in the period.
+ *
+ *  Only the Total column is a heatmap, in one colour from zero to the busiest
+ *  account, with a legend under the table giving that range. The tool cells
+ *  stay plain: a heatmap with each tool in its own colour read as four
+ *  different scales. It reads the same usage report as the Usage tab, so the
+ *  period and account filters apply to it unchanged. */
+function MatrixView({ usage, period, onPickUser }: {
+  usage: UsageReport; period: string; onPickUser: (id: number) => void;
+}) {
+  const theme = useTheme();
+  const ink = theme.palette.primary.main;
+  const [measure, setMeasure] = useState<Measure>(() => {
+    try {
+      const m = localStorage.getItem("admin.matrix.measure");
+      if (MEASURES.some((x) => x.value === m)) return m as Measure;
+    } catch { /* private window */ }
+    return "runs";
+  });
+  const pick = (m: Measure | null) => {
+    if (!m) return;
+    setMeasure(m);
+    try { localStorage.setItem("admin.matrix.measure", m); } catch { /* private window */ }
+  };
+  const M = MEASURES.find((x) => x.value === measure)!;
+
+  const rows = usage.users
+    .map((u) => {
+      const cells = TOOLS.map((k) => measureOf(u.tools[k], measure));
+      return { u, cells, total: cells.reduce((n, v) => n + v, 0) };
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total || a.u.username.localeCompare(b.u.username));
+  const idle = usage.users.length - rows.length;
+  const grand = rows.reduce((n, r) => n + r.total, 0);
+  const byTool = TOOLS.map((_, i) => rows.reduce((n, r) => n + r.cells[i], 0));
+  const totalMax = Math.max(1, ...rows.map((r) => r.total));
+  // From a faint tint at zero to the full colour at the busiest account. The
+  // number turns to the colour's contrast text once the fill is strong enough
+  // that the theme's own text would not read on it.
+  const LOW = 0.08, HIGH = 0.9;
+  const heat = (v: number) => {
+    const t = v / totalMax;
+    return {
+      bgcolor: alpha(ink, LOW + (HIGH - LOW) * t),
+      color: t > 0.5 ? theme.palette.getContrastText(ink) : "text.primary",
+    };
+  };
+  // A platinum ground for the table, so the matrix stands apart from the
+  // white panels around it: a cool light grey with a faint top-to-bottom
+  // sheen, and in the dark theme a lift of the panel's own colour. Kept light
+  // enough that secondary text stays readable on it (see theme.ts).
+  const dark = theme.palette.mode === "dark";
+  const platinum = dark
+    ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.06)}, ${alpha(theme.palette.common.white, 0.03)})`
+    : "linear-gradient(180deg, #f2f3f5 0%, #e8eaed 100%)";
+  const platinumHead = dark ? alpha(theme.palette.common.white, 0.05) : alpha("#c9ccd1", 0.35);
+  const top = rows[0];
+  const cellMax = Math.max(1, ...rows.flatMap((r) => r.cells));
+  const topTool = TOOLS.map((k, j) => ({ k, v: byTool[j] })).sort((a, b) => b.v - a.v)[0];
+  // The cell under the pointer, so its whole row and column light up
+  // together -- a crosshair across the matrix. Column 4 is Total.
+  const [hot, setHot] = useState<{ row: number; col: number } | null>(null);
+  const lit = (row: number, col: number) => hot !== null && (hot.row === row || hot.col === col);
+  // A number in the "All accounts" row under the pointer: 0-3 a tool, 4 the
+  // grand total, 5 the share. The cells that add up to it are outlined and
+  // everything else in the body fades, so the sum can be followed by eye.
+  const [sumCol, setSumCol] = useState<number | null>(null);
+  const feedsSx = { bgcolor: `${alpha(ink, dark ? 0.26 : 0.16)} !important`,
+                    boxShadow: `inset 0 0 0 1.5px ${alpha(ink, 0.65)}` };
+  const fadedSx = { opacity: 0.35 };
+  const feeds = (col: number, v: number) => sumCol === col && v > 0;
+  const faded = (col: number, v: number) => sumCol !== null && !feeds(col, v);
+  const sumOf = (parts: { name: string; v: number }[], whole: string) => {
+    const used = parts.filter((p) => p.v > 0);
+    return `${whole} = ${used.map((p) => M.show(p.v)).join(" + ")}`
+      + ` (${used.map((p) => p.name).join(", ")})`;
+  };
+  const enterSum = (col: number) => { setHot(null); setSumCol(col); };
+  const cross = alpha(ink, dark ? 0.12 : 0.07);
+
+  const cellSx = { fontFamily: MONO, fontSize: 12.5, fontVariantNumeric: "tabular-nums", textAlign: "center",
+                   px: 1.5, py: 1.1, transition: "background-color 120ms, opacity 120ms" };
+  const headSx = { ...cellSx, fontFamily: "inherit", fontSize: 11, fontWeight: 600, letterSpacing: "0.04em",
+                   textTransform: "uppercase" as const, color: "text.secondary", py: 1 };
+  const unitLine = (text: string) => (
+    <Typography component="span" sx={{ display: "block", fontSize: 10, fontWeight: 400, letterSpacing: 0,
+                                       textTransform: "none", color: "text.disabled", mt: 0.25 }}>{text}</Typography>
+  );
+  // A thin bar under a number, its length the number's size. Grey, one shade
+  // for every tool: length says "how much", and no colour has to be decoded.
+  const bar = (v: number, max: number, w = 64) => (
+    <Box sx={{ mx: "auto", mt: 0.6, width: w, height: 3, borderRadius: 2,
+               bgcolor: alpha(theme.palette.text.primary, 0.06), overflow: "hidden" }}>
+      <Box sx={{ width: `${(v / max) * 100}%`, height: "100%", borderRadius: 2,
+                 bgcolor: alpha(theme.palette.text.primary, dark ? 0.45 : 0.32) }} />
+    </Box>
+  );
+  const initials = (name: string) => {
+    const parts = name.split(/[@._\s-]+/).filter(Boolean);
+    return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
+  };
+  const Insight = ({ label, children, sub }: { label: string; children: ReactNode; sub: string }) => (
+    <Box sx={{ flex: "1 1 200px", minWidth: 0, px: 1.75, py: 1.25, borderRadius: 2,
+               bgcolor: "background.paper", border: 1, borderColor: "divider",
+               boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, dark ? 0.3 : 0.04)}` }}>
+      <Typography sx={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase",
+                        color: "text.secondary" }}>{label}</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mt: 0.5, minWidth: 0 }}>{children}</Stack>
+      <Typography sx={{ fontSize: 11.5, color: "text.secondary", mt: 0.25 }} noWrap>{sub}</Typography>
+    </Box>
+  );
+
+  return (
+    <Stack spacing={1.5}>
+      <Panel title="Who uses what" hint={`${period.toLowerCase()} · ${M.hint}, per account and tool`} pad={false}
+             actions={
+               <ToggleButtonGroup size="small" exclusive value={measure} onChange={(_, m) => pick(m)}
+                                  sx={{ height: 28, ml: 1, p: 0.25, borderRadius: 2, bgcolor: alpha(theme.palette.text.primary, 0.05),
+                                        "& .MuiToggleButton-root": { border: 0, borderRadius: "6px !important", px: 1.25, fontSize: 12 },
+                                        "& .Mui-selected": { bgcolor: "background.paper !important",
+                                                             boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, 0.15)}` } }}>
+                 {MEASURES.map((m) => (
+                   <ToggleButton key={m.value} value={m.value}>{m.label}</ToggleButton>
+                 ))}
+               </ToggleButtonGroup>
+             }>
+        {rows.length === 0 ? (
+          <Box sx={{ px: 2 }}><Empty>No runs in this period.</Empty></Box>
+        ) : (
+          <Box sx={{ p: 1.5, background: platinum }}>
+            {top && (
+              <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: "wrap", mb: 1.5 }}>
+                <Insight label="Top account" sub={`${M.said(top.total)} · ${pct(top.total, grand)} of all`}>
+                  <Avatar sx={{ width: 26, height: 26, fontSize: 11, fontWeight: 700, bgcolor: alpha(ink, 0.14), color: ink }}>
+                    {initials(top.u.username)}
+                  </Avatar>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700 }} noWrap>{top.u.username}</Typography>
+                </Insight>
+                <Insight label="Most used tool" sub={`${M.said(topTool.v)} · ${pct(topTool.v, grand)} of all`}>
+                  <Box sx={{ display: "flex", color: ink }}>{TOOL_ICON[topTool.k]}</Box>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700 }} noWrap>{TOOL_LABEL[topTool.k]}</Typography>
+                </Insight>
+                <Insight label="In the period" sub={`across ${rows.length} active account${rows.length === 1 ? "" : "s"}`}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, fontFamily: MONO }}>{M.show(grand)}</Typography>
+                  <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{M.column === "USD" ? "" : M.column}</Typography>
+                </Insight>
+              </Stack>
+            )}
+            <Box sx={{ overflowX: "auto", borderRadius: 2, border: 1, borderColor: "divider",
+                       bgcolor: alpha(theme.palette.background.paper, dark ? 0.35 : 0.55),
+                       boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, dark ? 0.04 : 0.8)}` }}
+                 onMouseLeave={() => { setHot(null); setSumCol(null); }}>
+              {/* A vertical rule between every column, the same light shade as the
+                  row lines, so each account-tool cell reads as its own box. */}
+              <Table size="small" sx={{ "& td, & th": { borderBottomColor: alpha(theme.palette.divider, 0.6),
+                                                        borderRight: 1, borderRightColor: alpha(theme.palette.divider, 0.6) },
+                                        "& td:last-of-type, & th:last-of-type": { borderRight: 0 },
+                                        "& thead th": { bgcolor: platinumHead } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ ...headSx, width: 44 }}>#</TableCell>
+                    <TableCell sx={{ ...headSx, textAlign: "left" }}>Account</TableCell>
+                    {TOOLS.map((k, j) => (
+                      <TableCell key={k} sx={{ ...headSx, ...(hot?.col === j && { color: ink, bgcolor: `${cross} !important` }) }}>
+                        <Stack direction="row" spacing={0.6} sx={{ alignItems: "center", justifyContent: "center" }}>
+                          <Box sx={{ display: "flex", opacity: 0.85 }}>{TOOL_ICON[k]}</Box>
+                          <span>{TOOL_LABEL[k]}</span>
+                        </Stack>
+                        {unitLine(M.column)}
+                      </TableCell>
+                    ))}
+                    <TableCell sx={{ ...headSx, color: "text.primary", ...(hot?.col === 4 && { color: ink, bgcolor: `${cross} !important` }) }}>
+                      Total{unitLine(M.column)}
+                    </TableCell>
+                    <TableCell sx={headSx}>Share{unitLine(`% of all ${M.unit}`)}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rows.map((r, i) => {
+                    const rowLit = hot?.row === i;
+                    return (
+                      <TableRow key={r.u.user_id} sx={{ ...(rowLit && { "& td": { bgcolor: cross } }) }}>
+                        <TableCell sx={{ ...cellSx, px: 1, ...(sumCol !== null && fadedSx) }}>
+                          <Box sx={{ width: 22, height: 22, mx: "auto", borderRadius: "50%", display: "grid", placeItems: "center",
+                                     fontSize: 11, fontWeight: 700,
+                                     ...(i === 0 ? { bgcolor: ink, color: theme.palette.getContrastText(ink) }
+                                       : { border: 1, borderColor: "divider", color: "text.secondary" }) }}>
+                            {i + 1}
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ py: 1.1, transition: "opacity 120ms", ...(sumCol !== null && { opacity: 0.6 }) }}>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                            <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 700,
+                                          bgcolor: alpha(ink, i === 0 ? 0.18 : 0.1), color: ink }}>
+                              {initials(r.u.username)}
+                            </Avatar>
+                            <Tooltip title={`Open ${r.u.username}'s run history`}>
+                              <Typography component="button" onClick={() => onPickUser(r.u.user_id)}
+                                          sx={{ fontSize: 13, fontWeight: 600, p: 0, border: 0, bgcolor: "transparent",
+                                                color: "text.primary", cursor: "pointer", font: "inherit",
+                                                "&:hover": { color: "primary.main", textDecoration: "underline" } }}>
+                                {r.u.username}
+                              </Typography>
+                            </Tooltip>
+                            {r.u.role === "admin" && <RoleChip role="admin" />}
+                            {!r.u.active && <Chip size="small" label="inactive" variant="outlined"
+                                                  sx={{ height: 18, fontSize: 10.5 }} />}
+                          </Stack>
+                        </TableCell>
+                        {TOOLS.map((k, j) => {
+                          const v = r.cells[j];
+                          const n = r.u.tools[k];
+                          return (
+                            <Tooltip key={k} placement="top" arrow
+                                     title={v ? `${r.u.username} · ${TOOL_LABEL[k]}: ${num(n.runs)} runs`
+                                       + `${n.failed ? ` (${n.failed} failed)` : ""} · `
+                                       + `${num(n.input_tokens + n.output_tokens)} tokens · ${clock(Math.round(n.seconds))} · ${usd(n.cost_usd)} est.`
+                                       + ` · ${pct(v, r.total)} of their ${M.unit}`
+                                       : `${r.u.username} has not used ${TOOL_LABEL[k]} in this period`}>
+                              <TableCell onMouseEnter={() => { setSumCol(null); setHot({ row: i, col: j }); }}
+                                         sx={{ ...cellSx, color: v ? "text.primary" : "text.disabled",
+                                               ...(lit(i, j) && { bgcolor: cross }),
+                                               ...(hot?.row === i && hot?.col === j && { bgcolor: alpha(ink, dark ? 0.22 : 0.13) }),
+                                               ...(feeds(j, v) && feedsSx), ...(faded(j, v) && fadedSx) }}>
+                                {v ? M.show(v) : "·"}
+                                {v > 0 && bar(v, cellMax)}
+                              </TableCell>
+                            </Tooltip>
+                          );
+                        })}
+                        <Tooltip placement="top" arrow
+                                 title={`${r.u.username}: ${M.said(r.total)}`
+                                   + ` · ${pct(r.total, totalMax)} of the busiest account`}>
+                          <TableCell onMouseEnter={() => { setSumCol(null); setHot({ row: i, col: 4 }); }}
+                                     sx={{ ...cellSx, ...(lit(i, 4) && { bgcolor: cross }),
+                                           ...(feeds(4, r.total) && feedsSx), ...(faded(4, r.total) && fadedSx) }}>
+                            <Box component="span" sx={{ ...heat(r.total), display: "inline-block", minWidth: 64, px: 1.25, py: 0.4,
+                                                        borderRadius: 999, fontWeight: 700,
+                                                        boxShadow: `inset 0 0 0 1px ${alpha(ink, 0.25)}` }}>
+                              {M.show(r.total)}
+                            </Box>
+                          </TableCell>
+                        </Tooltip>
+                        <TableCell sx={{ ...cellSx, color: "text.secondary",
+                                         ...(feeds(5, r.total) && feedsSx), ...(faded(5, r.total) && fadedSx) }}>
+                          {pct(r.total, grand)}
+                          {bar(r.total, grand, 56)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  <TableRow sx={{ "& td": { borderBottom: 0, borderTop: 2, borderTopColor: "divider", fontWeight: 700,
+                                            bgcolor: alpha(theme.palette.text.primary, dark ? 0.04 : 0.025) } }}>
+                    <TableCell />
+                    <TableCell sx={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+                                     color: "text.secondary" }}>All accounts</TableCell>
+                    {TOOLS.map((k, j) => (
+                      <Tooltip key={k} placement="bottom" arrow
+                               title={byTool[j] ? `${TOOL_LABEL[k]}, every account: `
+                                 + sumOf(rows.map((r) => ({ name: r.u.username, v: r.cells[j] })), M.show(byTool[j]))
+                                 : `No ${M.unit} on ${TOOL_LABEL[k]} in this period`}>
+                        <TableCell onMouseEnter={() => enterSum(j)}
+                                   sx={{ ...cellSx, fontWeight: 700, cursor: "help", ...(hot?.col === j && { bgcolor: cross }),
+                                         ...(sumCol === j && feedsSx) }}>
+                          {byTool[j] ? M.show(byTool[j]) : "·"}
+                          {byTool[j] > 0 && (
+                            <Typography component="span" sx={{ display: "block", fontSize: 10.5, fontWeight: 400, color: "text.secondary" }}>
+                              {pct(byTool[j], grand)} of total
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </Tooltip>
+                    ))}
+                    <Tooltip placement="bottom" arrow
+                             title={`Every account's total: ${sumOf(rows.map((r) => ({ name: r.u.username, v: r.total })), M.show(grand))}`}>
+                      <TableCell onMouseEnter={() => enterSum(4)}
+                                 sx={{ ...cellSx, fontWeight: 700, cursor: "help", ...(hot?.col === 4 && { bgcolor: cross }),
+                                       ...(sumCol === 4 && feedsSx) }}>{M.show(grand)}</TableCell>
+                    </Tooltip>
+                    <Tooltip placement="bottom" arrow
+                             title={`100% = ${rows.map((r) => pct(r.total, grand)).join(" + ")} (each account's share, rounded)`}>
+                      <TableCell onMouseEnter={() => enterSum(5)}
+                                 sx={{ ...cellSx, color: "text.secondary", cursor: "help", ...(sumCol === 5 && feedsSx) }}>100%</TableCell>
+                    </Tooltip>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        )}
+      </Panel>
+      {rows.length > 0 && (
+        <Stack direction="row" spacing={1.25} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
+          <Typography sx={{ fontSize: 11.5, fontWeight: 600 }}>Total column</Typography>
+          <Typography sx={{ fontSize: 11.5, color: "text.secondary", fontFamily: MONO }}>{M.said(0)}</Typography>
+          <Box role="img" aria-label={`Colour scale from ${M.said(0)} to ${M.said(totalMax)}`}
+               sx={{ width: 180, height: 12, borderRadius: "3px", border: 1, borderColor: "divider",
+                     background: `linear-gradient(to right, ${alpha(ink, LOW)}, ${alpha(ink, HIGH)})` }} />
+          <Typography sx={{ fontSize: 11.5, color: "text.secondary", fontFamily: MONO }}>{M.said(totalMax)}</Typography>
+          <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+            — the stronger the colour, the more {measure === "runs" ? "runs" : M.unit} that account made;
+            the strongest is the busiest account in the period ({rows[0].u.username}).
+            {idle > 0 ? ` ${idle} account${idle === 1 ? "" : "s"} with no ${M.unit} in this period ${idle === 1 ? "is" : "are"} not shown.` : ""}
+          </Typography>
+        </Stack>
+      )}
+      {measure === "cost" && (
+        <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+          {COST_NOTE}
+          {usage.totals.unpriced_runs > 0
+            ? ` ${usage.totals.unpriced_runs} run(s) on ${usage.totals.unpriced_models.join(", ")} have no price and are left out.`
+            : ""}
+        </Typography>
+      )}
     </Stack>
   );
 }

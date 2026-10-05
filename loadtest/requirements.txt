@@ -1,0 +1,3 @@
+# Kept apart from the app's requirements.txt: Locust brings gevent, which the
+# pinned constraints.txt was never resolved against. Install into its own venv.
+locust>=2.32

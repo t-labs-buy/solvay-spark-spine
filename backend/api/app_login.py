@@ -46,7 +46,10 @@ def install(app) -> None:
 
 @router.get(LOGIN_PATH, response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/"):
-    if optional_user(request):
+    # Signed in already: straight on -- unless the password must be changed
+    # first, which is this page's job too.
+    user = optional_user(request)
+    if user and not user["must_change_password"]:
         return RedirectResponse(safe_next(next), status_code=303)
     if not PAGE.exists():
         return HTMLResponse(

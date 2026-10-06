@@ -3,8 +3,10 @@
 Two tables in the main database:
 
   * `users` -- one row per account, with a role (admin or user), an active
-    flag in place of deletion, and a session_version that signs the account
-    out everywhere when it is bumped (sessions.py).
+    flag in place of deletion, a session_version that signs the account
+    out everywhere when it is bumped (sessions.py), and must_change_password,
+    set while the account's password is one an Admin chose (a new account, a
+    reset) and cleared when its owner picks their own (middleware.py).
   * `activity_events` -- one row per thing worth counting: a sign-in, a run
     started, a review saved. The run tables already hold tokens and durations;
     this holds what they do not.
@@ -88,6 +90,10 @@ def _create_schema(conn) -> None:
         # and "alice" are one account.
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx"
                      " ON users (lower(username))")
+        # Added after accounts shipped: an existing account is not asked to
+        # change a password it may already have changed.
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS"
+                     " must_change_password boolean NOT NULL DEFAULT false")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS activity_events (
@@ -151,7 +157,7 @@ def owned(owner: int | None, alias: str = "") -> tuple[str, list]:
 # --- accounts ----------------------------------------------------------------
 
 _USER_COLUMNS = ("id, username, role, active, session_version, created_at,"
-                 " last_login_at, last_seen_at")
+                 " last_login_at, last_seen_at, must_change_password")
 
 
 def _user(r) -> dict[str, Any]:
@@ -161,6 +167,7 @@ def _user(r) -> dict[str, Any]:
         "created_at": r[5].isoformat() if r[5] else None,
         "last_login_at": r[6].isoformat() if r[6] else None,
         "last_seen_at": r[7].isoformat() if r[7] else None,
+        "must_change_password": r[8],
     }
 
 
@@ -177,7 +184,10 @@ def _clean_username(username: str) -> str:
     return name
 
 
-def create_user(conn, username: str, password: str, role: str = "user") -> dict:
+def create_user(conn, username: str, password: str, role: str = "user",
+                must_change: bool = False) -> dict:
+    """`must_change` for an account an Admin makes: the password is one the
+    Admin chose and handed over, so its owner replaces it at first sign-in."""
     create_schema(conn)
     name = _clean_username(username)
     if role not in ROLES:
@@ -185,11 +195,11 @@ def create_user(conn, username: str, password: str, role: str = "user") -> dict:
     if (why := passwords.check_strength(password)):
         raise AccountError(why)
     row = conn.execute(
-        f"""INSERT INTO users (username, password_hash, role)
-            VALUES (%s, %s, %s)
+        f"""INSERT INTO users (username, password_hash, role, must_change_password)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (lower(username)) DO NOTHING
             RETURNING {_USER_COLUMNS}""",
-        (name, passwords.hash_password(password), role)).fetchone()
+        (name, passwords.hash_password(password), role, must_change)).fetchone()
     conn.commit()
     if row is None:
         raise AccountError(f'There is already an account called "{name}".')
@@ -214,7 +224,7 @@ def authenticate(conn, username: str, password: str) -> dict | None:
     if r is None:
         passwords.verify_password(password, passwords.DUMMY_HASH)
         return None
-    if not passwords.verify_password(password, r[8]) or not r[3]:
+    if not passwords.verify_password(password, r[9]) or not r[3]:
         return None
     conn.execute("UPDATE users SET last_login_at = now(), last_seen_at = now() WHERE id = %s",
                  (r[0],))
@@ -237,14 +247,17 @@ def active_admins(conn) -> int:
 
 
 def update_user(conn, uid: int, *, role: str | None = None, active: bool | None = None,
-                password: str | None = None, acting: int | None = None) -> dict:
+                password: str | None = None, acting: int | None = None,
+                must_change: bool = True) -> dict:
     """Change an account. `acting` is the Admin making the change: nobody may
     demote or deactivate themselves, and the last active Admin may not be
     demoted or deactivated by anyone, so there is always someone who can fix
     things.
 
     A new password or deactivation bumps session_version, which signs the
-    account out everywhere. A role change does not need to: the middleware
+    account out everywhere. A new password set here is an Admin's reset, so
+    by default its owner must replace it at their next sign-in; their own
+    change (change_own_password) passes must_change=False. A role change does not need to: the middleware
     reads the role fresh, so it applies on the next request."""
     create_schema(conn)
     user = get_user(conn, uid)
@@ -271,6 +284,8 @@ def update_user(conn, uid: int, *, role: str | None = None, active: bool | None 
             raise AccountError(why)
         sets.append("password_hash = %s")
         args.append(passwords.hash_password(password))
+        sets.append("must_change_password = %s")
+        args.append(must_change)
         bump = True
     if bump:
         sets.append("session_version = session_version + 1")
@@ -284,7 +299,11 @@ def change_own_password(conn, uid: int, current: str, new: str) -> dict:
     r = conn.execute("SELECT password_hash FROM users WHERE id = %s", (uid,)).fetchone()
     if r is None or not passwords.verify_password(current, r[0]):
         raise AccountError("The current password is not right.")
-    return update_user(conn, uid, password=new)
+    # Otherwise a forced change could be "made" by typing the Admin's
+    # password back in.
+    if passwords.verify_password(new, r[0]):
+        raise AccountError("Choose a password different from the current one.")
+    return update_user(conn, uid, password=new, must_change=False)
 
 
 def touch_seen(conn, uid: int) -> None:
@@ -324,6 +343,7 @@ def bootstrap_admin(conn=None) -> str:
                             (name,)).fetchone()
     if existing:
         conn.execute("UPDATE users SET role = 'admin', active = true, password_hash = %s,"
+                     " must_change_password = false,"
                      " session_version = session_version + 1 WHERE id = %s",
                      (passwords.hash_password(password), existing[0]))
         conn.commit()

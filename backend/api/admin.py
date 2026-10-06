@@ -80,12 +80,17 @@ class NewUser(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=200)
     role: str = "user"
+    # The Admin chose this password, so by default its owner replaces it at
+    # first sign-in. Only scripted accounts (loadtest/seed_users.py) opt out.
+    must_change_password: bool = True
 
 
 class UserChange(BaseModel):
     role: str | None = None
     active: bool | None = None
     password: str | None = Field(default=None, max_length=200)
+    # As for a new account: a reset password is replaced at next sign-in.
+    must_change_password: bool = True
 
 
 @router.get("/users")
@@ -101,7 +106,8 @@ def users(_admin: dict = Depends(require_admin)) -> dict:
 @router.post("/users")
 def create_user(body: NewUser, admin: dict = Depends(require_admin)) -> dict:
     try:
-        user = store.create_user(store.connect(), body.username, body.password, body.role)
+        user = store.create_user(store.connect(), body.username, body.password, body.role,
+                                 must_change=body.must_change_password)
     except store.AccountError as exc:
         raise HTTPException(400, str(exc))
     store.log_event(admin, "user_created", detail={"user": user["username"], "role": user["role"]})
@@ -112,12 +118,14 @@ def create_user(body: NewUser, admin: dict = Depends(require_admin)) -> dict:
 def update_user(uid: int, body: UserChange, admin: dict = Depends(require_admin)) -> dict:
     try:
         user = store.update_user(store.connect(), uid, role=body.role, active=body.active,
-                                 password=body.password or None, acting=admin["id"])
+                                 password=body.password or None, acting=admin["id"],
+                                 must_change=body.must_change_password)
     except store.AccountError as exc:
         raise HTTPException(400, str(exc))
     # The change applies on this user's very next request, not in thirty seconds.
     middleware.forget(uid)
-    changed = {k: v for k, v in body.model_dump().items() if v is not None and k != "password"}
+    changed = {k: v for k, v in body.model_dump().items()
+               if v is not None and k not in ("password", "must_change_password")}
     if body.password:
         changed["password"] = "reset"
     store.log_event(admin, "user_updated", detail={"user": user["username"], **changed})

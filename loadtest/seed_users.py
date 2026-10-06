@@ -7,8 +7,9 @@ Signs in as the admin, then creates loadtest-01..N with role `user`, and with
 --admin also loadtest-admin with role `admin` (the Quality dashboard is admin
 only). An account that already exists has its password reset to
 LOADTEST_PASSWORD and is reactivated, so running this twice is safe. Only
-loadtest-* accounts are ever created or changed. Standard library only, so it runs
-from either venv.
+loadtest-* accounts are ever created or changed. They are exempt from the
+change-your-password-at-first-sign-in rule, since a script signs in as them.
+Standard library only, so it runs from either venv.
 """
 
 from __future__ import annotations
@@ -68,11 +69,13 @@ def main() -> int:
     for name, role in wanted:
         if name in existing:
             status, body = call("PATCH", f"/api/admin/users/{existing[name]['id']}",
-                                {"password": password, "active": True, "role": role})
+                                {"password": password, "active": True, "role": role,
+                                 "must_change_password": False})
             verb = "reset"
         else:
             status, body = call("POST", "/api/admin/users",
-                                {"username": name, "password": password, "role": role})
+                                {"username": name, "password": password, "role": role,
+                                 "must_change_password": False})
             verb = "created"
         if status != 200:
             sys.exit(f"{name}: HTTP {status} {body}")

@@ -12,6 +12,13 @@ the result -- a user dict or None -- goes into scope["state"]["user"], where
     keeping the page as `next`. Demo Mode's pages do their own redirect, to
     the demo's sign-in page.
 
+An account that must change its password (store.py) is signed in but held at
+the door: `/api/*` answers 403 with code "password_change_required", except
+the auth routes and the password change itself (PASSWORD_CHANGE_OPEN), and a
+page is sent to /login, which asks for the new password. A check in the
+browser alone would leave the API open to anyone holding the handed-over
+password.
+
 The account is looked up rather than trusted from the cookie, because the
 cookie cannot say that the account was deactivated or its password reset since
 it was issued. The lookup is cached for CACHE_SECONDS per account, and the
@@ -39,6 +46,10 @@ EXEMPT = frozenset({
     "/api/app/login", "/api/app/logout", "/api/app/session",
     "/api/demo/login", "/api/demo/logout", "/api/demo/session",
 })
+
+# What an account that must change its password may still reach.
+PASSWORD_CHANGE_OPEN = EXEMPT | {"/api/auth/password"}
+PASSWORD_CHANGE_REQUIRED = "password_change_required"
 
 CACHE_SECONDS = 30
 _cache: dict[int, tuple[float, dict | None]] = {}
@@ -116,7 +127,17 @@ class RequireUser:
             await send({"type": "http.response.body", "body": body})
             return
 
-        if user is None and scope.get("method") == "GET" and path in self.pages:
+        held = user is not None and user["must_change_password"]
+        if held and path.startswith("/api/") and path not in PASSWORD_CHANGE_OPEN:
+            body = json.dumps({"detail": "Change your password first.",
+                               "code": PASSWORD_CHANGE_REQUIRED}).encode()
+            await send({"type": "http.response.start", "status": 403,
+                        "headers": [(b"content-type", b"application/json"),
+                                    (b"content-length", str(len(body)).encode())]})
+            await send({"type": "http.response.body", "body": body})
+            return
+
+        if (user is None or held) and scope.get("method") == "GET" and path in self.pages:
             qs = scope.get("query_string", b"").decode("latin-1")
             target = path + (f"?{qs}" if qs else "")
             location = f"{sessions.LOGIN_PATH}?next={quote(target)}"

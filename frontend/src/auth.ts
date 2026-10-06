@@ -20,7 +20,8 @@ const OWN = /^\/api\/(auth|app|demo)\/(login|logout|session|password)\b/;
 let installed = false;
 
 /** Send the reader to sign in when the server says the session has ended:
- *  the cookie expired, the password was reset, the account was deactivated.
+ *  the cookie expired, the password was reset, the account was deactivated --
+ *  or that the account must choose its own password before going on.
  *  Without it, every panel on the page would fail one by one with
  *  "Sign in first." and nothing would say what to do. */
 export function installSessionGuard(loginPath: string): void {
@@ -30,10 +31,15 @@ export function installSessionGuard(loginPath: string): void {
   let leaving = false;
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const res = await real(input, init);
-    if (res.status === 401 && !leaving) {
+    if ((res.status === 401 || res.status === 403) && !leaving) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const path = new URL(url, location.href);
-      if (path.origin === location.origin && path.pathname.startsWith("/api/") && !OWN.test(path.pathname)) {
+      // A 403 is usually "not an Admin", which the caller shows itself; only
+      // "change your password first" means leave for the sign-in page.
+      const held = res.status === 403
+        && (await res.clone().json().catch(() => ({}))).code === "password_change_required";
+      if ((res.status === 401 || held) && !leaving && path.origin === location.origin
+          && path.pathname.startsWith("/api/") && !OWN.test(path.pathname)) {
         leaving = true;
         location.replace(`${loginPath}?next=${encodeURIComponent(location.pathname + location.search)}`);
       }

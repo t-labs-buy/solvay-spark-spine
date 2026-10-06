@@ -14,6 +14,8 @@ tested is what the sign-in promises:
   * the `legacy` owner of pre-account runs can never sign in;
   * only an Admin reaches the Admin API, and nobody can remove the last Admin
     or demote themselves;
+  * an account on a password an Admin chose -- new, or reset -- can do
+    nothing but choose its own, and the new one must differ;
   * one account opens both the application and Demo Mode.
 """
 
@@ -110,6 +112,7 @@ def test_bootstrap_admin() -> None:
     assert store.bootstrap_admin() == "auth: accounts ready", "only when there is no Admin"
     root = store.authenticate(store.connect(), "ROOT", "root-password")
     assert root and root["role"] == "admin", "usernames are case-insensitive"
+    assert root["must_change_password"] is False, "the start-up Admin chose their own"
 
 
 def test_api_and_pages_need_a_session() -> None:
@@ -184,7 +187,8 @@ def test_roles_and_account_management() -> None:
                                                 "role": "user"}).status_code == 400
 
     alice = client()
-    sign_in(alice, "alice", "alice-pass")
+    assert sign_in(alice, "alice", "alice-pass")["must_change_password"] is True
+    choose_own_password(alice, "alice-pass", "alice-own-pass")
     assert alice.get("/api/admin/users").status_code == 403
     assert alice.get("/api/quality/judge").status_code == 403
     assert alice.post("/api/evidence/memory/reflect", json={"question": "what?"}).status_code == 403
@@ -198,13 +202,14 @@ def test_roles_and_account_management() -> None:
     assert admin.patch(f"/api/admin/users/{alice_id}",
                        json={"password": "alice-new-pass"}).status_code == 200
     assert alice.get("/api/evidence/runs").status_code == 401
-    sign_in(alice, "alice", "alice-new-pass")
+    assert sign_in(alice, "alice", "alice-new-pass")["must_change_password"] is True
+    choose_own_password(alice, "alice-new-pass", "alice-second-pass")
 
     # Deactivate: refused at once, and cannot sign in again.
     assert admin.patch(f"/api/admin/users/{alice_id}", json={"active": False}).status_code == 200
     assert alice.get("/api/evidence/runs").status_code == 401
     assert alice.post("/api/auth/login", json={"username": "alice",
-                                               "password": "alice-new-pass"}).status_code == 401
+                                               "password": "alice-second-pass"}).status_code == 401
     assert admin.patch(f"/api/admin/users/{alice_id}", json={"active": True}).status_code == 200
 
     # Nobody demotes themselves, and the last Admin stays an Admin.
@@ -221,11 +226,29 @@ def test_roles_and_account_management() -> None:
     assert "legacy" not in names and {"root", "alice"} <= set(names)
 
 
+def choose_own_password(c: TestClient, given: str, own: str) -> None:
+    """What the sign-in page does for an account on an Admin's password:
+    until it has its own, only the auth routes answer."""
+    r = c.get("/api/evidence/runs")
+    assert r.status_code == 403 and r.json()["code"] == "password_change_required", r.text
+    assert c.get("/api/auth/session").json()["must_change_password"] is True
+    r = c.get("/rollout")
+    assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
+    assert c.get("/login").status_code in (200, 503), "the page that asks, not a redirect away"
+    assert c.get("/demo/graph").headers["location"].startswith("/demo/login?next=")
+    r = c.post("/api/auth/password", json={"current": given, "new": given})
+    assert r.status_code == 400 and "different" in r.json()["detail"]
+    r = c.post("/api/auth/password", json={"current": given, "new": own})
+    assert r.status_code == 200 and r.json()["must_change_password"] is False
+    assert c.get("/api/evidence/runs").status_code == 200
+    assert c.get("/login").status_code == 303
+
+
 def test_change_own_password() -> None:
     c = client()
-    sign_in(c, "alice", "alice-new-pass")
+    assert sign_in(c, "alice", "alice-second-pass")["must_change_password"] is False
     assert c.post("/api/auth/password", json={"current": "wrong", "new": "x" * 10}).status_code == 400
-    r = c.post("/api/auth/password", json={"current": "alice-new-pass", "new": "alice-third-pass"})
+    r = c.post("/api/auth/password", json={"current": "alice-second-pass", "new": "alice-third-pass"})
     assert r.status_code == 200
     # The caller keeps a fresh cookie; the old one is dead elsewhere.
     assert c.get("/api/evidence/runs").status_code == 200

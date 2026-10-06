@@ -1,5 +1,10 @@
 """Sign in, sign out, who am I, and change my password.
 
+An account whose password an Admin chose (a new account, a reset) signs in
+with `must_change_password` set, and the middleware lets it do nothing but
+change its password until it has; the sign-in page asks for the new one at
+once.
+
 The same account opens the application at `/` and Demo Mode at `/demo`, so
 there is one set of routes. The `/api/app/*` and `/api/demo/*` paths the
 bundles were built against are kept as aliases of these.
@@ -29,7 +34,7 @@ class PasswordChange(BaseModel):
 
 def public(user: dict) -> dict:
     return {"id": user["id"], "user": user["username"], "username": user["username"],
-            "role": user["role"]}
+            "role": user["role"], "must_change_password": user["must_change_password"]}
 
 
 def login(body: Login, request: Request):
@@ -79,7 +84,7 @@ def change_password(body: PasswordChange, user: dict = Depends(current_user)):
     store.log_event(user, "password_changed")
     # The version moved, so the old cookie is dead; hand over a new one rather
     # than signing out the person who just proved who they are.
-    res = JSONResponse({"ok": True})
+    res = JSONResponse({"ok": True, **public(updated)})
     res.set_cookie(sessions.COOKIE, sessions.make_token(updated["id"], updated["session_version"]),
                    max_age=sessions.SESSION_SECONDS, httponly=True, samesite="lax", path="/")
     return res

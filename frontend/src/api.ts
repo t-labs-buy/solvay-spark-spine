@@ -2506,6 +2506,8 @@ export interface AdminUser {
   created_at: string | null;
   last_login_at: string | null;
   last_seen_at: string | null;
+  /** Still on a password an Admin chose; asked for their own at sign-in. */
+  must_change_password: boolean;
   runs: number;
 }
 

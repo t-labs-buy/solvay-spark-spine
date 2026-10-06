@@ -844,6 +844,12 @@ function UsersView({ users, me, onChanged }: { users: AdminUser[]; me: Account |
                 <TableRow key={u.id} hover>
                   <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>
                     {u.username}{self && <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}> (you)</Box>}
+                    {u.must_change_password && (
+                      <Tooltip title="Still on the password an Admin set; they choose their own at their next sign-in">
+                        <Chip size="small" label="password not yet changed" variant="outlined" color="warning"
+                              sx={{ ml: 1, height: 18, fontSize: 10.5 }} />
+                      </Tooltip>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Tooltip title={self ? "You cannot change your own role" : ""}>
@@ -921,7 +927,7 @@ function CreateUserDialog({ open, onClose, onCreated }: { open: boolean; onClose
                      helperText="No spaces. Not case-sensitive." />
           <TextField label="Temporary password" type="password" value={password} autoComplete="new-password"
                      onChange={(e) => setPassword(e.target.value)}
-                     helperText="At least 8 characters. They can change it from the account menu." />
+                     helperText="At least 8 characters. They must choose their own at first sign-in." />
           <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
             New accounts are Users: they see only their own run history. To make someone an
             Admin, change their role in the table afterwards.
@@ -963,7 +969,8 @@ function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser | null
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
-            This signs {user?.username} out everywhere. Give them the new password yourself.
+            This signs {user?.username} out everywhere. Give them the new password yourself;
+            they will be asked to choose their own when they next sign in.
           </Typography>
           <TextField label="New password" type="password" value={password} autoFocus autoComplete="new-password"
                      helperText="At least 8 characters" onChange={(e) => setPassword(e.target.value)} />

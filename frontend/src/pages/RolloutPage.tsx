@@ -2137,18 +2137,10 @@ export default function RolloutPage({ active, showTechDetails = true, openRun: r
                       <Typography sx={{ fontSize: 13 }}>{scope ? `${scope.code} ${scope.name}` : "Found by the agent"}</Typography>
                       <Typography sx={{ fontSize: 13, color: "text.secondary" }}>Passes</Typography>
                       <Typography sx={{ fontSize: 13 }}>Read the {subject.label}, then compare</Typography>
-                      {plan && (
+                      {plan && showTechDetails && (
                         <>
-                          {showTechDetails && (
-                            <>
-                              <Typography sx={{ fontSize: 13, color: "text.secondary" }}>Model</Typography>
-                              <Typography sx={{ fontSize: 12.5, fontFamily: MONO }}>{plan.model}</Typography>
-                            </>
-                          )}
-                          <Typography sx={{ fontSize: 13, color: "text.secondary" }}>Estimate</Typography>
-                          <Typography sx={{ fontSize: 13 }}>
-                            ~{Math.round(plan.estimated_input_tokens / 1000)}k input tokens · ~{plan.estimated_minutes} min
-                          </Typography>
+                          <Typography sx={{ fontSize: 13, color: "text.secondary" }}>Model</Typography>
+                          <Typography sx={{ fontSize: 12.5, fontFamily: MONO }}>{plan.model}</Typography>
                         </>
                       )}
                     </Box>

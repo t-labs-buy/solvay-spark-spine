@@ -814,6 +814,35 @@ def _original_of(markdown: Path) -> Path | None:
     return _beside_markdown(markdown) or _upload_job_holding(markdown)
 
 
+# The top-level folders a corpus path can start from, relative to BASE.
+_CORPUS_ROOTS = ("solvay-spark", "knowledge_base")
+
+
+def _in_this_project(path: Path) -> Path | None:
+    """`path` as it lies under BASE on this machine, or None.
+
+    rag_documents.source holds the absolute path a document was indexed from,
+    and a database restored from a dump keeps the indexing machine's paths --
+    /Users/<dev>/.../solvay-spark/sap/markdown/BKP1_CRM.md -- which the
+    container, rooted at /app, does not have. The part from solvay-spark/ or
+    knowledge_base/ on is the same everywhere, so that is what is looked for.
+    """
+    base = BASE.resolve()
+    try:
+        here = path.resolve()
+        if here.is_file() and base in here.parents:
+            return here
+    except OSError:
+        pass
+    parts = path.parts
+    for i, part in enumerate(parts):
+        if part in _CORPUS_ROOTS:
+            cand = (base.joinpath(*parts[i:])).resolve()
+            if cand.is_file() and base in cand.parents:
+                return cand
+    return None
+
+
 @app.post("/api/kb/files/open")
 def open_kb_original(source: str) -> dict:
     """Open an indexed document's ORIGINAL file for side-by-side review.
@@ -830,13 +859,15 @@ def open_kb_original(source: str) -> dict:
     path = Path(source)
     if not path.is_absolute():
         path = BASE / source
-    path = path.resolve()
     # The list this is called from is built from the corpus, but the parameter
-    # is still a path from the browser: keep it inside the project.
-    if BASE.resolve() not in path.parents:
-        raise HTTPException(400, "That path is outside the project.")
-    if not path.is_file():
+    # is still a path from the browser: keep it inside the project. A path
+    # indexed on another machine is found again under this one's corpus.
+    found = _in_this_project(path)
+    if found is None:
+        if BASE.resolve() not in path.resolve().parents:
+            raise HTTPException(400, "That path is outside the project.")
         raise HTTPException(404, f"No such document: {source}")
+    path = found
 
     original = _original_of(path)
     if original is None:
@@ -931,13 +962,22 @@ def list_kb_files() -> list[dict]:
     list disagreed with the database and a delete had nothing to aim at."""
     items: dict[str, dict] = {}
 
+    # Indexed files by where they are on this machine, which is not the stored
+    # path when the database was restored from another one.
+    indexed_here: set[str] = set()
+
     def add(key: str, item: dict) -> None:
         items.setdefault(key, item)
 
     # 1. The source of truth: what is indexed.
     try:
         for doc in rag.documents():
-            p = Path(doc["source"])
+            # full_path stays the stored path -- a delete matches it exactly --
+            # but size and source come from where the file is on THIS machine:
+            # a restored database keeps the paths of the one that indexed it.
+            stored = Path(doc["source"])
+            p = _in_this_project(stored) or stored
+            indexed_here.add(str(p.resolve()))
             name = p.name
             size = 0
             for candidate in (p, KNOWLEDGE_BASE / name):
@@ -954,11 +994,11 @@ def list_kb_files() -> list[dict]:
                 rel_source = str(p)
 
             indexed_at = doc["indexed_at"]
-            add(str(p), {
+            add(str(stored), {
                 "name": name,
                 "title": doc["title"] or p.stem,
                 "source": rel_source,
-                "full_path": str(p),
+                "full_path": str(stored),
                 "size": size,
                 "category": doc["category"],
                 "chunks": doc["chunks"],
@@ -979,7 +1019,7 @@ def list_kb_files() -> list[dict]:
             if f.name.startswith((".", "~$")):
                 continue
             full = str(f.resolve())
-            if full in items:
+            if full in items or full in indexed_here:
                 continue
             try:
                 rel = str(f.resolve().relative_to(BASE))
@@ -1006,12 +1046,10 @@ def get_kb_file(filename: str, source: str | None = None) -> FileResponse:
     # 0. Check explicit source path if provided
     if source:
         try:
-            cand = Path(source).resolve()
-            if cand.is_file() and BASE.resolve() in cand.parents:
+            src = Path(source)
+            cand = _in_this_project(src if src.is_absolute() else BASE / src)
+            if cand is not None:
                 return FileResponse(cand, media_type="text/markdown")
-            cand_rel = (BASE / source).resolve()
-            if cand_rel.is_file() and BASE.resolve() in cand_rel.parents:
-                return FileResponse(cand_rel, media_type="text/markdown")
         except Exception:
             pass
 
@@ -1030,9 +1068,10 @@ def get_kb_file(filename: str, source: str | None = None) -> FileResponse:
             if cand.is_file() and BASE.resolve() in cand.parents:
                 return FileResponse(cand, media_type="text/markdown")
 
-    # 3. Check solvay-spark common markdown paths
-    for sub in ("pkg", "dr"):
-        cand = (BASE / "solvay-spark" / sub / "markdown" / fname).resolve()
+    # 3. Check every solvay-spark/<code>/markdown folder -- sap/ as well as
+    #    pkg/ and dr/: a category needs no registration (rag.MARKDOWN_FOLDER).
+    for folder in sorted((BASE / "solvay-spark").glob(f"*/{rag.MARKDOWN_FOLDER}")):
+        cand = (folder / fname).resolve()
         if cand.is_file() and BASE.resolve() in cand.parents:
             return FileResponse(cand, media_type="text/markdown")
 
@@ -1042,8 +1081,8 @@ def get_kb_file(filename: str, source: str | None = None) -> FileResponse:
         if not found and not fname.endswith(".md"):
             found = rag.find_document(f"{fname}.md")
         if found:
-            db_path = Path(found).resolve()
-            if db_path.is_file() and BASE.resolve() in db_path.parents:
+            db_path = _in_this_project(Path(found))
+            if db_path is not None:
                 return FileResponse(db_path, media_type="text/markdown")
     except Exception:
         pass

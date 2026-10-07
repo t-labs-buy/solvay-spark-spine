@@ -1,0 +1,23 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — RAG stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Ingestion", "desc": "Turn programme files into clean, citable chunks", "tone": "terracotta",
+   "items": [{"title": "Document parsing", "sub": "Docling + Tesseract OCR"},
+             {"title": "Diagrams & screenshots", "sub": "Claude vision"},
+             {"title": "Chunking", "sub": "Markdown sections ≤ 1,000 tokens"}]},
+  {"name": "Retrieval intelligence", "desc": "Encode, store, and find the right passages", "tone": "indigo",
+   "items": [{"title": "Embeddings", "sub": "BGE-M3 via Ollama"},
+             {"title": "Vector + keyword index", "sub": "PostgreSQL · pgvector + BM25"},
+             {"title": "Hybrid ranking", "sub": "Reciprocal rank fusion"}]},
+  {"name": "Answer & application", "desc": "Write cited answers and expose them", "tone": "teal",
+   "items": [{"title": "LLM", "sub": "Claude Opus 5"},
+             {"title": "API", "sub": "FastAPI · REST + SSE"},
+             {"title": "Frontend", "sub": "React + Vite"}]},
+  {"name": "Platform & ops", "desc": "Measure quality, trace, and deliver", "tone": "stone",
+   "items": [{"title": "Evaluation", "sub": "Ragas + LLM judges"},
+             {"title": "Observability", "sub": "Langfuse"},
+             {"title": "Deployment", "sub": "Docker Compose"}]}
+ ]
+}

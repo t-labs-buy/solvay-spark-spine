@@ -1,0 +1,146 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Application stack on SAP BTP",
+ "width": 1400,
+ "layers": [
+  {
+   "name": "Experience",
+   "desc": "Where analysts and admins work",
+   "tone": "terracotta",
+   "items": [
+    {
+     "title": "Web UI",
+     "sub": "React · HTML5 Repo + Approuter"
+    },
+    {
+     "title": "Accounts & roles",
+     "sub": "SAP IAS + XSUAA · SSO"
+    },
+    {
+     "title": "Admin dashboard",
+     "sub": "Usage · cost · role collections"
+    }
+   ]
+  },
+  {
+   "name": "API & guardrails",
+   "desc": "Expose the app and keep it on subject",
+   "tone": "slate",
+   "items": [
+    {
+     "title": "API",
+     "sub": "FastAPI on Kyma · REST + SSE"
+    },
+    {
+     "title": "Scope check",
+     "sub": "Claude Haiku 4.5 · in or out"
+    },
+    {
+     "title": "Contact redaction",
+     "sub": "Orchestration data masking"
+    }
+   ]
+  },
+  {
+   "name": "AI agents",
+   "desc": "Investigate, compare, and analyse",
+   "tone": "indigo",
+   "items": [
+    {
+     "title": "Evidence Agent",
+     "sub": "Cited, verified claims"
+    },
+    {
+     "title": "Fit-Gap Copilot",
+     "sub": "Country As-Is vs template"
+    },
+    {
+     "title": "InsightLens",
+     "sub": "Per-process fit-gap"
+    }
+   ]
+  },
+  {
+   "name": "Knowledge engines",
+   "desc": "Turn documents into answers and connections",
+   "tone": "teal",
+   "items": [
+    {
+     "title": "Ingestion",
+     "sub": "Docling + OCR on Kyma"
+    },
+    {
+     "title": "RAG engine",
+     "sub": "Hybrid search · HANA Cloud"
+    },
+    {
+     "title": "Knowledge graph",
+     "sub": "Rule-based · HANA openCypher"
+    }
+   ]
+  },
+  {
+   "name": "Models",
+   "desc": "Reason, judge, and embed",
+   "tone": "blue",
+   "items": [
+    {
+     "title": "Reasoning LLM",
+     "sub": "Claude Opus 5 · Gen AI Hub"
+    },
+    {
+     "title": "Fast checks",
+     "sub": "Claude Haiku 4.5 · Gen AI Hub"
+    },
+    {
+     "title": "Embeddings",
+     "sub": "Gen AI Hub or HANA embeddings"
+    }
+   ]
+  },
+  {
+   "name": "Data & memory",
+   "desc": "Keep the corpus, the graph, and what agents learn",
+   "tone": "amber",
+   "items": [
+    {
+     "title": "Corpus & runs",
+     "sub": "HANA Cloud Vector Engine"
+    },
+    {
+     "title": "Graph copy",
+     "sub": "HANA Cloud Graph Engine"
+    },
+    {
+     "title": "Agent memory",
+     "sub": "Hindsight on Kyma · HANA"
+    }
+   ]
+  },
+  {
+   "name": "Quality & ops",
+   "desc": "Measure, trace, and deliver",
+   "tone": "stone",
+   "items": [
+    {
+     "title": "Evaluation",
+     "sub": "Ragas · AI Launchpad evals"
+    },
+    {
+     "title": "Observability",
+     "sub": "Cloud Logging or Langfuse"
+    },
+    {
+     "title": "Deployment",
+     "sub": "Kyma · CI/CD · Transport Mgmt"
+    }
+   ]
+  }
+ ],
+ "legend": {
+  "lines": [
+   "Same layers and capabilities as the current stack; only the technology line on each card changes · \"A or B\" = open decision",
+   "SAP BTP: HANA Cloud replaces PostgreSQL + pgvector and Neo4j; Claude and embeddings run through SAP Generative AI Hub (AI Core)"
+  ]
+ }
+}

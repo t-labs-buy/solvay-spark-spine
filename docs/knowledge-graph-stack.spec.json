@@ -1,0 +1,27 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Knowledge graph stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Extraction", "desc": "Turn the Markdown corpus into entities and links", "tone": "terracotta",
+   "items": [{"title": "Source Markdown", "sub": "PKG · DR · knowledge base"},
+             {"title": "Entity extraction", "sub": "Rule-based patterns · no LLM"},
+             {"title": "Entities", "sub": "Streams · systems · BPML · specs"}]},
+  {"name": "Graph storage", "desc": "One source of truth and a copy to query", "tone": "indigo",
+   "items": [{"title": "Source of truth", "sub": "knowledge_graph.json"},
+             {"title": "Query copy", "sub": "Neo4j 5 Community"},
+             {"title": "Passage layer", "sub": "Chunks linked to entities"}]},
+  {"name": "Querying", "desc": "Answer questions from the graph", "tone": "teal",
+   "items": [{"title": "Traversal", "sub": "Neighbours · shortest path (BFS)"},
+             {"title": "Plain English → Cypher", "sub": "Claude Opus 5"},
+             {"title": "Query safety", "sub": "EXPLAIN check · read-only"}]},
+  {"name": "Consumers", "desc": "Where the graph is used", "tone": "amber",
+   "items": [{"title": "Graph explorer", "sub": "D3 · in the web UI"},
+             {"title": "Agents", "sub": "Evidence · InsightLens · Fit-Gap"},
+             {"title": "Data model export", "sub": "Neo4j Data Importer · arrows.app"}]},
+  {"name": "Quality & ops", "desc": "Check the graph and trace the questions", "tone": "stone",
+   "items": [{"title": "Structure checks", "sub": "Accuracy · completeness · no LLM"},
+             {"title": "Question check", "sub": "Cypher answers vs reference"},
+             {"title": "Tracing", "sub": "Langfuse scores"}]}
+ ]
+}

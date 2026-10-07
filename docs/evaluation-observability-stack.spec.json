@@ -1,0 +1,27 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Evaluation & observability stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Tracing", "desc": "Record every run, step, and model call", "tone": "terracotta",
+   "items": [{"title": "Run traces", "sub": "One per run · step & tool spans"},
+             {"title": "Model calls", "sub": "OpenTelemetry · Anthropic"},
+             {"title": "Trace store", "sub": "Langfuse · optional"}]},
+  {"name": "RAG answer quality", "desc": "Judge every Ask RAG answer as it happens", "tone": "indigo",
+   "items": [{"title": "Live judges", "sub": "Ragas · 9 reference-free"},
+             {"title": "Judge model", "sub": "Claude Sonnet 5"},
+             {"title": "Overall score", "sub": "Stated arithmetic"}]},
+  {"name": "Ground-truth experiments", "desc": "Test a change against known answers", "tone": "teal",
+   "items": [{"title": "Evaluation set", "sub": "27 hand-checked questions"},
+             {"title": "Offline metrics", "sub": "Correctness · context recall"},
+             {"title": "Experiment history", "sub": "PostgreSQL · run vs run"}]},
+  {"name": "Agents & graph", "desc": "Score them without a judge model", "tone": "amber",
+   "items": [{"title": "Agent scores", "sub": "Grounding · tool use · guardrails"},
+             {"title": "Graph structure", "sub": "Accuracy · completeness · no LLM"},
+             {"title": "Cypher question check", "sub": "Answers vs reference"}]},
+  {"name": "Review", "desc": "Where people read the results", "tone": "stone",
+   "items": [{"title": "Answer Quality", "sub": "Overview · failure explorer"},
+             {"title": "Judge trust", "sub": "Rescore to test the judge"},
+             {"title": "Dashboards", "sub": "Langfuse · scores over time"}]}
+ ]
+}

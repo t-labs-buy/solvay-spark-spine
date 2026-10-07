@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1614" viewBox="0 0 1400 1614" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr56606E" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#56606E"/></marker><style>.lbl{paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}</style></defs>
+<rect width="1400" height="1614" fill="#FFFFFF"/>
+<text x="700.0" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1E2530">Solvay Spark Spine — Evaluation &amp; observability stack</text>
+<rect x="60" y="100" width="1280" height="258" rx="26" fill="#F8ECE8" stroke="#B5735A" stroke-width="1.3"/>
+<text x="112" y="150" font-size="27" font-weight="600" fill="#7A3418">Tracing</text>
+<text x="112" y="186" font-size="21" fill="#9A4A2A">Record every run, step, and model call</text>
+<rect x="60" y="402" width="1280" height="258" rx="26" fill="#EEEDFB" stroke="#8B84D6" stroke-width="1.3"/>
+<text x="112" y="452" font-size="27" font-weight="600" fill="#3B348F">RAG answer quality</text>
+<text x="112" y="488" font-size="21" fill="#5650B5">Judge every Ask RAG answer as it happens</text>
+<rect x="60" y="704" width="1280" height="258" rx="26" fill="#E5F3EE" stroke="#5FA58A" stroke-width="1.3"/>
+<text x="112" y="754" font-size="27" font-weight="600" fill="#1E5E47">Ground-truth experiments</text>
+<text x="112" y="790" font-size="21" fill="#2E7A5E">Test a change against known answers</text>
+<rect x="60" y="1006" width="1280" height="258" rx="26" fill="#FBF3E2" stroke="#C99A3E" stroke-width="1.3"/>
+<text x="112" y="1056" font-size="27" font-weight="600" fill="#6E4A0E">Agents &amp; graph</text>
+<text x="112" y="1092" font-size="21" fill="#8A6018">Score them without a judge model</text>
+<rect x="60" y="1308" width="1280" height="258" rx="26" fill="#F1EEE8" stroke="#A39C90" stroke-width="1.3"/>
+<text x="112" y="1358" font-size="27" font-weight="600" fill="#3F3A33">Review</text>
+<text x="112" y="1394" font-size="21" fill="#5E574D">Where people read the results</text>
+<path d="M700.0,362 L700.0,398" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M700.0,664 L700.0,700" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M700.0,966 L700.0,1002" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<path d="M700.0,1268 L700.0,1304" fill="none" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr56606E)"/>
+<rect x="112.00000000000003" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Run traces</text>
+<text x="293.33333333333337" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">One per run · step &amp; tool spans</text>
+<rect x="518.6666666666667" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Model calls</text>
+<text x="700.0000000000001" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">OpenTelemetry · Anthropic</text>
+<rect x="925.3333333333334" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Trace store</text>
+<text x="1106.6666666666667" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Langfuse · optional</text>
+<rect x="112.00000000000003" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Live judges</text>
+<text x="293.33333333333337" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Ragas · 9 reference-free</text>
+<rect x="518.6666666666667" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Judge model</text>
+<text x="700.0000000000001" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Claude Sonnet 5</text>
+<rect x="925.3333333333334" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Overall score</text>
+<text x="1106.6666666666667" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Stated arithmetic</text>
+<rect x="112.00000000000003" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Evaluation set</text>
+<text x="293.33333333333337" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">27 hand-checked questions</text>
+<rect x="518.6666666666667" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Offline metrics</text>
+<text x="700.0000000000001" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Correctness · context recall</text>
+<rect x="925.3333333333334" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Experiment history</text>
+<text x="1106.6666666666667" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">PostgreSQL · run vs run</text>
+<rect x="112.00000000000003" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Agent scores</text>
+<text x="293.33333333333337" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Grounding · tool use · guardrails</text>
+<rect x="518.6666666666667" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Graph structure</text>
+<text x="700.0000000000001" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Accuracy · completeness · no LLM</text>
+<rect x="925.3333333333334" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Cypher question check</text>
+<text x="1106.6666666666667" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Answers vs reference</text>
+<rect x="112.00000000000003" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Answer Quality</text>
+<text x="293.33333333333337" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Overview · failure explorer</text>
+<rect x="518.6666666666667" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Judge trust</text>
+<text x="700.0000000000001" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Rescore to test the judge</text>
+<rect x="925.3333333333334" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Dashboards</text>
+<text x="1106.6666666666667" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Langfuse · scores over time</text>
+</svg>

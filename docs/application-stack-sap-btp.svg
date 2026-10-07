@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="2292" viewBox="0 0 1400 2292" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#56606E"/></marker></defs>
+<rect width="1400" height="2292" fill="#FFFFFF"/>
+<text x="700.0" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1E2530">Solvay Spark Spine — Application stack on SAP BTP</text>
+<rect x="60" y="100" width="1280" height="258" rx="26" fill="#F8ECE8" stroke="#B5735A" stroke-width="1.3"/>
+<text x="112" y="150" font-size="27" font-weight="600" fill="#7A3418">Experience</text>
+<text x="112" y="186" font-size="21" fill="#9A4A2A">Where analysts and admins work</text>
+<rect x="60" y="402" width="1280" height="258" rx="26" fill="#EEF1F5" stroke="#8A97A8" stroke-width="1.3"/>
+<text x="112" y="452" font-size="27" font-weight="600" fill="#2A3646">API &amp; guardrails</text>
+<text x="112" y="488" font-size="21" fill="#4A5668">Expose the app and keep it on subject</text>
+<rect x="60" y="704" width="1280" height="258" rx="26" fill="#EEEDFB" stroke="#8B84D6" stroke-width="1.3"/>
+<text x="112" y="754" font-size="27" font-weight="600" fill="#3B348F">AI agents</text>
+<text x="112" y="790" font-size="21" fill="#5650B5">Investigate, compare, and analyse</text>
+<rect x="60" y="1006" width="1280" height="258" rx="26" fill="#E5F3EE" stroke="#5FA58A" stroke-width="1.3"/>
+<text x="112" y="1056" font-size="27" font-weight="600" fill="#1E5E47">Knowledge engines</text>
+<text x="112" y="1092" font-size="21" fill="#2E7A5E">Turn documents into answers and connections</text>
+<rect x="60" y="1308" width="1280" height="258" rx="26" fill="#E8F0FB" stroke="#6E95CF" stroke-width="1.3"/>
+<text x="112" y="1358" font-size="27" font-weight="600" fill="#1F4A86">Models</text>
+<text x="112" y="1394" font-size="21" fill="#2F5FA3">Reason, judge, and embed</text>
+<rect x="60" y="1610" width="1280" height="258" rx="26" fill="#FBF3E2" stroke="#C99A3E" stroke-width="1.3"/>
+<text x="112" y="1660" font-size="27" font-weight="600" fill="#6E4A0E">Data &amp; memory</text>
+<text x="112" y="1696" font-size="21" fill="#8A6018">Keep the corpus, the graph, and what agents learn</text>
+<rect x="60" y="1912" width="1280" height="258" rx="26" fill="#F1EEE8" stroke="#A39C90" stroke-width="1.3"/>
+<text x="112" y="1962" font-size="27" font-weight="600" fill="#3F3A33">Quality &amp; ops</text>
+<text x="112" y="1998" font-size="21" fill="#5E574D">Measure, trace, and deliver</text>
+<path d="M700.0,362 L700.0,398" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<path d="M700.0,664 L700.0,700" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<path d="M700.0,966 L700.0,1002" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<path d="M700.0,1268 L700.0,1304" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<path d="M700.0,1570 L700.0,1606" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<path d="M700.0,1872 L700.0,1908" stroke="#56606E" stroke-width="1.7" marker-end="url(#arr)"/>
+<rect x="112.0" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Web UI</text>
+<text x="293.33333333333337" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">React · HTML5 Repo + Approuter</text>
+<rect x="518.6666666666667" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Accounts &amp; roles</text>
+<text x="700.0000000000001" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">SAP IAS + XSUAA · SSO</text>
+<rect x="925.3333333333334" y="212.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="266.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Admin dashboard</text>
+<text x="1106.6666666666667" y="294.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Usage · cost · role collections</text>
+<rect x="112.0" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">API</text>
+<text x="293.33333333333337" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">FastAPI on Kyma · REST + SSE</text>
+<rect x="518.6666666666667" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Scope check</text>
+<text x="700.0000000000001" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Claude Haiku 4.5 · in or out</text>
+<rect x="925.3333333333334" y="514.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="568.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Contact redaction</text>
+<text x="1106.6666666666667" y="596.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Orchestration data masking</text>
+<rect x="112.0" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Evidence Agent</text>
+<text x="293.33333333333337" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Cited, verified claims</text>
+<rect x="518.6666666666667" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Fit-Gap Copilot</text>
+<text x="700.0000000000001" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Country As-Is vs template</text>
+<rect x="925.3333333333334" y="816.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="870.3866666666667" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">InsightLens</text>
+<text x="1106.6666666666667" y="898.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Per-process fit-gap</text>
+<rect x="112.0" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Ingestion</text>
+<text x="293.33333333333337" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Docling + OCR on Kyma</text>
+<rect x="518.6666666666667" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">RAG engine</text>
+<text x="700.0000000000001" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Hybrid search · HANA Cloud</text>
+<rect x="925.3333333333334" y="1118.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="1172.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Knowledge graph</text>
+<text x="1106.6666666666667" y="1200.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Rule-based · HANA openCypher</text>
+<rect x="112.0" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Reasoning LLM</text>
+<text x="293.33333333333337" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Claude Opus 5 · Gen AI Hub</text>
+<rect x="518.6666666666667" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Fast checks</text>
+<text x="700.0000000000001" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Claude Haiku 4.5 · Gen AI Hub</text>
+<rect x="925.3333333333334" y="1420.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="1474.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Embeddings</text>
+<text x="1106.6666666666667" y="1502.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Gen AI Hub or HANA embeddings</text>
+<rect x="112.0" y="1722.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="1776.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Corpus &amp; runs</text>
+<text x="293.33333333333337" y="1804.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">HANA Cloud Vector Engine</text>
+<rect x="518.6666666666667" y="1722.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="1776.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Graph copy</text>
+<text x="700.0000000000001" y="1804.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">HANA Cloud Graph Engine</text>
+<rect x="925.3333333333334" y="1722.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="1776.3866666666668" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Agent memory</text>
+<text x="1106.6666666666667" y="1804.9466666666667" text-anchor="middle" font-size="21" fill="#4A5563">Hindsight on Kyma · HANA</text>
+<rect x="112.0" y="2024.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="293.33333333333337" y="2078.3866666666663" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Evaluation</text>
+<text x="293.33333333333337" y="2106.9466666666663" text-anchor="middle" font-size="21" fill="#4A5563">Ragas · AI Launchpad evals</text>
+<rect x="518.6666666666667" y="2024.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="700.0000000000001" y="2078.3866666666663" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Observability</text>
+<text x="700.0000000000001" y="2106.9466666666663" text-anchor="middle" font-size="21" fill="#4A5563">Cloud Logging or Langfuse</text>
+<rect x="925.3333333333334" y="2024.0" width="362.6666666666667" height="120" rx="14" fill="#FAFAF8" stroke="#D9D6D0" stroke-width="1.5"/>
+<text x="1106.6666666666667" y="2078.3866666666663" text-anchor="middle" font-size="26" font-weight="700" fill="#1E2530">Deployment</text>
+<text x="1106.6666666666667" y="2106.9466666666663" text-anchor="middle" font-size="21" fill="#4A5563">Kyma · CI/CD · Transport Mgmt</text>
+<rect x="60" y="2194" width="1280" height="58" rx="10" fill="#F8FAFC" stroke="#D5DCE4"/>
+<text x="80" y="2217" font-size="14" fill="#4A5563">Same layers and capabilities as the current stack; only the technology line on each card changes · "A or B" = open decision</text>
+<text x="80" y="2235" font-size="14" fill="#4A5563">SAP BTP: HANA Cloud replaces PostgreSQL + pgvector and Neo4j; Claude and embeddings run through SAP Generative AI Hub (AI Core)</text>
+</svg>

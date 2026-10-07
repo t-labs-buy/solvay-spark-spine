@@ -1,0 +1,27 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Document ingestion stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Sources", "desc": "Every format the programme produces", "tone": "terracotta",
+   "items": [{"title": "Office documents", "sub": "PowerPoint · Word · Excel"},
+             {"title": "PDFs & images", "sub": "Scans · screenshots"},
+             {"title": "Mail & data files", "sub": "Outlook .msg · .eml · XML"}]},
+  {"name": "Conversion", "desc": "Turn each file into Markdown", "tone": "indigo",
+   "items": [{"title": "Docling", "sub": "Native text, headings, layout"},
+             {"title": "Spreadsheets", "sub": "One clean table per sheet"},
+             {"title": "BPML process house", "sub": "One section per process"}]},
+  {"name": "Structure recovery", "desc": "Keep tables and process flows intact", "tone": "teal",
+   "items": [{"title": "PowerPoint flows", "sub": "Native connectors → Mermaid"},
+             {"title": "Tables in images", "sub": "OpenCV grid lines + Tesseract"},
+             {"title": "Flowcharts in images", "sub": "Shapes & arrows from pixels"}]},
+  {"name": "Reading images", "desc": "Recover the text inside pictures", "tone": "amber",
+   "items": [{"title": "OCR", "sub": "Tesseract · upscaled, sparse text"},
+             {"title": "Dense images", "sub": "Claude vision"},
+             {"title": "Provenance", "sub": "Which engine read each image"}]},
+  {"name": "Chunking & indexing", "desc": "Make every section searchable", "tone": "stone",
+   "items": [{"title": "Chunking", "sub": "One section · ≤ 1,000 tokens"},
+             {"title": "Embeddings", "sub": "BGE-M3 via Ollama"},
+             {"title": "Index", "sub": "PostgreSQL · pgvector + BM25"}]}
+ ]
+}

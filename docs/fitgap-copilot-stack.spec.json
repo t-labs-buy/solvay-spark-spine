@@ -1,0 +1,27 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Fit-Gap Copilot stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Inputs & guardrails", "desc": "Take the country's documents and keep the run in scope", "tone": "terracotta",
+   "items": [{"title": "Attached documents", "sub": "PDF, Word, Excel, PowerPoint…"},
+             {"title": "Source roles", "sub": "Country As-Is · Template · SAP BP"},
+             {"title": "Scope check", "sub": "Claude Haiku 4.5 · in or out"}]},
+  {"name": "Two-pass analysis", "desc": "Read the As-Is first, then compare it", "tone": "indigo",
+   "items": [{"title": "Pass 1 · Read", "sub": "As-Is process model · ≤ 20 calls"},
+             {"title": "Pass 2 · Compare", "sub": "Deviation register · ≤ 30 calls"},
+             {"title": "LLM", "sub": "Claude Opus 5"}]},
+  {"name": "Comparison sources", "desc": "What the As-Is is measured against", "tone": "teal",
+   "items": [{"title": "Global Template", "sub": "Corpus search · pgvector + BM25"},
+             {"title": "BPML hierarchy & graph", "sub": "Process codes · shared entities"},
+             {"title": "SAP Best Practice", "sub": "Attached BP · gated web search"}]},
+  {"name": "Gates & scoring", "desc": "Repair the findings and compute the scores", "tone": "amber",
+   "items": [{"title": "Quality gates", "sub": "QG1–QG7 · repair, not just report"},
+             {"title": "Localization check", "sub": "Statutory needs a cited source"},
+             {"title": "Alignment scores", "sub": "Computed from 7 rated dimensions"}]},
+  {"name": "Workshop & records", "desc": "Start the workshop from decisions, not discovery", "tone": "stone",
+   "items": [{"title": "Workshop pack", "sub": "Markdown · PDF"},
+             {"title": "Decision outcome", "sub": "Markdown · PDF · Word · Excel"},
+             {"title": "Run history & tracing", "sub": "PostgreSQL · Langfuse"}]}
+ ]
+}

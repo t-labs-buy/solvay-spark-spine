@@ -1,0 +1,146 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Application stack on Microsoft Azure",
+ "width": 1400,
+ "layers": [
+  {
+   "name": "Experience",
+   "desc": "Where analysts and admins work",
+   "tone": "terracotta",
+   "items": [
+    {
+     "title": "Web UI",
+     "sub": "React · via Azure Front Door"
+    },
+    {
+     "title": "Accounts & roles",
+     "sub": "Microsoft Entra ID · app roles"
+    },
+    {
+     "title": "Admin dashboard",
+     "sub": "Usage · estimated cost · users"
+    }
+   ]
+  },
+  {
+   "name": "API & guardrails",
+   "desc": "Expose the app and keep it on subject",
+   "tone": "slate",
+   "items": [
+    {
+     "title": "API",
+     "sub": "FastAPI on Container Apps"
+    },
+    {
+     "title": "Scope check",
+     "sub": "Claude Haiku 4.5 · in or out"
+    },
+    {
+     "title": "Contact redaction",
+     "sub": "Azure AI Language PII or regex"
+    }
+   ]
+  },
+  {
+   "name": "AI agents",
+   "desc": "Investigate, compare, and analyse",
+   "tone": "indigo",
+   "items": [
+    {
+     "title": "Evidence Agent",
+     "sub": "Cited, verified claims"
+    },
+    {
+     "title": "Fit-Gap Copilot",
+     "sub": "Country As-Is vs template"
+    },
+    {
+     "title": "InsightLens",
+     "sub": "Per-process fit-gap"
+    }
+   ]
+  },
+  {
+   "name": "Knowledge engines",
+   "desc": "Turn documents into answers and connections",
+   "tone": "teal",
+   "items": [
+    {
+     "title": "Ingestion",
+     "sub": "Docling + OCR on Container Apps"
+    },
+    {
+     "title": "RAG engine",
+     "sub": "Hybrid search · PostgreSQL"
+    },
+    {
+     "title": "Knowledge graph",
+     "sub": "Rule-based · Apache AGE Cypher"
+    }
+   ]
+  },
+  {
+   "name": "Models",
+   "desc": "Reason, judge, and embed",
+   "tone": "blue",
+   "items": [
+    {
+     "title": "Reasoning LLM",
+     "sub": "Claude Opus 5 · Foundry"
+    },
+    {
+     "title": "Fast checks",
+     "sub": "Claude Haiku 4.5 · Foundry"
+    },
+    {
+     "title": "Embeddings",
+     "sub": "BGE-M3 (kept) or Azure OpenAI"
+    }
+   ]
+  },
+  {
+   "name": "Data & memory",
+   "desc": "Keep the corpus, the graph, and what agents learn",
+   "tone": "amber",
+   "items": [
+    {
+     "title": "Corpus & runs",
+     "sub": "Azure PostgreSQL + pgvector"
+    },
+    {
+     "title": "Graph copy",
+     "sub": "Apache AGE in PostgreSQL"
+    },
+    {
+     "title": "Agent memory",
+     "sub": "Hindsight on Container Apps"
+    }
+   ]
+  },
+  {
+   "name": "Quality & ops",
+   "desc": "Measure, trace, and deliver",
+   "tone": "stone",
+   "items": [
+    {
+     "title": "Evaluation",
+     "sub": "Ragas · LLM judges · code scores"
+    },
+    {
+     "title": "Observability",
+     "sub": "App Insights or Langfuse"
+    },
+    {
+     "title": "Deployment",
+     "sub": "Container Apps · ACR"
+    }
+   ]
+  }
+ ],
+ "legend": {
+  "lines": [
+   "Same layers and capabilities as the current stack; only the technology line on each card changes · \"A or B\" = open decision",
+   "Azure: near lift-and-shift: PostgreSQL + pgvector stays, Apache AGE replaces Neo4j, Claude runs in Microsoft Foundry"
+  ]
+ }
+}

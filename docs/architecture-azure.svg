@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2130" height="1680" viewBox="0 0 2130 1680" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arrA3AAB4" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L11,6 L1,11" fill="none" stroke="#A3AAB4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><style>.lbl{paint-order:stroke;stroke:#FFFFFF;stroke-width:5px;stroke-linejoin:round}</style></defs>
+<rect width="2130" height="1680" fill="#FFFFFF"/>
+<text x="1065.0" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1E2530">Solvay Spark Spine AI — Target Architecture on Microsoft Azure</text>
+<rect x="28.0" y="96.0" width="1528.0" height="161.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="126.0" font-size="13" font-weight="700" fill="#5B6B7F">1</text>
+<text x="48.0" y="146.0" font-size="15" font-weight="700" fill="#1E2530">Presentation</text>
+<rect x="28.0" y="289.2" width="1528.0" height="161.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="319.2" font-size="13" font-weight="700" fill="#5B6B7F">2</text>
+<text x="48.0" y="339.2" font-size="15" font-weight="700" fill="#1E2530">API &amp;</text>
+<text x="48.0" y="357.2" font-size="15" font-weight="700" fill="#1E2530">Cross-cutting</text>
+<rect x="28.0" y="482.4" width="1528.0" height="290.8" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="512.4" font-size="13" font-weight="700" fill="#5B6B7F">3</text>
+<text x="48.0" y="532.4" font-size="15" font-weight="700" fill="#1E2530">AI Agents</text>
+<rect x="28.0" y="804.6" width="1528.0" height="158.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="834.6" font-size="13" font-weight="700" fill="#5B6B7F">4</text>
+<text x="48.0" y="854.6" font-size="15" font-weight="700" fill="#1E2530">Application</text>
+<text x="48.0" y="872.6" font-size="15" font-weight="700" fill="#1E2530">Services</text>
+<rect x="28.0" y="994.8" width="1528.0" height="161.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="1024.8" font-size="13" font-weight="700" fill="#5B6B7F">5</text>
+<text x="48.0" y="1044.8" font-size="15" font-weight="700" fill="#1E2530">Data &amp; Memory</text>
+<text x="48.0" y="1062.8" font-size="15" font-weight="700" fill="#1E2530">(one PostgreSQL)</text>
+<rect x="28.0" y="1188.0" width="1528.0" height="161.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="1218.0" font-size="13" font-weight="700" fill="#5B6B7F">6</text>
+<text x="48.0" y="1238.0" font-size="15" font-weight="700" fill="#1E2530">Evaluation</text>
+<rect x="28.0" y="1381.2" width="1528.0" height="161.2" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="48.0" y="1411.2" font-size="13" font-weight="700" fill="#5B6B7F">7</text>
+<text x="48.0" y="1431.2" font-size="15" font-weight="700" fill="#1E2530">Platform &amp;</text>
+<text x="48.0" y="1449.2" font-size="15" font-weight="700" fill="#1E2530">Deployment</text>
+<rect x="1668.0" y="257.2" width="382.0" height="370.4" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1684.0" y="283.2" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">9  </tspan>External Services</text>
+<rect x="1668.0" y="646.8" width="382.0" height="364.0" rx="14" fill="#FBFCFE" stroke="#C9D1DB" stroke-width="1.3"/>
+<text x="1684.0" y="672.8" font-size="15" font-weight="700" fill="#1E2530"><tspan fill="#5B6B7F" font-size="13">8  </tspan>Model Serving</text>
+<path d="M522.0,176.6 L943.2,176.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1046.0,215.6 L1046.0,327.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M946.0,369.8 L836.8,369.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1146.0,369.8 L1255.2,369.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1046.0,408.8 L1046.0,506.4" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter"/>
+<path d="M734.0,506.4 L1358.0,506.4" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter"/>
+<path d="M734.0,506.4 L734.0,528.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1046.0,506.4 L1046.0,528.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1358.0,506.4 L1358.0,528.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M986.0,408.8 L986.0,458.4 L287.0,458.4 L287.0,801.4" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1106.0,408.8 L1106.0,458.4 L1866.0,458.4 L1866.0,412.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M734.0,610.0 L734.0,666.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1046.0,610.0 L1046.0,666.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1358.0,610.0 L1358.0,666.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M684.0,723.2 L422.0,723.2 L422.0,843.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1358.0,747.2 L1358.0,843.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1046.0,747.2 L1046.0,1033.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1408.0,693.2 L1633.0,693.2 L1633.0,571.0 L1763.2,571.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1408.0,731.2 L1763.2,731.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M734.0,924.2 L734.0,1033.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M492.0,924.2 L492.0,978.8 L684.0,978.8 L684.0,1030.0" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M422.0,924.2 L422.0,1033.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1358.0,924.2 L1358.0,1033.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1458.0,915.2 L1514.0,915.2 L1514.0,1268.6 L1460.8,1268.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M322.0,905.2 L280.0,905.2 L280.0,1268.6 L319.2,1268.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1202.0,747.2 L1202.0,1268.6 L1148.8,1268.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M422.0,1229.6 L422.0,1117.6" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1388.0,1188.0 L1388.0,1120.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1556.0,1248.6 L2071.0,1248.6 L2071.0,748.2 L1968.8,748.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1556.0,1298.6 L2113.0,1298.6 L2113.0,369.8 L1968.8,369.8" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1458.0,880.2 L1763.2,880.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M1556.0,844.6 L1866.0,844.6 L1866.0,777.4" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<path d="M834.0,1060.4 L904.0,1060.4 L904.0,982.0 L1298.0,982.0 L1298.0,926.2" fill="none" stroke="#A3AAB4" stroke-width="1.5" stroke-linejoin="miter" marker-end="url(#arrA3AAB4)"/>
+<circle cx="1046.0" cy="506.4" r="3.5" fill="#A3AAB4"/>
+<text x="733.0" y="167.6" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">HTTPS</text>
+<text x="1056.0" y="279.6" text-anchor="start" font-size="12" fill="#37424F" class="lbl">REST / SSE</text>
+<text x="891.4" y="360.8" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">checks</text>
+<text x="1200.6" y="360.8" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">applies</text>
+<text x="298.2" y="659.6" text-anchor="start" font-size="12" fill="#37424F" class="lbl">upload · index · ask · graph</text>
+<text x="1500.0" y="445.6" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">traces + scores</text>
+<text x="432.0" y="773.2" text-anchor="end" font-size="12" fill="#37424F" class="lbl">traverse</text>
+<text x="1368.0" y="791.8" text-anchor="start" font-size="12" fill="#37424F" class="lbl">search</text>
+<text x="1056.0" y="890.2" text-anchor="start" font-size="12" fill="#37424F" class="lbl">recall · retain</text>
+<text x="1619.0" y="630.8" text-anchor="end" font-size="12" fill="#37424F" class="lbl">gated search</text>
+<text x="1500.0" y="722.2" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">reason · tools</text>
+<text x="744.0" y="982.0" text-anchor="start" font-size="12" fill="#37424F" class="lbl">Markdown</text>
+<text x="592.0" y="966.0" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">reads</text>
+<text x="432.0" y="1010.8" text-anchor="start" font-size="12" fill="#37424F" class="lbl">sync</text>
+<text x="1368.0" y="1014.0" text-anchor="start" font-size="12" fill="#37424F" class="lbl">vector + keyword</text>
+<text x="1525.2" y="1080.4" text-anchor="start" font-size="12" fill="#37424F" class="lbl">score answer</text>
+<text x="291.2" y="978.8" text-anchor="start" font-size="12" fill="#37424F" class="lbl">check graph</text>
+<text x="1190.8" y="791.8" text-anchor="end" font-size="12" fill="#37424F" class="lbl">run results</text>
+<text x="432.0" y="1180.0" text-anchor="start" font-size="12" fill="#37424F" class="lbl">run Cypher</text>
+<text x="1396.0" y="1168.8" text-anchor="start" font-size="12" fill="#37424F" class="lbl">eval runs</text>
+<text x="1836.0" y="1239.6" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">judges · Cypher</text>
+<text x="1836.0" y="1289.6" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">scores</text>
+<text x="1612.0" y="871.2" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">embed</text>
+<text x="1731.0" y="830.2" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">answer · Cypher</text>
+<text x="1116.0" y="969.2" text-anchor="middle" font-size="12" fill="#37424F" class="lbl">read · chunk · index</text>
+<text x="1056.0" y="482.4" text-anchor="start" font-size="12" fill="#37424F" class="lbl">run agents</text>
+<circle cx="422.0" cy="151.6" r="11" fill="#FFFFFF" stroke="#56606E" stroke-width="1.6"/><path d="M422.0,162.6 V186.6 M404.0,171.6 H440.0 M422.0,186.6 L408.0,205.6 M422.0,186.6 L436.0,205.6" stroke="#56606E" stroke-width="1.6" fill="none"/>
+<text x="457.0" y="173.6" font-size="14" font-weight="700" fill="#1E2530">Analyst /</text>
+<text x="457.0" y="190.6" font-size="14" font-weight="700" fill="#1E2530">Consultant</text>
+<rect x="946.0" y="137.6" width="200" height="78" rx="10" fill="#EEF4FF" stroke="#6B8BC9" stroke-width="1.5"/>
+<text x="1046.0" y="164.6" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Web UI</text>
+<text x="1046.0" y="181.6" text-anchor="middle" font-size="12.5" fill="#4A5563">React · served by API</text>
+<text x="1046.0" y="198.6" text-anchor="middle" font-size="12.5" fill="#4A5563">via Front Door</text>
+<rect x="634.0" y="330.8" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="734.0" y="357.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Microsoft Entra ID</text>
+<text x="734.0" y="374.8" text-anchor="middle" font-size="12.5" fill="#4A5563">SSO · app roles</text>
+<text x="734.0" y="391.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Container Apps auth</text>
+<rect x="946.0" y="330.8" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="1046.0" y="357.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Backend API</text>
+<text x="1046.0" y="374.8" text-anchor="middle" font-size="12.5" fill="#4A5563">FastAPI on Container Apps</text>
+<text x="1046.0" y="391.8" text-anchor="middle" font-size="12.5" fill="#4A5563">REST + SSE</text>
+<rect x="1258.0" y="330.8" width="200" height="78" rx="10" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5"/>
+<text x="1358.0" y="357.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Guardrails</text>
+<text x="1358.0" y="374.8" text-anchor="middle" font-size="12.5" fill="#4A5563">scope check +</text>
+<text x="1358.0" y="391.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Content Safety · PII</text>
+<rect x="634.0" y="532.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="734.0" y="559.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Evidence Agent</text>
+<text x="734.0" y="576.0" text-anchor="middle" font-size="12.5" fill="#4A5563">cited, verified</text>
+<text x="734.0" y="593.0" text-anchor="middle" font-size="12.5" fill="#4A5563">answers</text>
+<rect x="946.0" y="532.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="1046.0" y="559.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">InsightLens</text>
+<text x="1046.0" y="576.0" text-anchor="middle" font-size="12.5" fill="#4A5563">per-process</text>
+<text x="1046.0" y="593.0" text-anchor="middle" font-size="12.5" fill="#4A5563">fit-gap</text>
+<rect x="1258.0" y="532.0" width="200" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="1358.0" y="559.0" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Fit-Gap Copilot</text>
+<text x="1358.0" y="576.0" text-anchor="middle" font-size="12.5" fill="#4A5563">rollout comparison</text>
+<text x="1358.0" y="593.0" text-anchor="middle" font-size="12.5" fill="#4A5563">workshop export</text>
+<rect x="684.0" y="669.2" width="724.0" height="78" rx="10" fill="#FFF7E8" stroke="#C8913A" stroke-width="1.5"/>
+<text x="1046.0" y="704.7" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent Runtime</text>
+<text x="1046.0" y="721.7" text-anchor="middle" font-size="12.5" fill="#4A5563">tool-use loop · tools · quote verification</text>
+<rect x="634.0" y="846.2" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="734.0" y="873.2" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Document Ingestion</text>
+<text x="734.0" y="890.2" text-anchor="middle" font-size="12.5" fill="#4A5563">Docling on Container Apps</text>
+<text x="734.0" y="907.2" text-anchor="middle" font-size="12.5" fill="#4A5563">OCR · tables · diagrams</text>
+<rect x="322.0" y="846.2" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="422.0" y="873.2" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Knowledge Graph</text>
+<text x="422.0" y="890.2" text-anchor="middle" font-size="12.5" fill="#4A5563">build · traverse</text>
+<text x="422.0" y="907.2" text-anchor="middle" font-size="12.5" fill="#4A5563">NL → Cypher</text>
+<rect x="1258.0" y="846.2" width="200" height="78" rx="10" fill="#F3EEFF" stroke="#8C6BC9" stroke-width="1.5"/>
+<text x="1358.0" y="873.2" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">RAG Engine</text>
+<text x="1358.0" y="890.2" text-anchor="middle" font-size="12.5" fill="#4A5563">hybrid search</text>
+<text x="1358.0" y="907.2" text-anchor="middle" font-size="12.5" fill="#4A5563">grounded answer</text>
+<path d="M634.0,1046.4 V1040.4 Q634.0,1036.4 638.0,1036.4 H694.0 L704.0,1046.4 H828.0 Q834.0,1046.4 834.0,1052.4 V1108.4 Q834.0,1114.4 828.0,1114.4 H640.0 Q634.0,1114.4 634.0,1108.4 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="734.0" y="1066.4" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Azure Files + Blob</text>
+<text x="734.0" y="1083.4" text-anchor="middle" font-size="12.5" fill="#4A5563">corpus · graph JSON</text>
+<text x="734.0" y="1100.4" text-anchor="middle" font-size="12.5" fill="#4A5563">.workdir renders</text>
+<path d="M322.0,1045.4 A100.0,9 0 0 1 522.0,1045.4 V1105.4 A100.0,9 0 0 1 322.0,1105.4 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<path d="M322.0,1045.4 A100.0,9 0 0 0 522.0,1045.4" fill="none" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="422.0" y="1065.4" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Apache AGE</text>
+<text x="422.0" y="1082.4" text-anchor="middle" font-size="12.5" fill="#4A5563">openCypher in PostgreSQL</text>
+<text x="422.0" y="1099.4" text-anchor="middle" font-size="12.5" fill="#4A5563">(read-only copy)</text>
+<rect x="946.0" y="1036.4" width="200" height="78" rx="10" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="1046.0" y="1063.4" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Hindsight</text>
+<text x="1046.0" y="1080.4" text-anchor="middle" font-size="12.5" fill="#4A5563">Container App</text>
+<text x="1046.0" y="1097.4" text-anchor="middle" font-size="12.5" fill="#4A5563">memory in PostgreSQL</text>
+<path d="M1258.0,1045.4 A100.0,9 0 0 1 1458.0,1045.4 V1105.4 A100.0,9 0 0 1 1258.0,1105.4 Z" fill="#EAF4EC" stroke="#5B8F66" stroke-width="1.5"/>
+<path d="M1258.0,1045.4 A100.0,9 0 0 0 1458.0,1045.4" fill="none" stroke="#5B8F66" stroke-width="1.5"/>
+<text x="1358.0" y="1065.4" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Azure PostgreSQL</text>
+<text x="1358.0" y="1082.4" text-anchor="middle" font-size="12.5" fill="#4A5563">Flexible Server · pgvector</text>
+<text x="1358.0" y="1099.4" text-anchor="middle" font-size="12.5" fill="#4A5563">scores · run history</text>
+<rect x="1766.0" y="330.8" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1866.0" y="357.8" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Application Insights</text>
+<text x="1866.0" y="374.8" text-anchor="middle" font-size="12.5" fill="#D6D6DA">traces · scores</text>
+<text x="1866.0" y="391.8" text-anchor="middle" font-size="12.5" fill="#D6D6DA">(or self-hosted Langfuse)</text>
+<rect x="1766.0" y="532.0" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1866.0" y="567.5" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Web (allow-listed)</text>
+<text x="1866.0" y="584.5" text-anchor="middle" font-size="12.5" fill="#D6D6DA">SAP · EU sites</text>
+<rect x="1766.0" y="696.2" width="200" height="78" rx="30" fill="#2F2F33" stroke="#111111" stroke-width="1.5"/>
+<text x="1866.0" y="723.2" text-anchor="middle" font-size="15" font-weight="700" fill="#FFFFFF">Claude in Foundry</text>
+<text x="1866.0" y="740.2" text-anchor="middle" font-size="12.5" fill="#D6D6DA">Opus 5 · Sonnet 5 · Haiku</text>
+<text x="1866.0" y="757.2" text-anchor="middle" font-size="12.5" fill="#D6D6DA">answers · agents · judges</text>
+<rect x="1766.0" y="851.2" width="200" height="78" rx="10" fill="#EAF7F7" stroke="#3F9A9A" stroke-width="1.5"/>
+<text x="1866.0" y="878.2" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">bge-m3 (container)</text>
+<text x="1866.0" y="895.2" text-anchor="middle" font-size="12.5" fill="#4A5563">embeddings kept as-is</text>
+<text x="1866.0" y="912.2" text-anchor="middle" font-size="12.5" fill="#4A5563">no re-embed</text>
+<rect x="1258.0" y="1229.6" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1358.0" y="1256.6" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">RAG Evaluation</text>
+<text x="1358.0" y="1273.6" text-anchor="middle" font-size="12.5" fill="#4A5563">Ragas · 12 LLM judges</text>
+<text x="1358.0" y="1290.6" text-anchor="middle" font-size="12.5" fill="#4A5563">+ ground-truth experiments</text>
+<rect x="322.0" y="1229.6" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="422.0" y="1256.6" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Knowledge Graph Eval</text>
+<text x="422.0" y="1273.6" text-anchor="middle" font-size="12.5" fill="#4A5563">structure checks</text>
+<text x="422.0" y="1290.6" text-anchor="middle" font-size="12.5" fill="#4A5563">NL → Cypher accuracy</text>
+<rect x="946.0" y="1229.6" width="200" height="78" rx="10" fill="#FFF0F3" stroke="#C9546E" stroke-width="1.5"/>
+<text x="1046.0" y="1256.6" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Agent Evaluation</text>
+<text x="1046.0" y="1273.6" text-anchor="middle" font-size="12.5" fill="#4A5563">Evidence · Fit-Gap</text>
+<text x="1046.0" y="1290.6" text-anchor="middle" font-size="12.5" fill="#4A5563">code-only run scores</text>
+<rect x="322.0" y="1422.8" width="200" height="78" rx="10" fill="#FFF8E1" stroke="#B8962E" stroke-width="1.5"/>
+<text x="422.0" y="1449.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Container Apps env</text>
+<text x="422.0" y="1466.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Dedicated D8 nodes</text>
+<text x="422.0" y="1483.8" text-anchor="middle" font-size="12.5" fill="#4A5563">VNet · private endpoints</text>
+<rect x="634.0" y="1422.8" width="200" height="78" rx="10" fill="#FFF8E1" stroke="#B8962E" stroke-width="1.5"/>
+<text x="734.0" y="1449.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Key Vault</text>
+<text x="734.0" y="1466.8" text-anchor="middle" font-size="12.5" fill="#4A5563">secrets · managed</text>
+<text x="734.0" y="1483.8" text-anchor="middle" font-size="12.5" fill="#4A5563">identities</text>
+<rect x="946.0" y="1422.8" width="200" height="78" rx="10" fill="#FFF8E1" stroke="#B8962E" stroke-width="1.5"/>
+<text x="1046.0" y="1449.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">Front Door Premium</text>
+<text x="1046.0" y="1466.8" text-anchor="middle" font-size="12.5" fill="#4A5563">TLS · WAF</text>
+<text x="1046.0" y="1483.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Private Link to app</text>
+<rect x="1258.0" y="1422.8" width="200" height="78" rx="10" fill="#FFF8E1" stroke="#B8962E" stroke-width="1.5"/>
+<text x="1358.0" y="1449.8" text-anchor="middle" font-size="15" font-weight="700" fill="#1E2530">ACR + GitHub Actions</text>
+<text x="1358.0" y="1466.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Azure Monitor · alerts</text>
+<text x="1358.0" y="1483.8" text-anchor="middle" font-size="12.5" fill="#4A5563">Defender for Cloud</text>
+<rect x="28.0" y="1574.4" width="1528.0" height="76" rx="10" fill="#F8FAFC" stroke="#D5DCE4"/>
+<text x="48.0" y="1597.4" font-size="12.5" fill="#4A5563">Arrows = request / data direction · an arrow to a layer = used by several of its parts</text>
+<text x="48.0" y="1615.4" font-size="12.5" fill="#4A5563">Dark boxes = managed / cloud services outside the app · green = data stores · band 7 = platform services used by every component</text>
+<text x="48.0" y="1633.4" font-size="12.5" fill="#4A5563">Near lift-and-shift: PostgreSQL + pgvector stay; Apache AGE replaces Neo4j in the same server; Claude via Foundry (same Anthropic API)</text>
+</svg>

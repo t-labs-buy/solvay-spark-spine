@@ -1,0 +1,27 @@
+{
+ "mode": "stack",
+ "title": "Solvay Spark Spine — Evidence Agent stack",
+ "width": 1400,
+ "layers": [
+  {"name": "Guardrails", "desc": "Keep every run on the programme's subject", "tone": "terracotta",
+   "items": [{"title": "Scope check", "sub": "Claude Haiku 4.5 · in or out"},
+             {"title": "Gated web search", "sub": "SAP & EU sites · ≤ 2 per run"},
+             {"title": "Contact redaction", "sub": "E-mails & phone numbers removed"}]},
+  {"name": "Reasoning", "desc": "Plan the investigation and call the tools", "tone": "indigo",
+   "items": [{"title": "LLM", "sub": "Claude Opus 5"},
+             {"title": "Tool-use loop", "sub": "≤ 14 tool calls per run"},
+             {"title": "Long-term memory", "sub": "Hindsight · recall & retain"}]},
+  {"name": "Evidence from both engines", "desc": "Find the passages and the connections", "tone": "teal",
+   "items": [{"title": "Corpus search", "sub": "pgvector + BM25 · hybrid"},
+             {"title": "Knowledge graph", "sub": "Paths · enumeration · hub filter"},
+             {"title": "Provenance", "sub": "Author text vs vision-read text"}]},
+  {"name": "Verification & scoring", "desc": "Prove every quote and compute the confidence", "tone": "amber",
+   "items": [{"title": "Quote verification", "sub": "Character-for-character match"},
+             {"title": "Source independence", "sub": "Near-duplicates count once"},
+             {"title": "Support score", "sub": "Arithmetic rule, not opinion"}]},
+  {"name": "Record & observe", "desc": "Keep, trace, and grade every run", "tone": "stone",
+   "items": [{"title": "Run history", "sub": "PostgreSQL · evidence_runs"},
+             {"title": "Tracing", "sub": "Langfuse"},
+             {"title": "Agent evaluation", "sub": "Code-only quality scores"}]}
+ ]
+}

@@ -3055,6 +3055,22 @@ curl localhost:8040/api/health</pre>
               <code>up -d app</code> replaces the running app container with one from
               the new image. The database and files are untouched.
             </p>
+            <p>To confirm the update landed, still on the server:</p>
+            <pre class="language-bash">
+docker compose ps app
+curl -fsS http://127.0.0.1:${APP_PORT:-8000}/api/health
+docker compose exec solvay-postgres psql -U spark -d solvay -c \
+  "SELECT username, must_change_password FROM users ORDER BY username;"</pre>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
+                <tbody>
+                  <tr><td><code>docker compose ps app</code></td><td>The app container is <em>Up</em> and, after its first health check, <em>healthy</em>.</td></tr>
+                  <tr><td><code>curl -fsS …/api/health</code></td><td>The app answers on the port set by <code>APP_PORT</code> in <code>.env</code> (8000 if unset). Expect <code>{"ok":true,…}</code>; <code>-f</code> makes it fail loudly on an error status.</td></tr>
+                  <tr><td><code>psql … must_change_password</code></td><td>The new app started against the database and added the <code>must_change_password</code> column. Existing accounts show <code>f</code>; an account an Admin has just created or reset shows <code>t</code> until its user picks a new password.</td></tr>
+                </tbody>
+              </table>
+            </div>
             <div class="why">
               <span class="label">Rolling back</span>
               <p>

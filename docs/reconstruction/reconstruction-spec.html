@@ -1706,10 +1706,10 @@
         data, configuration, build and run steps, behaviour, validation, and
         the gaps the repository cannot answer.</p>
         <div class="meta-strip">
-          <span><strong>Source</strong> — solvay-spark-spine @ <code>1d37131</code> + working-tree ownership fixes</span>
-          <span><strong>Updated</strong> — 5 October 2026 (first written 2 October from <code>65b38f5</code>)</span>
+          <span><strong>Source</strong> — solvay-spark-spine @ <code>fd5a375</code></span>
+          <span><strong>Updated</strong> — 7 October 2026 (first written 2 October from <code>65b38f5</code>)</span>
           <span><strong>Audience</strong> — engineers and rebuilding agents</span>
-          <span><strong>Scope</strong> — 126 routes · 23 backend test scripts · 6 detailed sections</span>
+          <span><strong>Scope</strong> — 132 routes · 23 backend test scripts · 6 detailed sections</span>
         </div>
       </header>
       <div class="layout">
@@ -1732,7 +1732,7 @@ table definitions, prompts, thresholds and endpoint tables a rebuild needs.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Detail</th><th>Covers</th></tr></thead><tbody>
 <tr><td><a href="#d01">§01 Infrastructure</a></td><td>Stack and pinned versions, Dockerfiles, compose, <code>run.sh</code>, every environment variable (accounts and load tests included), filesystem state, registry and deployment, operating the deployed server, Locust load tests</td></tr>
-<tr><td><a href="#d02">§02 HTTP API</a></td><td>FastAPI app, all 126 routes, accounts and roles, the <code>spark_session</code> cookie, run ownership, the Admin API and cost estimate, Demo Mode, session attachments, Langfuse tracing</td></tr>
+<tr><td><a href="#d02">§02 HTTP API</a></td><td>FastAPI app, all 132 routes, live agent runs, accounts and roles (first-sign-in password change), the <code>spark_session</code> cookie, run ownership, the Admin API and cost estimate, Demo Mode, session attachments, Langfuse tracing</td></tr>
 <tr><td><a href="#d03">§03 Ingestion</a></td><td>Document to Markdown: Docling, Tesseract, OpenCV table and flow detection, vision-model prompts, chunker</td></tr>
 <tr><td><a href="#d04">§04 RAG and database</a></td><td>Complete Postgres table definitions (accounts, activity log and run owners included), embeddings, BM25 + vector + RRF retrieval, answer prompt, Ragas judging, quality analytics</td></tr>
 <tr><td><a href="#d05">§05 Agents and graph</a></td><td>Evidence Agent, InsightLens, Fit-Gap Copilot (scoring formulas, quality gates, cut-off refusal, <code>amend_analysis</code>), run ownership, guardrails, knowledge-graph extraction, Neo4j, NL→Cypher</td></tr>
@@ -1782,7 +1782,7 @@ those files directly.</p></div>
 │  vlm_api/vlm_ocr   ask_store evaluation  memory (Hindsight client)   graph_eval      │
 │  preview           quality coverage                                                  │
 │  auth/: store · passwords · sessions · middleware · deps · routes   api/admin        │
-│  core/: paths · uploads (per-session schemas) · tracing (Langfuse/OTel) · pricing    │
+│  core/: paths · uploads (per-session schemas) · tracing (Langfuse) · pricing · live     │
 └──────┬──────────┬──────────────┬──────────────┬─────────────┬───────────┬────────────┘
        │          │              │              │             │           │
   LibreOffice  Postgres 18    Ollama        Anthropic      Neo4j 5      Hindsight 0.10.1
@@ -1870,13 +1870,12 @@ those files directly.</p></div>
 </table></div>
 <h3 id="m1-1-4-interaction-patterns">1.4 Interaction patterns</h3>
 <ul>
-<li>[F] <strong>Concurrency.</strong> Heavy endpoints are plain <code>def</code> handlers running in Starlette's threadpool. Deferred work runs on daemon threads: Ragas judging after each answer, the upload pipeline stages, the Neo4j sync. There is <strong>no job queue and no Celery</strong>.</li>
-<li>[F] <strong>Streaming.</strong> Long operations (convert batch, embed, ask, agents) return <code>text/event-stream</code> with <code>event:</code>/<code>data:</code> lines in response to a <strong>POST</strong>. The client parses the stream manually (<code>fetch</code> + reader), not with <code>EventSource</code>.</li>
+<li>[F] <strong>Concurrency.</strong> Heavy endpoints are plain <code>def</code> handlers running in Starlette's threadpool. Deferred work runs on daemon threads: Ragas judging after each answer, the upload pipeline stages, the Neo4j sync, and every agent run (Evidence, InsightLens, Copilot), which <code>backend/core/live.py</code> drains into an in-memory event log. There is <strong>no job queue and no Celery</strong>.</li>
+<li>[F] <strong>Streaming.</strong> Long operations (convert batch, embed, ask, agents) return <code>text/event-stream</code> with <code>event:</code>/<code>data:</code> lines in response to a <strong>POST</strong>. The client parses the stream manually (<code>fetch</code> + reader), not with <code>EventSource</code>. Agent runs are not tied to their stream: any number of streams can replay a run's log from the first event and follow it (<code>GET /api/{evidence,fitgap,rollout}/runs/{id}/stream</code>), a comment line <code>: ping</code> is sent every 15 s of silence so a proxy does not close a quiet connection during a long model turn, and <code>POST …/runs/{id}/stop</code> stops the run on the server. The Evidence and Copilot pages reconnect a dropped stream up to 5 times; all three reopen a running run live from History (§02 §2a).</li>
 <li>[F] <strong>Accounts and ownership.</strong> Every page and every <code>/api/*</code> route except <code>/api/health</code> and the login/logout/session routes needs a signed-in account (401 <code>Sign in first.</code> for <code>/api/*</code>, 303 to <code>/login?next=…</code> for pages). Every run (Ask, Evidence, InsightLens, Fit-Gap Copilot, including workshop sessions and decisions, and reviews) records its owner <code>user_id</code>. Users see only their own; someone else's run or upload session answers 404, as if missing. Admins read everyone's runs with <code>scope=all</code> but write only their own. Conversions (single uploads and batches) belong to the uploader alone, Admins included. Workshop decisions are shared by design: organisational memory readable by every signed-in user; each row records who decided it. Details in §02 §3.</li>
 <li>[F] <strong>Persistence.</strong> All state lives in Postgres: accounts, activity log, corpus, history, every agent run, decisions. The graph is cached in <code>data/knowledge_graph.json</code>. Scratch files go under <code>.workdir/</code>.</li>
 <li>[F] <strong>Migrations.</strong> There is no migration tool. Every store runs <code>CREATE … IF NOT EXISTS</code> / <code>ADD COLUMN IF NOT EXISTS</code> lazily on first use. An empty database therefore bootstraps itself, apart from the corpus, which must be indexed.</li>
 </ul>
-
 
 </section>
 <section class="phase" id="m2" data-nav-label="Technology stack">
@@ -1945,7 +1944,6 @@ those files directly.</p></div>
 </tbody>
 </table></div>
 <p>[F] <code>requirements.txt</code> is unpinned. <code>constraints.txt</code> (199 pins) fixes the exact versions for the Docker build (<code>pip install -r requirements.txt -c constraints.txt</code>). torch is deliberately left out of the constraints because the CPU index adds a <code>+cpu</code> suffix. <code>cohere</code> is still installed but unused, so a rebuild can drop it.</p>
-
 
 </section>
 <section class="phase" id="m3" data-nav-label="Dependencies and why each is needed">
@@ -2030,7 +2028,6 @@ those files directly.</p></div>
 </tbody>
 </table></div>
 
-
 </section>
 <section class="phase" id="m4" data-nav-label="Data and state">
 <span class="phase-tag">Part 4</span>
@@ -2067,7 +2064,7 @@ those files directly.</p></div>
 </tr>
 <tr>
 <td>Accounts</td>
-<td><code>users</code> (unique on <code>lower(username)</code>, role <code>admin</code>/<code>user</code>, <code>active</code>, <code>session_version</code>), <code>activity_events</code> (usage log); the built-in inactive <code>legacy</code> row — <code>auth/store.py</code></td>
+<td><code>users</code> (unique on <code>lower(username)</code>, role <code>admin</code>/<code>user</code>, <code>active</code>, <code>session_version</code>, <code>must_change_password</code>), <code>activity_events</code> (usage log); the built-in inactive <code>legacy</code> row — <code>auth/store.py</code></td>
 </tr>
 </tbody>
 </table></div>
@@ -2120,7 +2117,6 @@ those files directly.</p></div>
 </table></div>
 <h3 id="m4-4-3-caches">4.3 Caches</h3>
 <p>[F] There is no persistent content cache in ingestion. Embedding is skipped when the document <strong>fingerprint</strong> is unchanged: a hash of the embedding and chunking settings plus the body without front matter. Changing a category therefore never re-embeds.</p>
-
 
 </section>
 <section class="phase" id="m5" data-nav-label="Configuration">
@@ -2185,7 +2181,6 @@ those files directly.</p></div>
 <li>Optional: an ngrok account (the demo URL is in <code>scripts/ngrok.sh</code>).</li>
 </ul>
 
-
 </section>
 <section class="phase" id="m6" data-nav-label="Build instructions">
 <span class="phase-tag">Part 6</span>
@@ -2220,7 +2215,6 @@ uv venv --python 3.13 hindsight-venv &amp;&amp; uv pip install --python hindsigh
 </ol>
 <p><code>Dockerfile.hindsight</code> has 2 stages on Python 3.13. It installs <code>hindsight-api==0.10.1</code> with CPU torch, bakes in <code>BAAI/bge-small-en-v1.5</code> and <code>cross-encoder/ms-marco-MiniLM-L-6-v2</code>, runs offline, and listens on 8888.</p>
 <p>Publish: <code>scripts/docker-publish.sh [app|hindsight]</code> runs buildx (or podman <code>--format docker</code>) for <code>linux/amd64</code>, tags <code>:&lt;git sha&gt;</code> and <code>:latest</code>, and pushes to <code>reg.ivolve.cloud/ivolve/solvay-spark-spine[-hindsight]</code>.</p>
-
 
 </section>
 <section class="phase" id="m7" data-nav-label="Runtime instructions">
@@ -2263,7 +2257,6 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li>Switching the Fit-Gap Copilot model: set <code>FITGAP_COPILOT_MODEL</code> in <code>.env</code>, then <code>docker compose up -d app</code>. <code>docker compose restart app</code> is not enough, because it keeps the old container and its environment, and the model is read at import. <code>GET /api/rollout/status</code> reports the model in use.</li>
 <li>Load tests (§01 §7.8, §06 §8.4): Locust in <code>loadtest/</code> runs only as <code>loadtest-*</code> accounts (created by <code>loadtest/seed_users.py</code>), only against <code>LOADTEST_ALLOWED_HOSTS</code>, and makes no Claude calls unless <code>LOADTEST_LLM=1</code> or <code>LOADTEST_HEAVY=1</code>. The app needs a fixed <code>AUTH_SECRET</code> for it.</li>
 </ul>
-
 
 </section>
 <section class="phase" id="m8" data-nav-label="Infrastructure and deployment">
@@ -2323,7 +2316,6 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 </ol>
 <div class="warn"><span class="label">Who can reach what</span><p>accounts guard the pages and the API; a signed-out <code>/api/*</code> call gets 401 and only <code>/api/health</code> and the login/logout/session routes are exempt. Runs, upload sessions and conversions (single and batch) are owned, but workshop decisions, the corpus, knowledge base, graph (rebuild, Neo4j sync) and Cypher tools are shared by design, as the programme's common knowledge: any signed-in User can use them, including deleting knowledge-base files. The <code>spark_session</code> cookie is <code>HttpOnly</code>, <code>SameSite=Lax</code>, and <strong>not</strong> <code>Secure</code>, so the cookie and passwords travel in clear over plain HTTP. There is no CSRF token, no rate limiting (on sign-in either) and no upload size cap. [I] FastAPI's <code>/docs</code>, <code>/redoc</code> and <code>/openapi.json</code> are left on and, not being under <code>/api/</code>, are not gated. Production relies on a TLS reverse proxy, VPN or allowlist, which lives outside this repository.</p></div>
 
-
 </section>
 <section class="phase" id="m9" data-nav-label="Behaviour">
 <span class="phase-tag">Part 9</span>
@@ -2333,6 +2325,7 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li><strong>Sign in and accounts</strong> (§02 §3, §06 §2.1, §3.15):
 <ul>
 <li><code>/login</code> (or <code>/demo/login</code>) posts to <code>/api/auth/login</code>; scrypt-checked against <code>users</code>; success sets the <code>spark_session</code> cookie, a signed token <code>uid|session_version|expires|HMAC-SHA256</code>. A new password or deactivation bumps <code>session_version</code>, which signs that account out everywhere; the gate caches account lookups for 30 s per process.</li>
+<li>An account an Admin creates or resets carries <code>must_change_password</code>: right after signing in with the temporary password the sign-in page asks for a new one (which must differ), and until then the server answers every other <code>/api/*</code> call with 403 <code>password_change_required</code> and sends pages back to <code>/login</code>. Existing accounts, the start-up Admin and the load-test seeder's <code>loadtest-*</code> accounts are not flagged.</li>
 <li>Two roles, <code>admin</code> and <code>user</code>. The first Admin comes from <code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> at start-up or from the CLI; every other account is created by an Admin (always as <code>user</code>, then promoted if wanted). The last active Admin cannot be demoted or deactivated, and nobody can demote or deactivate themselves.</li>
 <li>Every run is owned. Reviewer, facilitator and decision-maker names come from the account; typed names in the request are ignored. A User sees only their own runs and upload sessions; another's is 404. An Admin's history lists take <code>scope=mine|all</code> (a switch in the account menu); with <code>all</code> they show every owner, but an Admin writes (delete, review, decide, re-score) only their own runs. Runs from before accounts belong to the inactive <code>legacy</code> account until handed over with <code>reassign-legacy</code>. <code>/api/rollout/decisions</code> lists every account's decisions to every signed-in user: they are organisational memory, and each row records who decided it.</li>
 <li>A conversion belongs to its uploader: <code>/api/upload</code> and <code>/api/batch/upload</code> write <code>owner.txt</code> into the job folder, and every follow-up (<code>/api/convert/{id}</code>, <code>/api/docs/{id}/…</code>, <code>DELETE /api/docs/{id}</code>, <code>/api/batch/convert|download|embed</code>) answers 404 &quot;Document/Batch not found&quot; for anyone else, an Admin included, and for a job with no owner. The exception is a job that <code>POST /api/kb/files/open</code> returned for Doc vs MD (a <code>kb&lt;hash&gt;</code> copy, or an upload job whose original is in the knowledge base): it carries a <code>shared</code> marker, so every signed-in user can read its preview pages, media and Markdown, while only its uploader can convert, embed or delete it. Shared by design: workshop decisions (organisational memory; each row records who decided it), the corpus, the knowledge-base files (<code>/api/kb/*</code>), the graph and the Cypher tools.</li>
@@ -2379,6 +2372,7 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li>Resolve a BPML scope (default 4.5.1), then run one agent per step (12 calls each, concurrent).</li>
 <li>A verifier repairs the output; pure-arithmetic synthesis produces Reuse, Gaps, Decisions, Integrations and Agenda.</li>
 <li>Workshop weight = Σ materiality × (1 − confidence).</li>
+<li>Stop finishes the register early with the steps that completed (steps not started are cancelled) and records the run as <code>stopped</code>.</li>
 <li>Entry review accepts, rejects or refines entries. Export to md/json/7-sheet XLSX.</li>
 </ul>
 </li>
@@ -2398,6 +2392,7 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 </li>
 <li>The five-level standardisation outlook is computed <strong>in the frontend</strong> (<code>outlook.ts</code>).</li>
 <li>Decisions are stored append-only. Facilitator mode keeps drafts.</li>
+<li>Stop ends the pass after the model turn in flight and records the run as failed. The Review and run step no longer shows a token/time estimate.</li>
 <li>Output limits: each response may use up to <code>ROLLOUT_MAX_TOKENS_OUT</code> (64000) tokens, streamed. A submission in a response cut off at that limit is refused, never accepted, and the model is asked to resubmit more tightly; after 2 cut-offs the pass stops and the run fails rather than keeping a truncated register.</li>
 <li>A sent-back pass-2 submission is corrected with the <strong><code>amend_analysis</code></strong> tool, which sends only what changes and is merged into the held submission, then checked again like a full one. The full submission is replaced by an outline in the history to save tokens.</li>
 <li>Before pass 2's first turn the harness itself runs <code>list_sources</code>, <code>get_scope</code> (when a scope is named) and <code>compare_entities</code>, outside the tool budget. Quotes over 400 characters are shortened at a word boundary; list fields sent as text are parsed back into lists.</li>
@@ -2427,9 +2422,9 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li><strong>Admin dashboard</strong> (<code>/admin</code>; §02 §4m, §06 §3.15): KPI strip (runs, active accounts, tokens, estimated LLM cost), then Usage (runs per day, by account), Run history (open any run in its tool), Users (create, change role, activate/deactivate, reset password), Activity log, and a User × tool matrix (runs, tokens, run time or cost). Cost is an over-estimate at hard-coded list prices from <code>backend/core/pricing.py</code> (cache reads at the full input rate; scope guard, judges, memory and embeddings not counted); an unlisted model is reported as unpriced.</li>
 </ol>
 <h3 id="m9-9-2-api">9.2 API</h3>
-<p>[F] There are 126 routes in total, plus 1 static mount (<code>/assets</code>):</p>
+<p>[F] There are 132 routes in total, plus 1 static mount (<code>/assets</code>):</p>
 <ul>
-<li>106 in <code>app.py</code> (24 of them SPA pages, including <code>/admin</code>)</li>
+<li>112 in <code>app.py</code> (24 of them SPA pages, including <code>/admin</code>; 6 of them the <code>/stream</code> and <code>/stop</code> routes of the three agents)</li>
 <li>10 in <code>backend/auth/routes.py</code>: login, logout and session under <code>/api/auth</code>, with <code>/api/app</code> and <code>/api/demo</code> as aliases, plus <code>POST /api/auth/password</code></li>
 <li>1 in <code>app_login.py</code> (<code>/login</code>)</li>
 <li>3 Demo Mode routes (<code>/demo/login</code>, <code>/demo</code>, <code>/demo/{rest:path}</code>)</li>
@@ -2480,9 +2475,8 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 </tr>
 </tbody>
 </table></div>
-<p>There is also a landing page at <code>/</code>. The account menu shows the username and role, the Admin's &quot;my runs / everyone's runs&quot; history switch, Change password and Sign out. A 401 from any <code>/api/*</code> call sends the browser to the sign-in page with <code>next</code>. Every page stays mounted, so state survives tab switches. Light theme plus a dark Catppuccin Frappé theme (<code>localStorage.theme</code>).</p>
-<p>Demo Mode at <code>/demo</code> uses the same accounts and cookie. It shows only Spine and Fit-Gap Copilot as tabs, with Ask RAG and Agent in a sidebar, and the Admin page at <code>/demo/admin</code> for Admins. It hides model names, and Copilot downloads are marked <code>client=1</code>.</p>
-
+<p>There is also a landing page at <code>/</code>. The account menu shows the username and role, the Admin's &quot;my runs / everyone's runs&quot; history switch, Change password and Sign out. A 401 from any <code>/api/*</code> call, or a 403 <code>password_change_required</code>, sends the browser to the sign-in page with <code>next</code>. Every page stays mounted, so state survives tab switches. Light theme plus a dark Catppuccin Frappé theme (<code>localStorage.theme</code>).</p>
+<p>Demo Mode at <code>/demo</code> uses the same accounts and cookie. It shows only Spine and Fit-Gap Copilot as tabs. Ask RAG and Agent sit in a sidebar that only an Admin sees (it starts hidden); anyone else has no sidebar, a two-step landing page, and <code>/demo/ask</code> or <code>/demo/agent</code> lands on the introduction. Admins also get the Admin page at <code>/demo/admin</code>. It hides model names, and Copilot downloads are marked <code>client=1</code>.</p>
 
 </section>
 <section class="phase" id="m10" data-nav-label="Testing and validation">
@@ -2490,7 +2484,7 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <h2>Testing and validation</h2>
 <h3 id="m10-10-1-existing-suites-detail-in-06-8">10.1 Existing suites (detail in §06 §8)</h3>
 <ul>
-<li><strong>Backend:</strong> 23 self-running scripts with 592 tests (<code>test_auth</code> and <code>test_ownership</code> are new; <code>test_demo_mode</code> was removed):
+<li><strong>Backend:</strong> 23 self-running scripts with 599 tests (<code>test_auth</code> and <code>test_ownership</code> are new; <code>test_demo_mode</code> was removed):
 <code>for f in backend/tests/test_*.py; do .venv/bin/python &quot;$f&quot; || echo FAIL $f; done</code>
 <ul>
 <li>None of them need a live Anthropic key or Ollama; those are stubbed.</li>
@@ -2536,7 +2530,6 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 </ul>
 </li>
 </ol>
-
 
 </section>
 <section class="phase" id="m11" data-nav-label="Reconstruction gaps">
@@ -2629,6 +2622,8 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li><code>fitgap/NOTES.md</code> relation names and the graph counts quoted in the docs are stale.</li>
 <li>Node: the README says 20+, the image uses 22, and the dev machine runs 24. Use 22.</li>
 <li><code>docs/deployment.md:50</code> still says &quot;change every sign-in value&quot;. The only sign-in values left are <code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code> and <code>AUTH_SECRET</code>; every other account is created in the app.</li>
+<li><code>docs/sign-in-and-demo-mode.md</code> does not mention the first-sign-in password change (fd5a375): it says only that resetting a password signs the account out. The code forces a new or reset account to choose its own password before anything else answers.</li>
+<li>The <code>fitgap_run</code> docstring (<code>backend/api/app.py:2061</code>) points at <code>fitgap/live.py</code>; the module is <code>backend/core/live.py</code>.</li>
 <li>The <code>backend/api/app.py</code> docstring (<code>:4-6</code>) still says &quot;no auth&quot;. Every <code>/api/*</code> route except health and sign-in now needs a session.</li>
 <li><code>APP_SECRET</code> and <code>APP_SESSION_HOURS</code> are still honoured as fallbacks for <code>AUTH_SECRET</code> and <code>AUTH_SESSION_HOURS</code> (<code>backend/auth/sessions.py:20-25</code>), though no doc mentions them. A rebuild can drop them unless it must keep sessions from an older installation.</li>
 <li><code>docs/fitgap/NOTES.md</code> and <code>entity-relationships.md</code> quote graph counts (2,390 / 4,789 / 8,867, and older &quot;6 systems&quot;) that differ from the current file (2,376 / 4,752 / 8,368, 17 systems).</li>
@@ -2644,10 +2639,14 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li>A dimension mismatch silently drops the whole corpus index.</li>
 <li>Someone else's run, upload session, conversion or batch answers 404, never 403, so a guessed id does not confirm that it exists. <code>POST /api/uploads</code> with someone else's session id silently starts a new session instead.</li>
 <li>Ask single-run deletion is not written to <code>activity_events</code> [I], while every other delete is.</li>
+<li>Stop means different things per agent: InsightLens stores <code>stopped</code> with the steps that finished; the Copilot and the Evidence Agent finish the model turn in flight and record the run as <code>failed</code>.</li>
+<li>The Demo sidebar is hidden from non-Admins in the browser only; the Ask and Evidence APIs remain open to every signed-in user.</li>
+<li><code>GET /api/kb/files</code> keeps the stored (possibly another machine's) path as <code>full_path</code>, because delete matches it exactly, while size and the relative source come from the file found under this machine's corpus.</li>
 </ul>
 <h3 id="m11-11-5-known-risks-found-in-the-code">11.5 Known risks found in the code</h3>
 <ul>
 <li>[I] An unreachable database at start-up still stops the app: the lifespan calls <code>bootstrap_admin()</code> without catching connection errors (<code>backend/api/app.py:86</code>). A refused <code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> no longer does (§9.1).</li>
+<li>[I] Live agent runs are held in a module-level dict of one process: a restart, or a second worker, loses every live log; a run interrupted that way stays <code>running</code> until reported <code>abandoned</code> after 30 minutes.</li>
 <li>[I] The account cache is per process (30 s). With more than one process, a deactivated account or a changed role could still be honoured for up to 30 s elsewhere. Today there is one process.</li>
 <li>[F] <code>upload_sessions.user_id</code> has no foreign key, because <code>users</code> is in the main database and the sessions are in <code>&lt;db&gt;_session</code> (<code>backend/core/uploads.py:219-222</code>).</li>
 <li>[F] Any signed-in User can rebuild the graph, resync Neo4j and delete knowledge-base files; these are shared by design. Runs, upload sessions and conversions are owned; workshop decisions are shared organisational memory that records who decided each.</li>
@@ -2655,14 +2654,13 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <li>[I] The graph quality check re-detects process mentions without the known-code list, so a passage that names a process only through an OCR-misread code (repaired at build time) counts as a miss in <code>graph_evidence_validity</code>.</li>
 </ul>
 
-
 </section>
 <section class="phase" id="m12" data-nav-label="Recommended reconstruction order">
 <span class="phase-tag">Part 12</span>
 <h2>Recommended reconstruction order (for an executing agent)</h2>
 <ol>
 <li><strong>Infrastructure.</strong> Postgres 18 + pgvector, Ollama <code>bge-m3</code>, the system binaries, Python 3.12 venv with <code>requirements.txt -c constraints.txt</code>. Done when <code>import docling, tesserocr, cv2, ragas</code> succeeds.</li>
-<li><strong><code>backend/core</code>.</strong> paths, then tracing as a no-op wrapper, then uploads (with the session owner column), then pricing.</li>
+<li><strong><code>backend/core</code>.</strong> paths, then tracing as a no-op wrapper, then uploads (with the session owner column), then pricing, then <code>live</code> (the live-run registry; run its thread in a copy of the request's <code>contextvars</code> context so traces keep the user).</li>
 <li><strong><code>backend/auth</code></strong> (§02 §3, §04 §2.10). It comes this early because every run store's <code>create_schema</code> calls <code>own_table</code>, which needs the <code>users</code> table and the <code>legacy</code> row: store (DDL, <code>legacy</code>, <code>bootstrap_admin</code>, <code>own_table</code>, <code>reassign_legacy</code>, CLI) → passwords → sessions → middleware → deps → routes. Port <code>test_auth</code> (the parts that need no app routes).</li>
 <li><strong><code>backend/ingestion</code></strong> (§03). Port <code>test_converter</code>, <code>test_formats</code>, <code>test_bpml_markdown</code>, <code>test_originals</code>.</li>
 <li><strong><code>backend/rag</code>.</strong> Schema → index → search → answer → ask_store → evaluation → quality/coverage (§04). Port <code>test_rag</code>, <code>test_ask_store</code>, <code>test_evaluation</code>, <code>test_quality</code>, <code>test_coverage</code>, <code>test_category_durability</code>.</li>
@@ -2680,7 +2678,7 @@ The converted files go to <code>solvay-spark/&lt;cat&gt;/markdown/</code>.</li>
 <p>Scope: everything needed to build, configure, run and deploy Solvay Spark Spine AI.
 Notation: <strong>[F]</strong> = FACT, cited <code>file:line</code> (paths relative to the repo root); <strong>[I]</strong> = INFERRED (reasoned from evidence, not stated).
 Secrets: only variable <em>names</em> appear here. No values from <code>.env</code> were copied.
-Current as of commit <code>1d37131</code> (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree. Line numbers are at that working tree.</p>
+Current as of commit <code>fd5a375</code> (2026-10-06). Additions since <code>1d37131</code> (forced password change, log and network-error commands, live agent runs behind the proxy, load-test accounts exempt from the password change) are cited at <code>fd5a375</code>; other line numbers are at <code>1d37131</code> plus the ownership fixes.</p>
 
 <h3 id="d01-0-one-paragraph-picture">0. One-paragraph picture</h3>
 <p>[F] There is one Python 3.12 FastAPI process (<code>backend.api.app:app</code>, port 8000). It serves the REST/SSE API and the pre-built React SPA from <code>static/dist/</code> (<code>backend/api/app.py:51-58,174-186,3459</code>). Every page and every <code>/api/*</code> route except a few sign-in/health routes needs a signed-in account; accounts are rows in the main Postgres database (<code>backend/auth/middleware.py:35-41,111-127</code>, <code>backend/auth/store.py:1-18</code>). It calls these services:</p>
@@ -4322,6 +4320,7 @@ Current as of commit <code>1d37131</code> (2026-10-05) plus the uncommitted owne
 <li>[F] A first Admin comes from <code>ADMIN_USERNAME</code>/<code>ADMIN_PASSWORD</code> at start-up (§4.3). If that is not set, create one inside the container: <code>docker compose exec app python -m backend.auth.store create-admin &lt;name&gt;</code> [I] (the command is the CLI above; <code>-it</code> may be needed for the password prompt).</li>
 <li>[F] Usernames are 1–64 characters with no whitespace and no <code>|</code>, unique case-insensitively; <code>legacy</code> is reserved. Passwords need at least 8 characters and are stored as stdlib <code>scrypt</code> hashes, <code>scrypt$&lt;n&gt;$&lt;r&gt;$&lt;p&gt;$&lt;salt hex&gt;$&lt;hash hex&gt;</code> (<code>backend/auth/store.py:171-198</code>; <code>backend/auth/passwords.py:1-28</code>).</li>
 <li>[F] <code>bootstrap_admin</code> checks <code>ADMIN_PASSWORD</code> (at least 8 characters) and <code>ADMIN_USERNAME</code> (<code>_clean_username</code>: 1–64 characters, no whitespace or <code>|</code>, not <code>legacy</code>) before it looks for an existing account. A refused value is not an error: it returns an <code>auth: WARNING -- ADMIN_PASSWORD was not used: …</code> or <code>auth: WARNING -- ADMIN_USERNAME was not used: …</code> line ending <code>No Admin account was created.</code>, the lifespan prints it and the app starts without an Admin (<code>store.py:312-334</code>). Fix the setting and restart, or use <code>create-admin</code>. [I] An unreachable database still stops the app from starting, because the lifespan does not catch that.</li>
+<li>[F] <strong>First sign-in password change</strong> (fd5a375): an account an Admin creates, or whose password an Admin resets, has <code>users.must_change_password = true</code> and must choose its own password at its next sign-in; until then the API answers 403 <code>password_change_required</code> except for the auth routes and <code>/api/auth/password</code>. The column is added at start-up (<code>ALTER TABLE users ADD COLUMN IF NOT EXISTS … DEFAULT false</code>), so accounts that existed before are not affected, and the start-up Admin (<code>bootstrap_admin</code>) and <code>create-admin</code> CLI accounts are never flagged (<code>backend/auth/store.py:93-96,187-206,298-306,343-348</code>; <code>backend/auth/middleware.py:51-52,130-138</code>). To see who is still on a temporary password: add <code>must_change_password</code> to the <code>SELECT</code> below, or look for the &quot;password not yet changed&quot; chip on the Admin tab.</li>
 <li>[F] Accounts are never deleted, only deactivated. Resetting a password or deactivating an account bumps <code>session_version</code>, which signs that user out everywhere; the middleware caches each account lookup for 30 s and clears the cache when an Admin changes an account (<code>backend/auth/sessions.py:1-9</code>; <code>backend/auth/middleware.py:15-19,43</code>).</li>
 <li>[F] View accounts: <code>docker compose exec solvay-postgres psql -U spark -d solvay -c &quot;SELECT id, username, role, active, created_at, last_login_at, last_seen_at FROM users ORDER BY id;&quot;</code>. Recent activity: <code>SELECT at, username, action, tool, run_id FROM activity_events ORDER BY at DESC LIMIT 30;</code>. Without SQL: the Admin tab, or <code>docker compose exec app python -m backend.auth.store list</code>. <code>password_hash</code> cannot be read back; reset passwords from the Admin tab (<code>docs/deployment-guide.html</code>, &quot;View the user accounts in the database&quot;).</li>
 <li>[F] Runs recorded before accounts existed belong to the inactive <code>legacy</code> account and are visible to Admins only. Hand them to a real account with <code>docker compose exec app python -m backend.auth.store reassign-legacy &lt;username&gt; [table ...]</code>. Allowed tables: <code>fitgap_runs</code>, <code>fitgap_reviews</code>, <code>rollout_runs</code>, <code>workshop_sessions</code>, <code>workshop_decisions</code>, <code>evidence_runs</code>, <code>ask_runs</code>, <code>ask_reviews</code>; default all; a table that does not exist yet is skipped; it prints rows moved per table and is idempotent (<code>store.py:340-365,410-418</code>). It needs an image from commit <code>a52964c</code> or later; an older image prints the usage text.</li>
@@ -4335,6 +4334,9 @@ Current as of commit <code>1d37131</code> (2026-10-05) plus the uncommitted owne
 </ol>
 <p>The guide warns that scores from different models are not comparable (Opus and Sonnet differed by 8 points of GT alignment on the same India returns document; <code>docs/model-comparison.html</code>), so one model should be used for every country comparison.</p>
 <p><strong>Checking the network.</strong> [F] <code>docker network inspect ivolve-network --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | grep solvay-spark-spine</code> should list five containers: <code>solvay-spark-spine-app-1</code>, <code>-solvay-postgres-1</code>, <code>-solvay-neo4j-1</code>, <code>-solvay-ollama-1</code>, <code>-solvay-hindsight-1</code>. The one-shot helpers have exited and do not appear (<code>docs/deployment-guide.html</code>).</p>
+<p><strong>Reading the container logs</strong> (6dd44ec, <code>docs/deployment-guide.html</code> &quot;Read the container logs&quot;). [F] From <code>~/solvay-spark-spine</code>: <code>docker compose logs --tail 50 app</code> (last 50 lines), <code>docker compose logs -f app</code> (follow; Ctrl+C stops following, not the app), <code>docker compose logs -f --since 10m app</code> (<code>--since</code> also takes <code>1h</code> or a timestamp such as <code>2026-10-05T09:00</code>), the same for <code>solvay-postgres</code>, <code>solvay-neo4j</code>, <code>solvay-hindsight</code>, <code>solvay-ollama</code>; <code>docker compose logs --tail 100</code> (every service, each line prefixed with its service); <code>docker compose logs app 2&gt;&amp;1 | grep -i error | tail -20</code>; <code>docker compose logs --no-color app &gt; app.log</code> (to copy off with <code>scp</code>). Outside the project folder: <code>docker logs -f solvay-spark-spine-app-1</code>; <code>-t</code> adds timestamps. Caddy, the HTTPS front door, is a separate stack: <code>cd ~/caddy &amp;&amp; docker compose logs --tail 100 caddy</code>.</p>
+<p><strong>Finding network errors.</strong> [F] <code>docker compose logs --since 1h 2&gt;&amp;1 | grep -iE &quot;could not translate host name|name or service not known|temporary failure in name resolution|connection refused|connection reset|timed out|timeout|network is unreachable|no route to host|failed to establish|ConnectError|ServiceUnavailable&quot; | tail -30</code>. The guide's reading of the phrases: name-resolution failures → the target container is not running or not on <code>ivolve-network</code>; <code>Connection refused</code> → reachable but nothing listening yet (starting or crashed); <code>timed out</code> / <code>ConnectError</code> / <code>ServiceUnavailable</code> → the service is overloaded or hung (Ollama loading a model, Neo4j during a rebuild) or, for the Anthropic API, outbound internet is blocked; <code>Network is unreachable</code> / <code>No route to host</code> → a host network problem (AWS security group, outbound access). Direct checks from inside the app container: <code>docker exec solvay-spark-spine-app-1 getent hosts solvay-postgres solvay-neo4j solvay-ollama solvay-hindsight</code>; <code>curl -sS -m 5 http://solvay-ollama:11434/api/tags</code> (lists models); <code>curl -sS -m 5 -o /dev/null -w '%{http_code}\n' http://solvay-hindsight:8888/</code> and <code>http://solvay-neo4j:7474</code> (any status code means it answered); <code>curl -sS -m 10 -o /dev/null -w '%{http_code}\n' https://api.anthropic.com</code> (any code, often 404, is fine; a timeout means outbound traffic is blocked).</p>
+<p><strong>Long agent runs behind the proxy.</strong> [F] One Copilot model turn can run for minutes without an event, and the reverse proxy in front of the deployed app closes an idle connection; before ae1e4eb that surfaced as &quot;network error&quot;. Agent runs now run on a thread of their own and their streams send an SSE comment <code>: ping</code> every 15 s of silence (<code>backend/core/live.py:26-32</code>), so no proxy timeout change is needed. A run survives a dropped stream or closed tab and can be reopened from History while the process lives; [I] restarting or recreating the app container loses every live run (the registry is in memory) and leaves the interrupted run <code>running</code> until the stores report it <code>abandoned</code> after 30 minutes.</p>
 <p><strong>Admin usage dashboard and estimated cost.</strong> [F] The Admin tab (<code>/api/admin/users</code>, <code>/usage</code>, <code>/activity</code>, <code>/runs</code>; <code>backend/api/admin.py:25,91-300</code>) prices each run's recorded tokens with a hard-coded table in <code>backend/core/pricing.py:23-35</code>, in USD per million input/output tokens. There is <strong>no environment variable</strong> for prices. A model id matches exactly, or by its longest listed stem followed by <code>-</code> or <code>@</code>, after stripping an <code>anthropic.</code> prefix; an unlisted model is reported as unpriced (<code>pricing.py:38-51</code>). It is an over-estimate: cache reads are priced at the full input rate, and calls no run row records (scope guard, Ragas judge, Hindsight, embeddings) are not counted (<code>pricing.py:1-17</code>).</p>
 <div class="tablewrap"><table>
 <thead>
@@ -4390,9 +4392,9 @@ Current as of commit <code>1d37131</code> (2026-10-05) plus the uncommitted owne
 <ol>
 <li><code>python3 -m venv .venv-loadtest &amp;&amp; .venv-loadtest/bin/pip install -r loadtest/requirements.txt</code></li>
 <li>The app needs a fixed <code>AUTH_SECRET</code>, or a restart signs every test user out.</li>
-<li><code>LOADTEST_PASSWORD=… ADMIN_USERNAME=… ADMIN_PASSWORD=… .venv/bin/python loadtest/seed_users.py --host http://localhost:8000 --count 20 --admin</code> creates <code>loadtest-01..20</code> (role user) and, with <code>--admin</code>, <code>loadtest-admin</code> (needed by <code>QualityUser</code>). Re-running resets passwords and reactivates.</li>
+<li><code>LOADTEST_PASSWORD=… ADMIN_USERNAME=… ADMIN_PASSWORD=… .venv/bin/python loadtest/seed_users.py --host http://localhost:8000 --count 20 --admin</code> creates <code>loadtest-01..20</code> (role user) and, with <code>--admin</code>, <code>loadtest-admin</code> (needed by <code>QualityUser</code>). Re-running resets passwords and reactivates. It sends <code>must_change_password: false</code> on both the create and the reset, so these scripted accounts are exempt from the first-sign-in password change (<code>loadtest/seed_users.py:10-12,70-78</code> at fd5a375); it is the only caller that opts out.</li>
 </ol>
-<p>Profiles, run from <code>loadtest/</code> (<code>README.md:56-101</code>): reads only (<code>-u 200 -r 20</code>); Ask against the mock (<code>uvicorn mock_anthropic:app --port 8099</code>, then a second app on :8001 with <code>ANTHROPIC_BASE_URL=http://localhost:8099 ANTHROPIC_API_KEY=mock RAG_EVAL_SAMPLE=0</code>); a 1-user Fit-Gap smoke test against the real API; Copilot runs with an upload session id copied from the browser. Test the server as deployed, one uvicorn process without <code>--reload</code>. [F] The README notes each open stream holds one of Starlette's 40 threadpool threads, which is the app's practical limit on concurrent agent runs (<code>loadtest/README.md:113</code>).</p>
+<p>Profiles, run from <code>loadtest/</code> (<code>README.md:56-101</code>): reads only (<code>-u 200 -r 20</code>); Ask against the mock (<code>uvicorn mock_anthropic:app --port 8099</code>, then a second app on :8001 with <code>ANTHROPIC_BASE_URL=http://localhost:8099 ANTHROPIC_API_KEY=mock RAG_EVAL_SAMPLE=0</code>); a 1-user Fit-Gap smoke test against the real API; Copilot runs with an upload session id copied from the browser. Test the server as deployed, one uvicorn process without <code>--reload</code>. [F] The README notes each open stream holds one of Starlette's 40 threadpool threads, which is the app's practical limit on concurrent agent runs (<code>loadtest/README.md:113</code>). [I] Since ae1e4eb this applies to open <em>streams</em>: an agent run itself runs on its own daemon thread (<code>core/live.py</code>), so a run whose stream was closed no longer holds a threadpool thread, while each follower of a live run still does.</p>
 
 <h3 id="d01-8-discrepancies-between-docs-and-code-rebuild-against-the-co">8. Discrepancies between docs and code (rebuild against the code)</h3>
 <ol>
@@ -4425,8 +4427,8 @@ Current as of commit <code>1d37131</code> (2026-10-05) plus the uncommitted owne
 <section class="phase" id="d02" data-nav-label="§02 HTTP API and core services" data-subsections="off">
 <span class="phase-tag">Detail §02</span>
 <h2>§02 · HTTP API and core services</h2>
-<p>Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; line numbers are at that working tree.
-Scope: <code>backend/api/app.py</code> (3416 lines), <code>backend/api/{app_login,demo_mode,admin}.py</code>, <code>backend/auth/{store,passwords,sessions,middleware,deps,routes}.py</code>, <code>backend/core/{tracing,uploads,paths,pricing}.py</code>, <code>backend/agents/guardrails/middleware.py</code> (read because app.py installs it), docs <code>sign-in-and-demo-mode.md</code>, <code>tracing-and-evaluation.md</code>.
+<p>Current as of commit fd5a375 (2026-10-06). Line numbers for what changed after <code>1d37131</code> (live agent runs, forced password change, corpus paths from another machine) are at <code>fd5a375</code>; older citations were taken at <code>1d37131</code> plus the ownership fixes, and <code>app.py</code> line numbers after ~line 800 have since moved down by roughly 40–160 lines.
+Scope: <code>backend/api/app.py</code> (3574 lines at fd5a375), <code>backend/api/{app_login,demo_mode,admin}.py</code>, <code>backend/auth/{store,passwords,sessions,middleware,deps,routes}.py</code>, <code>backend/core/{tracing,uploads,paths,pricing,live}.py</code>, <code>backend/agents/guardrails/middleware.py</code> (read because app.py installs it), docs <code>sign-in-and-demo-mode.md</code>, <code>tracing-and-evaluation.md</code>.
 Convention: <strong>FACT (file:line)</strong> = read in source; <strong>INFERRED</strong> = deduced, not literally stated. Paths below are relative to repo root; <code>app.py</code> = <code>backend/api/app.py</code>.</p>
 
 <h3 id="d02-1-paths-and-constants">1. Paths and constants</h3>
@@ -4515,7 +4517,7 @@ On shutdown: <code>tracing.shutdown()</code>, then <code>backend.agents.fitgap.m
 </ul>
 <h4 id="d02-concurrency-model">Concurrency model</h4>
 <ul>
-<li>All heavy endpoints are plain <code>def</code> → FastAPI runs them in the Starlette threadpool (FACT comment app.py:117-119). SSE endpoints return <code>StreamingResponse</code> over <strong>sync generators</strong>, which Starlette iterates in the threadpool (FACT app.py:1802-1803).</li>
+<li>All heavy endpoints are plain <code>def</code> → FastAPI runs them in the Starlette threadpool (FACT comment app.py:117-119). SSE endpoints return <code>StreamingResponse</code> over <strong>sync generators</strong>, which Starlette iterates in the threadpool (FACT app.py:1802-1803). The three <strong>agent</strong> streams (InsightLens, Fit-Gap Copilot, Evidence Agent) are the exception: their run is not driven by the response at all but by a live-run thread (next bullet and §2a).</li>
 <li>No <code>BackgroundTasks</code>, no job queue, no Celery (FACT comment app.py:1687-1695). Deferred work = <strong>daemon <code>threading.Thread</code></strong>:
 <ul>
 <li>Ask answer judging: <code>threading.Thread(target=_judge, args=(run_id, force), name=f&quot;ask-eval-{run_id}&quot;, daemon=True)</code> (FACT app.py:1759-1760).</li>
@@ -4523,13 +4525,26 @@ On shutdown: <code>tracing.shutdown()</code>, then <code>backend.agents.fitgap.m
 <li>Neo4j sync: daemon thread (FACT kg_neo4j_load.py:249).</li>
 <li>Graph question-check: <code>graph_eval.start_questions()</code> returns an id, runs in background (FACT app.py:594-606; internals elsewhere).</li>
 <li>INFERRED: Fit-Gap/Rollout orchestrators spawn their own worker threads (comment app.py:1691 references rollout/orchestrator.py).</li>
+<li><strong>Live agent runs</strong> (<code>backend/core/live.py</code>, FACT at fd5a375): <code>/api/fitgap/run</code>, <code>/api/rollout/run</code> and <code>/api/evidence/ask</code> hand their event generator to <code>live.start(...)</code>, which drains it on a daemon thread named <code>&lt;kind&gt;-live</code> into an in-memory event log. The thread runs inside <code>contextvars.copy_context()</code> of the request, so <code>tracing.USER</code> (the signed-in username) still reaches the Langfuse trace (live.py:104-109). See §2a.</li>
 </ul>
 </li>
 <li>The signed-in user is never read from ambient context by a run: endpoints take <code>user</code> via <code>Depends</code> and pass <code>user[&quot;id&quot;]</code> into the store row or <code>RunRequest</code> explicitly (FACT backend/auth/deps.py:8-10; app.py:1836, 2029, 2456, 3007).</li>
 <li>DB connections: thread-local psycopg connections; workers must close their own (<code>rag.close()</code> in <code>_judge</code> finally, app.py:1740; <code>fg_uploads.close()</code> in upload worker, app.py:2147). <code>fg_store.connect()</code> / <code>ro_store.connect()</code> / <code>auth_store.connect()</code> are shared and cached per thread — &quot;not ours to close&quot; (FACT comments app.py:1922, 2268; auth/store.py:46-48).</li>
 </ul>
 <h4 id="d02-sse-format">SSE format</h4>
-<p>Every SSE helper: <code>f&quot;event: {event}\ndata: {json.dumps(data)}\n\n&quot;</code> (agent streams use <code>json.dumps(data, default=str)</code>). Headers on most streams: <code>Cache-Control: no-cache</code>, <code>X-Accel-Buffering: no</code>, <code>media_type=&quot;text/event-stream&quot;</code> (FACT e.g. app.py:1431-1434). <code>/api/kb/batch-insert</code> omits the extra headers (FACT app.py:1258). Errors inside a stream are emitted as <code>event: error</code> with <code>{&quot;message&quot;: ...}</code> rather than HTTP errors (validation errors before the stream starts are raised as HTTPException).</p>
+<p>Every SSE helper: <code>f&quot;event: {event}\ndata: {json.dumps(data)}\n\n&quot;</code> (agent streams use <code>json.dumps(data, default=str)</code>, and also send the comment line <code>: ping\n\n</code> as a keep-alive — §2a). Headers on most streams: <code>Cache-Control: no-cache</code>, <code>X-Accel-Buffering: no</code>, <code>media_type=&quot;text/event-stream&quot;</code> (FACT e.g. app.py:1431-1434). <code>/api/kb/batch-insert</code> omits the extra headers (FACT app.py:1258). Errors inside a stream are emitted as <code>event: error</code> with <code>{&quot;message&quot;: ...}</code> rather than HTTP errors (validation errors before the stream starts are raised as HTTPException).</p>
+<h4 id="d02-2a-live-agent-runs-backend-core-live-py-127-lines-fact-at-fd">2a. Live agent runs (<code>backend/core/live.py</code>, 127 lines) — FACT at fd5a375</h4>
+<p>Why (module docstring, live.py:1-17): an agent run used to be driven by its HTTP response. Closing the tab left the generator suspended at its last <code>yield</code>, so the run never finished and could not be reopened; and while the model spent minutes writing one long turn nothing crossed the wire, so the reverse proxy in front of the deployed app closed the idle connection and the page showed &quot;network error&quot; for a run that was fine.</p>
+<ul>
+<li>Constants: <code>KEEP_SECONDS = 15*60</code> (a finished run's log is kept this long for a late reader; after that the stored record is what the history opens); <code>PING_SECONDS = 15</code> (a follower with nothing new wakes this often to send a keep-alive); sentinel <code>PING = &quot;__ping__&quot;</code> (live.py:26-32).</li>
+<li>Registry: module-level <code>_runs: dict[(kind, run_id), LiveRun]</code> behind <code>threading.Lock</code>; kinds <code>&quot;fitgap&quot;</code> (InsightLens), <code>&quot;rollout&quot;</code> (Fit-Gap Copilot), <code>&quot;evidence&quot;</code> (Evidence Agent). One uvicorn process serves the app, so the module dict is the whole store (INFERRED consequence: a second worker process, or a restart, loses every live log; the page then falls back to the stored run).</li>
+<li><code>LiveRun(owner, stop)</code>: <code>owner</code> (user id), <code>run_id</code>, <code>events: list[(event, data)]</code>, <code>finished_at</code>, <code>stop: threading.Event</code> (read by the orchestrator), a <code>threading.Condition</code>. <code>follow()</code> yields <strong>every event so far, then each new one</strong> until the run has finished and the reader has caught up; while there is nothing new it waits up to <code>PING_SECONDS</code> and yields <code>(PING, None)</code>.</li>
+<li><code>start(kind, events, owner, stop, run_id=None)</code>: prunes logs finished more than <code>KEEP_SECONDS</code> ago; registers the run under <code>run_id</code> at once when the caller already has it (Evidence Agent mints <code>ev_&lt;hex10&gt;</code> before streaming), otherwise when the first <code>scope</code> event carrying <code>run_id</code> arrives (InsightLens, Copilot). The drain loop appends each event; an exception becomes a final <code>error{message:&quot;&lt;Type&gt;: &lt;msg&gt;&quot;}</code>; <code>finally</code> marks it finished. The thread runs in a copy of the request's <code>contextvars</code> context.</li>
+<li><code>get(kind, run_id, owner=None)</code>: the live run if it exists and <code>owner</code> is None (an Admin) or equals the run's owner; else None.</li>
+<li><code>_live_stream(live)</code> in app.py (app.py:2088-2104): a sync generator over <code>live.follow()</code> that emits <code>: ping\n\n</code> for <code>PING</code> and <code>event: …\ndata: …\n\n</code> otherwise, with <code>Cache-Control: no-cache</code>, <code>X-Accel-Buffering: no</code>.</li>
+<li>Each engine has three routes: the run/ask POST (starts the run and streams it), <code>GET …/runs/{id}/stream</code> (<code>read_owner</code>; replays from the first event and follows; <strong>404 &quot;run &lt;id&gt; is not running&quot;</strong> once the run is only in the store) and <code>POST …/runs/{id}/stop</code> (<code>write_owner</code>; sets <code>stop</code>, returns <code>{stopping:true, run_id}</code>; 404 likewise). Stop semantics differ per engine (§4i, §4k, §4l).</li>
+<li>Tests: <code>test_fitgap.py</code> (<code>test_a_late_reader_replays_the_run_from_its_first_event</code>, <code>test_someone_elses_live_run_is_not_found_but_an_admin_sees_it</code>, <code>test_a_run_that_raises_ends_its_stream_with_an_error</code>, <code>test_a_quiet_run_sends_keepalives_so_a_proxy_keeps_the_stream_open</code>, <code>test_a_live_run_sees_the_signed_in_user</code>); <code>test_rollout.py::test_a_stopped_pass_makes_no_further_model_call</code>; <code>test_evidence.py::test_a_stopped_investigation_makes_no_model_call</code>.</li>
+</ul>
 
 <h3 id="d02-3-authentication-accounts-and-ownership">3. Authentication, accounts and ownership</h3>
 <p>Replaces the earlier static sign-ins (<code>APP_USERNAME</code>/<code>APP_PASSWORD</code>, <code>DEMO_USERNAME</code>/<code>DEMO_PASSWORD</code>, <code>APP_LOGIN=off</code>, cookies <code>app_session</code>/<code>demo_session</code>), none of which is read any more (FACT — grep of backend/ finds none; docs/sign-in-and-demo-mode.md). Accounts are Postgres rows; one cookie opens both the application and Demo Mode.</p>
@@ -4551,6 +4566,9 @@ On shutdown: <code>tracing.shutdown()</code>, then <code>backend.agents.fitgap.m
     last_seen_at    timestamptz
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users (lower(username));
+-- added after accounts shipped (fd5a375): existing accounts are not forced to change
+ALTER TABLE users ADD COLUMN IF NOT EXISTS
+    must_change_password boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS activity_events (
     id        bigserial PRIMARY KEY,
     at        timestamptz NOT NULL DEFAULT now(),
@@ -4570,12 +4588,13 @@ INSERT INTO users (username, password_hash, role, active)
 <li>Roles: <code>ROLES = (&quot;admin&quot;, &quot;user&quot;)</code> (store.py:38). Usernames are case-insensitively unique; <code>_clean_username</code>: stripped, 1-64 chars, no whitespace, no <code>|</code>, not <code>legacy</code> (store.py:171-177).</li>
 <li><strong><code>legacy</code> account</strong> (store.py:16-18, 39, 108-111, 114-122): inactive, empty password hash (so <code>verify_password</code> returns False), owns every run recorded before accounts existed. Excluded from <code>list_users</code> (store.py:225-231). Its id is cached per database (<code>legacy_id</code>).</li>
 <li><strong>Accounts are never deleted</strong>; <code>active=false</code> replaces deletion so runs keep an owner (store.py:12-14).</li>
-<li><code>create_user(conn, username, password, role=&quot;user&quot;)</code>: validates name, role, <code>passwords.check_strength</code>; <code>INSERT … ON CONFLICT (lower(username)) DO NOTHING RETURNING</code>; duplicate → <code>AccountError('There is already an account called &quot;&lt;name&gt;&quot;.')</code> (store.py:180-196).</li>
+<li><code>create_user(conn, username, password, role=&quot;user&quot;, must_change=False)</code>: validates name, role, <code>passwords.check_strength</code>; <code>INSERT … (username, password_hash, role, must_change_password) … ON CONFLICT (lower(username)) DO NOTHING RETURNING</code>; duplicate → <code>AccountError('There is already an account called &quot;&lt;name&gt;&quot;.')</code> (store.py:187-206 at fd5a375). The Admin API passes <code>must_change=True</code> by default (§4m).</li>
+<li><strong>Forced password change</strong> (fd5a375): <code>must_change_password</code> is true while the account's password is one an Admin chose — a new account or an Admin reset — and is cleared when its owner chooses their own. <code>_USER_COLUMNS</code> and the user dict include it (store.py:159-171).</li>
 <li><code>authenticate(conn, username, password)</code>: case-insensitive lookup on stripped username; unknown name still runs scrypt against <code>DUMMY_HASH</code> (equal timing); wrong password or inactive → None; success sets <code>last_login_at = last_seen_at = now()</code> (store.py:205-222).</li>
-<li><code>update_user(conn, uid, *, role, active, password, acting)</code> (store.py:239-280): refuses <code>legacy</code>/unknown (&quot;No such account.&quot;); an Admin losing Admin status (demotion or deactivation) is refused if <code>acting == uid</code> (&quot;You cannot demote or deactivate your own account.&quot;) or if they are the last active Admin (&quot;This is the last active Admin; make another Admin first.&quot;). Deactivation or a new password <strong>bumps <code>session_version</code></strong> (signs the account out everywhere); a role change does not (the middleware reads the role fresh).</li>
-<li><code>change_own_password(conn, uid, current, new)</code>: verifies current (&quot;The current password is not right.&quot;), then <code>update_user(password=new)</code> (store.py:283-287).</li>
+<li><code>update_user(conn, uid, *, role, active, password, acting, must_change=True)</code> (store.py:249-296 at fd5a375): a new password also sets <code>must_change_password = must_change</code> (default true: a password set here is an Admin's reset). refuses <code>legacy</code>/unknown (&quot;No such account.&quot;); an Admin losing Admin status (demotion or deactivation) is refused if <code>acting == uid</code> (&quot;You cannot demote or deactivate your own account.&quot;) or if they are the last active Admin (&quot;This is the last active Admin; make another Admin first.&quot;). Deactivation or a new password <strong>bumps <code>session_version</code></strong> (signs the account out everywhere); a role change does not (the middleware reads the role fresh).</li>
+<li><code>change_own_password(conn, uid, current, new)</code>: verifies current (&quot;The current password is not right.&quot;); refuses a new password equal to the current one (&quot;Choose a password different from the current one.&quot; — otherwise a forced change could be &quot;made&quot; by typing the Admin's password back in); then <code>update_user(password=new, must_change=False)</code> (store.py:298-306 at fd5a375).</li>
 <li><code>touch_seen</code>: <code>last_seen_at = now()</code> at most once a minute (store.py:290-294).</li>
-<li><code>bootstrap_admin()</code> (store.py:297-335): if an active Admin exists → &quot;auth: accounts ready&quot;; if <code>ADMIN_USERNAME</code> or <code>ADMIN_PASSWORD</code> is unset → a WARNING line naming the env vars and the CLI. Otherwise, in this order and never raising for a bad setting: <code>passwords.check_strength(password)</code> fails → <code>auth: WARNING -- ADMIN_PASSWORD was not used: &lt;why&gt; No Admin account was created.</code> (store.py:314-316); <code>_clean_username(name)</code> raises → <code>auth: WARNING -- ADMIN_USERNAME was not used: &lt;why&gt; No Admin account was created.</code> (store.py:319-322). Only then the case-insensitive lookup: if the name exists, make it an active Admin with that password and bump <code>session_version</code>; else <code>create_user(…, &quot;admin&quot;)</code>, whose <code>AccountError</code> is turned into the same ADMIN_USERNAME warning (store.py:323-334). Validating the name before the lookup is what stops <code>ADMIN_USERNAME=legacy</code> from promoting the built-in <code>legacy</code> account; the existing-account branch is also subject to the strength check. The lifespan prints the line and the app starts either way.</li>
+<li><code>bootstrap_admin()</code> (store.py:297-335): if an active Admin exists → &quot;auth: accounts ready&quot;; if <code>ADMIN_USERNAME</code> or <code>ADMIN_PASSWORD</code> is unset → a WARNING line naming the env vars and the CLI. Otherwise, in this order and never raising for a bad setting: <code>passwords.check_strength(password)</code> fails → <code>auth: WARNING -- ADMIN_PASSWORD was not used: &lt;why&gt; No Admin account was created.</code> (store.py:314-316); <code>_clean_username(name)</code> raises → <code>auth: WARNING -- ADMIN_USERNAME was not used: &lt;why&gt; No Admin account was created.</code> (store.py:319-322). Only then the case-insensitive lookup: if the name exists, make it an active Admin with that password, <code>must_change_password = false</code>, and bump <code>session_version</code>; else <code>create_user(…, &quot;admin&quot;)</code>, whose <code>AccountError</code> is turned into the same ADMIN_USERNAME warning (store.py:323-334). Validating the name before the lookup is what stops <code>ADMIN_USERNAME=legacy</code> from promoting the built-in <code>legacy</code> account; the existing-account branch is also subject to the strength check. The lifespan prints the line and the app starts either way.</li>
 <li><code>log_event(user, action, *, tool, run_id, detail, username)</code> inserts one <code>activity_events</code> row; never raises (prints <code>auth: could not log …</code>) (store.py:371-386). Actions written in this scope: <code>login</code>, <code>login_failed</code> (user_id NULL, username = typed name ≤64), <code>logout</code>, <code>password_changed</code> (auth/routes.py); <code>run</code> (tool ask/evidence/fitgap/rollout), <code>review</code>, <code>decision</code>, <code>workshop</code>, <code>export</code> (fitgap), <code>delete</code> (rollout/evidence), <code>clear_history</code> (ask) (app.py); <code>user_created</code>, <code>user_updated</code> (admin.py:107, 123). INFERRED: Ask single-run deletion is not logged (app.py:3421-3427 has no <code>log_event</code>).</li>
 <li><strong>CLI</strong> (store.py:20-25, 389-431; run as <code>python -m backend.auth.store</code>, loads <code>ROOT/.env</code> with <code>override=False</code>): <code>create-admin &lt;username&gt;</code> (prompts twice via getpass), <code>list</code> (id, username, role, active/inactive), <code>reassign-legacy &lt;username&gt; [table ...]</code>.</li>
 </ul>
@@ -4594,8 +4613,9 @@ INSERT INTO users (username, password_hash, role, active)
 <li>Reads <code>spark_session</code> from the raw <code>cookie</code> header (quotes stripped) (85-92).</li>
 <li><code>resolve(token)</code> on a worker thread (<code>anyio.to_thread.run_sync</code>): <code>read_token</code>, then <code>_load(uid)</code> → <code>store.get_user</code>, cached per uid for <code>CACHE_SECONDS = 30</code> (43, 57-69); an active user also gets <code>touch_seen</code>. Returns None unless the user exists, is <code>active</code>, and <code>session_version</code> matches the token (72-82).</li>
 <li>Stores the user dict (or None) in <code>scope[&quot;state&quot;][&quot;user&quot;]</code> (read as <code>request.state.user</code>), and sets <code>tracing.USER</code> to the username (106-108).</li>
-<li>Signed out + path starts <code>/api/</code> + path not in <code>EXEMPT</code> → <strong>401</strong> JSON <code>{&quot;detail&quot;:&quot;Sign in first.&quot;}</code> (111-117). <code>EXEMPT</code> = <code>/api/health</code>, and login/logout/session under <code>/api/auth</code>, <code>/api/app</code>, <code>/api/demo</code> (35-41).</li>
-<li>Signed out + <code>GET</code> + path in <code>pages</code> → <strong>303</strong> to <code>/login?next=&lt;quote(path[?query])&gt;</code> (119-127). <code>pages</code> = <code>page_paths(app)</code>: every <code>APIRoute</code> with GET, <code>response_class is HTMLResponse</code>, path not starting <code>/demo</code> and not <code>/login</code> (app_login.py:28-39) — the 24 SPA paths of §4b, including <code>/admin</code>.</li>
+<li>Signed out + path starts <code>/api/</code> + path not in <code>EXEMPT</code> → <strong>401</strong> JSON <code>{&quot;detail&quot;:&quot;Sign in first.&quot;}</code> (111-117). <code>EXEMPT</code> = <code>/api/health</code>, and login/logout/session under <code>/api/auth</code>, <code>/api/app</code>, <code>/api/demo</code> (35-41).
+4b. <strong>Held for a password change</strong> (fd5a375, middleware.py:51-52, 130-138): a signed-in user with <code>must_change_password</code> and a path under <code>/api/</code> not in <code>PASSWORD_CHANGE_OPEN = EXEMPT | {&quot;/api/auth/password&quot;}</code> → <strong>403</strong> JSON <code>{&quot;detail&quot;:&quot;Change your password first.&quot;,&quot;code&quot;:&quot;password_change_required&quot;}</code>. The check is on the server because a browser-only check would leave the API open to anyone holding the handed-over password.</li>
+<li>Signed out <strong>or held</strong> + <code>GET</code> + path in <code>pages</code> → <strong>303</strong> to <code>/login?next=&lt;quote(path[?query])&gt;</code> (119-127; <code>/login</code> then asks for the new password). <code>pages</code> = <code>page_paths(app)</code>: every <code>APIRoute</code> with GET, <code>response_class is HTMLResponse</code>, path not starting <code>/demo</code> and not <code>/login</code> (app_login.py:28-39) — the 24 SPA paths of §4b, including <code>/admin</code>.</li>
 </ol>
 <ul>
 <li>Not gated by this middleware: <code>/assets/*</code>, <code>/login</code>, <code>/demo*</code> (they redirect themselves, §3e), FastAPI's <code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code> (INFERRED from the rules above: not under <code>/api/</code>, not an <code>APIRoute</code>).</li>
@@ -4656,11 +4676,11 @@ INSERT INTO users (username, password_hash, role, active)
 </ul>
 <h4 id="d02-3e-sign-in-routes-login-and-demo-mode-fact-throughout">3e. Sign-in routes, <code>/login</code>, and Demo Mode — FACT throughout</h4>
 <ul>
-<li><code>backend/auth/routes.py</code> registers the same three handlers under <code>/api/auth</code>, <code>/api/app</code> and <code>/api/demo</code> (the latter two are aliases the existing bundles call) (routes.py:66-69), plus <code>POST /api/auth/password</code> (72-85). <code>public(user)</code> = <code>{id, user, username, role}</code> (30-32).</li>
+<li><code>backend/auth/routes.py</code> registers the same three handlers under <code>/api/auth</code>, <code>/api/app</code> and <code>/api/demo</code> (the latter two are aliases the existing bundles call) (routes.py:66-69), plus <code>POST /api/auth/password</code> (72-85). <code>public(user)</code> = <code>{id, user, username, role, must_change_password}</code> (routes.py:35-37 at fd5a375); login, session and the password change all return it, so the sign-in page knows to ask for a new password.</li>
 <li><code>login</code>: <code>store.authenticate</code>; failure → <code>log_event(None, &quot;login_failed&quot;, username=…)</code> and 401 <code>{&quot;detail&quot;:&quot;Incorrect username or password.&quot;}</code>; success → <code>forget(uid)</code>, <code>log_event(&quot;login&quot;)</code>, body <code>public(user)</code> + Set-Cookie (35-47).</li>
-<li><code>GET /login</code> (<code>app_login.py:47-55</code>): signed in → 303 <code>safe_next(next)</code>; else <code>login.html</code>.</li>
-<li>Demo Mode (<code>demo_mode.py</code>): same accounts, same cookie; no separate env vars or secret (demo_mode.py:8-11). <code>GET /demo/login</code>: signed in → 303 <code>/demo</code>; else <code>demo.html</code> (37-43). <code>GET /demo</code> and <code>/demo/{rest:path}</code>: signed out → 303 <code>/demo/login?next=&lt;quote(&quot;/demo&quot;+(&quot;/&quot;+rest))&gt;</code>; else <code>demo.html</code> (46-52). The demo login GET does not consume <code>next</code> server-side (INFERRED: the demo frontend reads it).</li>
-<li>Demo UI behaviour (FACT docs/sign-in-and-demo-mode.md): opens on Spark AI Spine landing page; header tabs only <strong>Knowledge Graph</strong> and <strong>Fit-Gap Copilot</strong>; <strong>Ask RAG</strong> and the <strong>Agent</strong> in a sidebar minimized to icons (menu button expands/minimizes; can be hidden entirely; state remembered in browser). Excluded from Demo: Convert, Batch Convert, Add to knowledge base, Coverage, Doc vs MD, MD Viewer, InsightLens, RAG Metrics — their <code>/demo/...</code> URLs land on the introduction. Bundle <code>frontend/demo.html</code> + <code>frontend/src/demo/</code>, reusing app page components. Rollout exports use <code>client=1</code> from Demo to omit model name (FACT app.py:2813-2814).</li>
+<li><code>GET /login</code> (<code>app_login.py:47-55</code>): signed in <strong>and not held</strong> → 303 <code>safe_next(next)</code>; else <code>login.html</code> (a held account gets the page, which shows the change-password step) (app_login.py:49-53 at fd5a375).</li>
+<li>Demo Mode (<code>demo_mode.py</code>): same accounts, same cookie; no separate env vars or secret (demo_mode.py:8-11). <code>GET /demo/login</code>: signed in and not held → 303 <code>/demo</code>; else <code>demo.html</code> (37-45). <code>GET /demo</code> and <code>/demo/{rest:path}</code>: signed out <strong>or held</strong> → 303 <code>/demo/login?next=&lt;quote(&quot;/demo&quot;+(&quot;/&quot;+rest))&gt;</code>; else <code>demo.html</code> (46-52). The demo login GET does not consume <code>next</code> server-side (INFERRED: the demo frontend reads it).</li>
+<li>Demo UI behaviour (FACT docs/sign-in-and-demo-mode.md:101-113 at fd5a375): opens on Spark AI Spine landing page; header tabs only <strong>Knowledge Graph</strong> and <strong>Fit-Gap Copilot</strong>; <strong>Ask RAG</strong> and the <strong>Agent</strong> sit in a sidebar that <strong>only an Admin sees</strong> (since df034c9): it starts hidden, the menu button opens it, minimizes it to icons and expands it again, state remembered in the browser. Anyone else has no menu button, the landing page shows only the first two steps, and <code>/demo/ask</code> or <code>/demo/agent</code> lands on the introduction. This is a front-end rule only: the Ask and Evidence APIs are still open to every signed-in user. Excluded from Demo: Convert, Batch Convert, Add to knowledge base, Coverage, Doc vs MD, MD Viewer, InsightLens, RAG Metrics — their <code>/demo/...</code> URLs land on the introduction. Bundle <code>frontend/demo.html</code> + <code>frontend/src/demo/</code>, reusing app page components. Rollout exports use <code>client=1</code> from Demo to omit model name (FACT app.py:2813-2814).</li>
 </ul>
 
 <h3 id="d02-4-endpoint-inventory">4. Endpoint inventory</h3>
@@ -4684,7 +4704,7 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/login</code></td>
 <td>Open</td>
 <td>query <code>next=&quot;/&quot;</code></td>
-<td>signed-in → 303 safe_next(next); else login.html (503 if unbuilt)</td>
+<td>signed-in and not held → 303 safe_next(next); else login.html (503 if unbuilt)</td>
 <td>—</td>
 <td>app_login.py:47</td>
 </tr>
@@ -4693,7 +4713,7 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/auth/login</code> (+ aliases <code>/api/app/login</code>, <code>/api/demo/login</code>)</td>
 <td>Open</td>
 <td>JSON <code>Login{username:str,password:str}</code></td>
-<td>200 <code>{id,user,username,role}</code> + Set-Cookie <code>spark_session</code>; 401 <code>{&quot;detail&quot;:&quot;Incorrect username or password.&quot;}</code></td>
+<td>200 <code>{id,user,username,role,must_change_password}</code> + Set-Cookie <code>spark_session</code>; 401 <code>{&quot;detail&quot;:&quot;Incorrect username or password.&quot;}</code></td>
 <td><code>authenticate</code>; activity <code>login</code> / <code>login_failed</code></td>
 <td>auth/routes.py:35, 66-69</td>
 </tr>
@@ -4711,7 +4731,7 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/auth/session</code> (+ <code>/api/app/session</code>, <code>/api/demo/session</code>)</td>
 <td>Open</td>
 <td>cookie</td>
-<td><code>{id,user,username,role,enabled:true}</code> or 401 <code>{user:null, enabled:true}</code></td>
+<td><code>{id,user,username,role,must_change_password,enabled:true}</code> or 401 <code>{user:null, enabled:true}</code></td>
 <td>—</td>
 <td>:59</td>
 </tr>
@@ -4720,8 +4740,8 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/auth/password</code></td>
 <td>User</td>
 <td>JSON <code>PasswordChange{current:str,new:str}</code></td>
-<td><code>{ok:true}</code> + fresh Set-Cookie (new session_version); 400 <code>AccountError</code> text</td>
-<td><code>change_own_password</code> (bumps version → other sessions signed out), <code>forget</code>, activity <code>password_changed</code></td>
+<td><code>{ok:true, …public(user)}</code> (so <code>must_change_password:false</code>) + fresh Set-Cookie (new session_version); 400 <code>AccountError</code> text (wrong current password, too short, same as current)</td>
+<td><code>change_own_password</code> (clears <code>must_change_password</code>, bumps version → other sessions signed out), <code>forget</code>, activity <code>password_changed</code>. Reachable while held</td>
 <td>:72</td>
 </tr>
 <tr>
@@ -4948,7 +4968,7 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/kb/files/open</code></td>
 <td>query <code>source:str</code> (path rel. to BASE or abs)</td>
 <td><code>{id, filename, format, size, pages, warning, markdown_source, from_upload?:true}</code>; 400 outside project; 404 no such doc / no original (<code>detail:{message}</code>)</td>
-<td>Finds original via <code>_original_of</code> (see §8); if original is an upload job's <code>source.*</code>, reuses that job id; else creates <code>.workdir/kb&lt;hash10&gt;/source.&lt;ext&gt;</code> (re-copies if source mtime newer, clearing preview), writes <code>name.txt</code>, marks the job <code>shared</code> (both branches), renders preview if not already</td>
+<td>Resolves <code>source</code> with <code>_in_this_project</code> (§8), so a path indexed on another machine is found under this one's corpus; finds original via <code>_original_of</code> (see §8); if original is an upload job's <code>source.*</code>, reuses that job id; else creates <code>.workdir/kb&lt;hash10&gt;/source.&lt;ext&gt;</code> (re-copies if source mtime newer, clearing preview), writes <code>name.txt</code>, marks the job <code>shared</code> (both branches), renders preview if not already</td>
 <td>816</td>
 </tr>
 <tr>
@@ -4965,15 +4985,15 @@ INSERT INTO users (username, password_hash, role, active)
 <td>—</td>
 <td>`list[{name,title,source(rel),full_path,size,category,chunks,tokens,is_indexed,indexed_at(iso</td>
 <td>null)}]` sorted indexed-first then title</td>
-<td><code>rag.documents()</code> (DB, errors swallowed) + unindexed <code>*.md</code> in <code>knowledge_base/</code> and <code>solvay-spark/pkg/markdown/</code> (skip names starting <code>.</code>/<code>~$</code>; category via <code>rag.category_for</code>)</td>
+<td><code>rag.documents()</code> (DB, errors swallowed) + unindexed <code>*.md</code> in <code>knowledge_base/</code> and <code>solvay-spark/pkg/markdown/</code> (skip names starting <code>.</code>/<code>~$</code>; category via <code>rag.category_for</code>). Since bd153f1 an indexed row's <code>size</code> and relative <code>source</code> come from <code>_in_this_project(stored) or stored</code>, while <code>full_path</code> (and the dedup key) stays the <strong>stored</strong> path, because a delete matches it exactly; a file found on disk whose resolved path is an indexed file's is not listed again as &quot;not indexed&quot;</td>
 </tr>
 <tr>
 <td>GET</td>
 <td><code>/api/kb/files/{filename}</code></td>
 <td>query <code>source?</code></td>
 <td>Markdown FileResponse; 404</td>
-<td>Lookup order: explicit <code>source</code> (abs then BASE-relative, must be under BASE) → <code>knowledge_base/&lt;name&gt;</code> → each <code>rag.CATEGORIES[*].folder</code> → <code>solvay-spark/{pkg,dr}/markdown/</code> → <code>rag.find_document(name)</code> / <code>name+&quot;.md&quot;</code></td>
-<td>1003</td>
+<td>Lookup order: explicit <code>source</code> through <code>_in_this_project</code> (abs, else BASE-relative) → <code>knowledge_base/&lt;name&gt;</code> → each <code>rag.CATEGORIES[*].folder</code> → <strong>every</strong> <code>solvay-spark/*/&lt;rag.MARKDOWN_FOLDER&gt;/</code> (sorted; <code>sap/</code> as well as <code>pkg/</code> and <code>dr/</code>, since bd153f1) → <code>rag.find_document(name)</code> / <code>name+&quot;.md&quot;</code>, its stored path again through <code>_in_this_project</code></td>
+<td>1045</td>
 </tr>
 <tr>
 <td>DELETE</td>
@@ -5267,9 +5287,27 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/fitgap/run</code></td>
 <td>User</td>
 <td><code>FitGapRun</code></td>
-<td><strong>SSE</strong>: events from <code>orchestrator.run</code>: <code>scope</code>, <code>step_start</code>, <code>tool_call</code>, <code>entry</code>, <code>verify_fail</code>, <code>synthesis</code>, <code>done</code>; <code>error{message}</code>; 404 pre-stream for a foreign <code>upload_session</code></td>
-<td><code>_own_upload</code>; run owned by the caller; activity <code>run</code>/<code>fitgap</code> on the first <code>scope</code> event carrying <code>run_id</code> (persisted by orchestrator — INFERRED)</td>
-<td>2015</td>
+<td><strong>SSE</strong> (live run, §2a): events from <code>orchestrator.run(request, stop=stop)</code>: <code>scope</code>, <code>step_start</code>, <code>tool_call</code>, <code>entry</code>, <code>verify_fail</code>, <code>synthesis</code>, <code>done</code> (now with <code>stopped:bool</code>); <code>error{message}</code>; <code>: ping</code> keep-alives; 404 pre-stream for a foreign <code>upload_session</code></td>
+<td><code>_own_upload</code>; run owned by the caller; activity <code>run</code>/<code>fitgap</code> on the first <code>scope</code> event carrying <code>run_id</code>; <code>live_runs.start(&quot;fitgap&quot;, …)</code></td>
+<td>2056</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/fitgap/runs/{run_id}/stream</code></td>
+<td>read</td>
+<td>—</td>
+<td>SSE replay from the first event, then follow; 404 &quot;run &lt;id&gt; is not running&quot; once it is only in the store</td>
+<td>—</td>
+<td>2108</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/fitgap/runs/{run_id}/stop</code></td>
+<td>write</td>
+<td>—</td>
+<td><code>{stopping:true, run_id}</code>; 404 if not live</td>
+<td>sets <code>stop</code>: steps not yet started are cancelled, steps in flight finish and are still saved, the register is synthesised from what finished and the run is stored with <code>status='stopped'</code></td>
+<td>2119</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -5421,9 +5459,27 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/rollout/run</code></td>
 <td>User</td>
 <td><code>RolloutRun</code></td>
-<td><strong>SSE</strong>: <code>scope</code>, <code>stage</code>, <code>tool_call</code>, <code>asis</code>, <code>gate</code>, <code>analysis</code>, <code>scores</code>, <code>done</code>; <code>error{message}</code></td>
-<td>orchestrator persists, owned by caller (INFERRED); activity <code>run</code>/<code>rollout</code> on first <code>scope</code> with <code>run_id</code></td>
-<td>2540</td>
+<td><strong>SSE</strong> (live run, §2a): <code>scope</code>, <code>stage</code>, <code>tool_call</code>, <code>asis</code>, <code>gate</code>, <code>analysis</code>, <code>scores</code>, <code>done</code>; <code>error{message}</code>; <code>: ping</code> keep-alives</td>
+<td>orchestrator persists, owned by caller (INFERRED); activity <code>run</code>/<code>rollout</code> on first <code>scope</code> with <code>run_id</code>; <code>live_runs.start(&quot;rollout&quot;, …)</code></td>
+<td>2618</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/rollout/runs/{run_id}/stream</code></td>
+<td>read</td>
+<td>—</td>
+<td>SSE replay + follow; 404 &quot;run &lt;id&gt; is not running&quot;</td>
+<td>—</td>
+<td>2645</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/rollout/runs/{run_id}/stop</code></td>
+<td>write</td>
+<td>—</td>
+<td><code>{stopping:true, run_id}</code>; 404 if not live</td>
+<td>sets <code>stop</code>; checked <strong>between model turns</strong> (the turn in flight is not interrupted), the pass raises <code>agent.Stopped(&quot;stopped before it finished&quot;)</code> and the run is recorded as failed</td>
+<td>2656</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -5546,9 +5602,27 @@ INSERT INTO users (username, password_hash, role, active)
 <td><code>/api/evidence/ask</code></td>
 <td>User</td>
 <td><code>EvidenceQuestion</code></td>
-<td><strong>SSE</strong>: <code>run{id:&quot;ev_&lt;hex10&gt;&quot;}</code> / <code>run{id,not_saved}</code>; <code>log{seq,at,kind:&quot;question&quot;,text,holdout,scope,memory}</code>; per agent event: <code>log</code> entry then the event itself (except <code>thinking</code>/<code>note</code>, which emit only <code>log</code>); events include <code>tool_call</code>, <code>memory</code>, <code>answer</code>, <code>error</code>; <code>evaluation</code> events sent without a log line</td>
+<td><strong>SSE</strong> (live run, §2a, registered under its <code>ev_</code> id up front; <code>: ping</code> keep-alives): <code>run{id:&quot;ev_&lt;hex10&gt;&quot;}</code> / <code>run{id,not_saved}</code>; <code>log{seq,at,kind:&quot;question&quot;,text,holdout,scope,memory}</code>; per agent event: <code>log</code> entry then the event itself (except <code>thinking</code>/<code>note</code>, which emit only <code>log</code>); events include <code>tool_call</code>, <code>memory</code>, <code>answer</code>, <code>error</code>; <code>evaluation</code> events sent without a log line</td>
 <td><code>ev_store.start_run({id,question,holdout,categories,model,prompt_hash,corpus_fingerprint,user_id})</code>; activity <code>run</code>/<code>evidence</code>; on memory → <code>save_memory</code>; tool_call → <code>save_calls(all calls)</code>; answer → <code>finish_run(data, calls)</code>; error → <code>fail_run</code>; after each → <code>save_log(log)</code>; evaluation → <code>save_evaluation</code>. A store failure sets <code>conn=None</code> (stops writing; stream continues). Memory facts retained are tagged <code>user:&lt;username&gt;</code> (backend/agents/evidence/agent.py:749-750)</td>
-<td>2931</td>
+<td>3029</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/evidence/runs/{run_id}/stream</code></td>
+<td>read</td>
+<td>—</td>
+<td>SSE replay + follow; 404 &quot;run &lt;id&gt; is not running&quot;</td>
+<td>—</td>
+<td>3167</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/evidence/runs/{run_id}/stop</code></td>
+<td>write</td>
+<td>—</td>
+<td><code>{stopping:true, run_id}</code>; 404 if not live</td>
+<td>sets <code>stop</code>; checked before each model turn, the agent raises <code>Stopped</code>, the run is recorded through <code>fail_run</code> and the stream ends with <code>error</code></td>
+<td>3178</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -5617,24 +5691,24 @@ INSERT INTO users (username, password_hash, role, active)
 <td>GET</td>
 <td><code>/api/admin/users</code></td>
 <td>—</td>
-<td><code>{users:[{id,username,role,active,session_version,created_at,last_login_at,last_seen_at,runs}]}</code> (excludes <code>legacy</code>; <code>runs</code> = all-time count across tools)</td>
+<td><code>{users:[{id,username,role,active,session_version,created_at,last_login_at,last_seen_at,must_change_password,runs}]}</code> (excludes <code>legacy</code>; <code>runs</code> = all-time count across tools)</td>
 <td>—</td>
 <td>admin.py:91</td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/api/admin/users</code></td>
-<td>JSON <code>NewUser{username:str 1..64, password:str 1..200, role:str=&quot;user&quot;}</code></td>
+<td>JSON <code>NewUser{username:str 1..64, password:str 1..200, role:str=&quot;user&quot;, must_change_password:bool=true}</code></td>
 <td>the user dict; 400 <code>AccountError</code> text (bad name, role, short password, duplicate)</td>
-<td><code>store.create_user</code>; activity <code>user_created</code> <code>{user, role}</code></td>
+<td><code>store.create_user(must_change=…)</code> — the owner must choose their own password at first sign-in unless the caller opts out (only <code>loadtest/seed_users.py</code> does); activity <code>user_created</code> <code>{user, role}</code></td>
 <td>:101</td>
 </tr>
 <tr>
 <td>PATCH</td>
 <td><code>/api/admin/users/{uid}</code></td>
-<td>JSON <code>UserChange{role?:str, active?:bool, password?:str≤200}</code></td>
+<td>JSON <code>UserChange{role?:str, active?:bool, password?:str≤200, must_change_password:bool=true}</code> (applies only with a new password)</td>
 <td>updated user dict; 400 <code>AccountError</code> (no such account, self-demotion/deactivation, last active Admin, short password)</td>
-<td><code>store.update_user(acting=admin.id)</code> (password/deactivation bump <code>session_version</code>); <code>middleware.forget(uid)</code>; activity <code>user_updated</code> with changed fields, password shown as <code>&quot;reset&quot;</code></td>
+<td><code>store.update_user(acting=admin.id)</code> (password/deactivation bump <code>session_version</code>); <code>middleware.forget(uid)</code>; activity <code>user_updated</code> with changed fields, password shown as <code>&quot;reset&quot;</code>, <code>must_change_password</code> never logged</td>
 <td>:111</td>
 </tr>
 <tr>
@@ -5665,7 +5739,7 @@ INSERT INTO users (username, password_hash, role, active)
 </table></div>
 <p><strong>Usage computation</strong> (admin.py:138-257): groups runs by <code>(user_id, tool, model)</code> in the window (optional <code>user_id</code> filter), counting <code>status = 'failed'</code>; logins and failed logins per user from <code>activity_events</code> (<code>action = 'login'</code> / <code>'login_failed'</code>), plus failed logins with no user (unknown username) added to <code>totals.failed_logins</code>. Rows for <code>uid</code> not in <code>list_users</code> are labelled <code>legacy</code> (if the legacy id) or <code>#&lt;uid&gt;</code>. Every account gets a row even with no activity unless <code>user_id</code> narrows the view. Cost per <code>(user, tool, model)</code> cell = <code>pricing.cost(model, tin, tout)</code>; a model with no price and non-zero tokens adds to <code>unpriced_runs</code> and <code>unpriced_models</code>. Cents are rounded once per tool cell; user and period totals are sums of rounded cells (so columns add up to the cent). <code>active_users</code> counts rows with runs or logins, excluding <code>legacy</code>. Rows sorted by runs desc, then username. <code>daily</code> has one entry per day in the window with zero-filled counts per tool (UTC date).</p>
 <p><strong>Cost estimate (<code>backend/core/pricing.py</code>)</strong> — FACT: <code>PRICES</code> = USD per million tokens <code>(input, output)</code>: <code>claude-fable-5-1</code> and <code>claude-fable-5</code> (10, 50); <code>claude-opus-5-5</code> (4, 20); <code>claude-opus-5</code>, <code>-4-8</code>, <code>-4-7</code>, <code>-4-6</code> (5, 25); <code>claude-sonnet-5-5</code>, <code>claude-sonnet-5</code> (2, 10); <code>claude-sonnet-4-6</code> (3, 15); <code>claude-haiku-4-5</code> (1, 5) (pricing.py:23-35). <code>price(model)</code>: lower-cased, <code>anthropic.</code> prefix removed, exact match, else longest listed stem followed by <code>-</code> or <code>@</code> (dated or provider ids); None if unlisted (38-51). <code>cost = (in·p_in + out·p_out)/1e6</code> or None (54-59). Documented as an over-estimate: run tables record input tokens as one number including cache reads/writes, all priced at full input rate; calls with no run row (scope guard, Ragas judge, Hindsight, embeddings) are not counted (pricing.py:3-14).</p>
-<p><strong>Route count</strong> (FACT, counted from the routers and app.py decorators at HEAD): <strong>126 routes</strong> + 1 static mount (<code>/assets</code>). app.py: 106 decorators, 24 of them HTML SPA pages; <code>backend/auth/routes.py</code>: 10 (3 handlers × 3 prefixes + <code>/api/auth/password</code>); <code>app_login.py</code>: 1 (<code>/login</code>); <code>demo_mode.py</code>: 3 (<code>/demo/login</code>, <code>/demo</code>, <code>/demo/{rest:path}</code>); <code>admin.py</code>: 6. FastAPI's own <code>/docs</code>, <code>/docs/oauth2-redirect</code>, <code>/redoc</code>, <code>/openapi.json</code> are not counted.</p>
+<p><strong>Route count</strong> (FACT, counted from the routers and app.py decorators at fd5a375): <strong>132 routes</strong> + 1 static mount (<code>/assets</code>). app.py: 112 decorators (the 106 of <code>1d37131</code> plus <code>/stream</code> and <code>/stop</code> for each of fitgap, rollout and evidence), 24 of them HTML SPA pages; <code>backend/auth/routes.py</code>: 10 (3 handlers × 3 prefixes + <code>/api/auth/password</code>); <code>app_login.py</code>: 1 (<code>/login</code>); <code>demo_mode.py</code>: 3 (<code>/demo/login</code>, <code>/demo</code>, <code>/demo/{rest:path}</code>); <code>admin.py</code>: 6. FastAPI's own <code>/docs</code>, <code>/docs/oauth2-redirect</code>, <code>/redoc</code>, <code>/openapi.json</code> are not counted.</p>
 
 <h3 id="d02-5-session-attachments-model-backend-core-uploads-py-fact-unl">5. Session attachments model (<code>backend/core/uploads.py</code>) — FACT unless noted</h3>
 <ul>
@@ -5733,7 +5807,7 @@ ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS user_id bigint;
 <li><code>flush()</code>, <code>shutdown()</code> safe no-ops when off.</li>
 <li><code>_Null</code> / <code>NULL</code>: accepts <code>update/end/score/start_observation/start_as_current_observation</code> and does nothing.</li>
 <li><code>Run(span, attrs)</code>: <code>__bool__</code>, <code>trace_id</code> (&quot;&quot; when off), <code>url()</code> via <code>client().get_trace_url</code>, <code>current()</code> (context manager: <code>otel.use_span(span._otel_span, end_on_exit=False)</code> + <code>langfuse.propagate_attributes(**attrs)</code> — used around single model calls inside generators), <code>step(name, as_type=&quot;span&quot;, **kw)</code> (child via <code>self._span.start_as_current_observation</code> under <code>propagate_attributes</code>; yields NULL on failure/off), <code>update</code>, <code>fail(exc)</code> → <code>level=&quot;ERROR&quot;, status_message</code>, <code>end(**kw)</code> (update, end, set None, flush; idempotent).</li>
-<li><strong>Trace user</strong>: <code>USER: ContextVar[str | None]</code> (<code>&quot;trace_user&quot;</code>, default None) (tracing.py:376-382), set to the signed-in <strong>username</strong> by the auth middleware on every request (auth/middleware.py:107-108). <code>start_run</code> uses <code>user_id = user_id or USER.get()</code> (tracing.py:402), so every trace a request opens carries the username as Langfuse <code>user_id</code> without threading it through agent signatures. Context variables follow the request into Starlette's threadpool; a thread an agent starts itself does not inherit them and must pass <code>user_id</code> explicitly (comment tracing.py:376-381). INFERRED: the upload worker (<code>threading.Thread</code>, app.py:2150) passes none, so <code>ingest-document</code> traces carry no user.</li>
+<li><strong>Trace user</strong>: <code>USER: ContextVar[str | None]</code> (<code>&quot;trace_user&quot;</code>, default None) (tracing.py:376-382), set to the signed-in <strong>username</strong> by the auth middleware on every request (auth/middleware.py:107-108). <code>start_run</code> uses <code>user_id = user_id or USER.get()</code> (tracing.py:402), so every trace a request opens carries the username as Langfuse <code>user_id</code> without threading it through agent signatures. Context variables follow the request into Starlette's threadpool; a thread an agent starts itself does not inherit them and must pass <code>user_id</code> explicitly (comment tracing.py:376-381). The live-run thread (§2a) runs in a copy of the request context for exactly this reason; for one commit (ae1e4eb) it did not, and InsightLens and Copilot traces reached Langfuse with no user. INFERRED: the upload worker (<code>threading.Thread</code>, app.py:2150) passes none, so <code>ingest-document</code> traces carry no user.</li>
 <li><code>start_run(name, *, input, metadata, session_id, user_id, tags, as_type=&quot;agent&quot;)</code> (tracing.py:385) → attrs <code>{trace_name, session_id?, user_id?, tags?, metadata?}</code>; root via <code>lf.start_observation(name, as_type, input, metadata)</code> inside <code>propagate_attributes</code>. Returns <code>Run(None, {})</code> when off.</li>
 <li><code>observation(name, as_type, **kw)</code>: child of ambient current observation (<code>lf.start_as_current_observation</code>).</li>
 <li><code>status()</code> → <code>{enabled, environment, host}</code> (used by <code>/api/rag/status</code>).</li>
@@ -5760,6 +5834,7 @@ ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS user_id bigint;
 <li><code>_beside_markdown</code>: try converter name in each folder (must be file with ACCEPTED suffix); then glob <code>&lt;glob.escape(md.stem)&gt;.*</code> (sorted, excluding md itself).</li>
 <li><code>_upload_job_holding</code>: scan <code>.workdir/*/name.txt</code> (sorted) for matching name (case-insensitive) or same stem; return first ACCEPTED <code>source.*</code>.</li>
 <li><code>_original_of = _beside_markdown or _upload_job_holding</code>.</li>
+<li><strong><code>_in_this_project(path)</code></strong> (bd153f1, app.py:818-843 at fd5a375): <code>path</code> as it lies under BASE on this machine, or None. <code>rag_documents.source</code> holds the absolute path a document was indexed from, and a database restored from a dump keeps the indexing machine's paths (<code>/Users/&lt;dev&gt;/…/solvay-spark/sap/markdown/BKP1_CRM.md</code>), which the container (rooted at <code>/app</code>) does not have. Rule: if <code>path.resolve()</code> is a file under BASE, return it; else find the first path part in <code>_CORPUS_ROOTS = (&quot;solvay-spark&quot;, &quot;knowledge_base&quot;)</code> and try <code>BASE.joinpath(*parts[i:])</code>, accepted only if it is a file under BASE. Used by <code>POST /api/kb/files/open</code> (400 &quot;That path is outside the project.&quot; only when nothing is found <strong>and</strong> the path is outside BASE; else 404), <code>GET /api/kb/files/{filename}</code> and <code>GET /api/kb/files</code> (§4e).</li>
 </ul>
 
 <h3 id="d02-9-db-tables-touched-directly-in-these-files">9. DB tables touched directly in these files</h3>
@@ -5787,7 +5862,7 @@ ALTER TABLE upload_sessions ADD COLUMN IF NOT EXISTS user_id bigint;
 <span class="phase-tag">Detail §03</span>
 <h2>§03 · Document ingestion</h2>
 <p>Scope: <code>backend/ingestion/*</code> (converter.py, pptx_ocr.py, pptx_flow.py, flow_cv.py, table_cv.py, vlm_ocr.py, vlm_api.py, xlsx_tables.py, xml_tables.py, bpml_markdown.py, md_chunker.py, mail_reader.py, preview.py, pptx_to_md.py, folder_to_md.py) plus the API callers that drive it (<code>backend/api/app.py</code>, <code>backend/core/uploads.py</code>).
-Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; <code>app.py</code> line numbers are at that working tree.
+Current as of commit fd5a375 (2026-10-06); nothing in <code>backend/ingestion/</code> changed after <code>1d37131</code>. <code>app.py</code> line numbers are at <code>1d37131</code> plus the ownership fixes; from ~line 800 on they have since moved down by roughly 40–160 lines.
 Legend: <strong>FACT (file:line)</strong> = read from the code. <strong>INFERRED</strong> = deduced or taken from docs but not confirmed in code. Paths are relative to the repo root, and <code>ingestion/</code> means <code>backend/ingestion/</code>.</p>
 
 <h3 id="d03-0-dependencies-system-tools">0. Dependencies &amp; system tools</h3>
@@ -6474,7 +6549,7 @@ Front matter regex: <code>\A---\r?\n.*?\r?\n---\r?\n</code> (DOTALL). Source-nam
 <td>Corpus convention</td>
 <td>originals in <code>solvay-spark/&lt;code&gt;/</code></td>
 <td>—</td>
-<td><code>solvay-spark/&lt;code&gt;/markdown/{stem}_{ext}.md</code>. The category is the folder name (docs/ingesting-markdown.md)</td>
+<td><code>solvay-spark/&lt;code&gt;/markdown/{stem}_{ext}.md</code>. The category is the folder name (docs/ingesting-markdown.md). <code>rag_documents.source</code> stores the <strong>absolute</strong> path indexed from; a database restored on another machine is matched back to its files from the <code>solvay-spark/</code> or <code>knowledge_base/</code> path segment on (<code>_in_this_project</code>, bd153f1; 02 §8), and <code>GET /api/kb/files/{name}</code> searches every <code>solvay-spark/*/markdown/</code> folder</td>
 </tr>
 </tbody>
 </table></div>
@@ -6514,7 +6589,7 @@ Front matter regex: <code>\A---\r?\n.*?\r?\n---\r?\n</code> (DOTALL). Source-nam
 API path in <code>backend/api/app.py</code>, Ragas evaluation, the Answer-Quality
 workspace arithmetic. Paths are repo-relative. <strong>FACT</strong> = read in code
 (file:line). <strong>INFERRED</strong> = deduced, not directly stated. <strong>DOC</strong> = from docs only.
-Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; line numbers are at that working tree.</p>
+Current as of commit fd5a375 (2026-10-06). The <code>users.must_change_password</code> column and the <code>fitgap_runs.status = 'stopped'</code> value were added after <code>1d37131</code>; their line numbers are at <code>fd5a375</code>, the rest at <code>1d37131</code> plus the ownership fixes (<code>auth/store.py</code> lines after ~85 have moved down by 4–20).</p>
 
 <h3 id="d04-0-big-picture">0. Big picture</h3>
 <ul>
@@ -6876,6 +6951,10 @@ ALTER TABLE fitgap_runs ADD COLUMN IF NOT EXISTS uploads jsonb NOT NULL DEFAULT 
 --   own_table(conn, &quot;fitgap_reviews&quot;, &quot;created_at&quot;) -&gt; user_id, fitgap_reviews_user_idx (user_id, created_at DESC)
 -- fitgap_reviews.reviewer stays the free text that was typed; user_id is the signed-in account.
 </pre>
+<p><code>fitgap_runs.status</code> values: <code>running</code> → <code>done</code> | <code>failed</code>, and since ae1e4eb
+<code>stopped</code> (a run stopped from the page: <code>finish_run(..., status=&quot;stopped&quot;)</code> with the
+synthesis of the steps that finished; fitgap/store.py:208-214, orchestrator.py). There
+is no CHECK constraint on the column.</p>
 <h4 id="d04-2-7-rollout-fit-gap-copilot-workshops-owner-backend-agents-r">2.7 Rollout (Fit-Gap Copilot) + workshops — owner <code>backend/agents/rollout/store.py:66-230</code></h4>
 <pre class="language-sql">CREATE TABLE IF NOT EXISTS rollout_runs (
     id            text PRIMARY KEY,
@@ -6992,7 +7071,10 @@ CREATE INDEX IF NOT EXISTS workshop_decisions_memory_idx
 -- then _backfill(conn): copies rollout_decisions rows not yet copied (legacy_id) into workshop_decisions (rollout/store.py:230, 535-561);
 --   each copy gets user_id = its run's owner, or legacy if the run has none (rollout_decisions.run_id is a FK to rollout_runs, so the run exists)
 </pre>
-<p><code>facilitator</code> and <code>decided_by</code> are the signed-in username for new rows (the API passes <code>user[&quot;username&quot;]</code>, app.py:2668, 2705; a typed name in the request is ignored) and keep the typed names on rows from before accounts; <code>user_id</code> records the signed-in account (<code>submit_workshop</code>, <code>save_decision</code>, <code>_insert_decision</code> take
+<p><code>facilitator</code> and <code>decided_by</code> are the signed-in username for new rows (the API
+passes <code>user[&quot;username&quot;]</code>, app.py:2668, 2705; a typed name in the request is ignored)
+and keep the typed names on rows from before accounts; <code>user_id</code> records the
+signed-in account (<code>submit_workshop</code>, <code>save_decision</code>, <code>_insert_decision</code> take
 <code>user_id</code>). FACT <code>rollout/store.py:476-526,573-620</code>. <code>list_decisions(…)</code> takes no <code>owner</code>: decisions are shared organisational memory, so <code>GET /api/rollout/decisions</code> returns every account's to every signed-in user, and each row records who decided it (rollout/store.py:625-640).</p>
 <h4 id="d04-2-8-graph-quality-runs-owner-backend-graph-graph-eval-py-546">2.8 Graph quality runs — owner <code>backend/graph/graph_eval.py:546-557</code></h4>
 <pre class="language-sql">CREATE TABLE IF NOT EXISTS graph_quality_runs (
@@ -7061,6 +7143,10 @@ before accounts has <code>user_id</code> NULL, so it matches nobody and expires 
 );
 -- Case-insensitive uniqueness without citext: &quot;Alice&quot; and &quot;alice&quot; are one account.
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users (lower(username));   -- :89-90
+-- Added after accounts shipped (fd5a375, auth/store.py:93-96): an existing account is
+-- not asked to change a password it may already have changed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS
+    must_change_password boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS activity_events (                    -- :93-103
     id        bigserial PRIMARY KEY,
@@ -7089,6 +7175,14 @@ and <code>active=false</code>, so it cannot sign in (<code>:16-18</code>, <code>
 deactivation, which signs the account out everywhere; a role change does not
 bump it (<code>update_user</code>, <code>:239-280</code>). <code>bootstrap_admin</code> also bumps it when it
 re-activates an existing account (<code>:323-329</code>), which it does only after <code>ADMIN_PASSWORD</code> passes the strength check and <code>ADMIN_USERNAME</code> passes <code>_clean_username</code> (so never for <code>legacy</code>); a refused setting is a WARNING line, not an error (<code>:312-334</code>).</li>
+<li><code>must_change_password</code> (fd5a375) is true while the password is one an Admin
+chose: <code>create_user(must_change=…)</code> sets it (the Admin API passes true by default;
+the CLI and <code>bootstrap_admin</code> leave it false), <code>update_user(password=…)</code> sets it to
+its <code>must_change</code> argument (default true, an Admin reset), and <code>change_own_password</code>
+clears it and refuses a new password equal to the current one. <code>bootstrap_admin</code>
+sets it false when it re-activates an existing account. While it is true the
+middleware answers every <code>/api/*</code> route except the auth routes and
+<code>/api/auth/password</code> with 403 <code>password_change_required</code> (02 §3c).</li>
 <li>Username rules (<code>_clean_username</code>, <code>:171-177</code>): 1-64 characters, no whitespace,
 no <code>|</code>, not <code>legacy</code> (case-insensitive). Roles <code>(&quot;admin&quot;,&quot;user&quot;)</code> (<code>:38</code>).
 Duplicate names are caught by <code>ON CONFLICT (lower(username)) DO NOTHING RETURNING …</code> returning no row (<code>:187-195</code>).</li>
@@ -7161,7 +7255,12 @@ UPDATE {table} SET user_id = &lt;legacy id&gt; WHERE user_id IS NULL;   -- idemp
 <p><code>OWNED_TABLES</code> lists exactly these eight (<code>auth/store.py:340-341</code>). Not owned:
 <code>fitgap_entries</code>, <code>ask_evaluations</code>, <code>ask_evaluation_history</code> (reached through
 their run), <code>rollout_decisions</code> (legacy), <code>eval_experiments*</code>,
-<code>graph_quality_runs</code>, the corpus tables. Outside the database, single-document conversion jobs (<code>.workdir/&lt;doc_id&gt;/</code>) and batches (<code>.workdir/batches/&lt;id&gt;/</code>) are owned through an <code>owner.txt</code> holding the uploader's id; only the uploader reaches them, not even an Admin (§02 §3d). A job that <code>/api/kb/files/open</code> returns for Doc vs MD also gets a <code>shared</code> marker: anyone signed in may read its pages, only the owner may change it.</p>
+<code>graph_quality_runs</code>, the corpus tables. Outside the database, single-document
+conversion jobs (<code>.workdir/&lt;doc_id&gt;/</code>) and batches (<code>.workdir/batches/&lt;id&gt;/</code>)
+are owned through an <code>owner.txt</code> holding the uploader's id; only the uploader
+reaches them, not even an Admin (§02 §3d). A job that <code>/api/kb/files/open</code>
+returns for Doc vs MD also gets a <code>shared</code> marker: anyone signed in may read
+its pages, only the owner may change it.</p>
 <ul>
 <li><code>legacy_id()</code> caches the <code>legacy</code> row's id per database URL (<code>:114-122</code>).</li>
 <li><code>owned(owner, alias=&quot;&quot;)</code> returns <code>(&quot; AND [alias.]user_id = %s&quot;, [owner])</code>, or
@@ -7174,7 +7273,9 @@ run stores takes <code>owner</code> and appends this fragment. <code>list_runs</
 None only for an Admin with <code>scope=all</code>, else the user's id; <code>read_owner</code> is
 None for an Admin, else the user's id; <code>write_owner</code> is always the user's id
 (an Admin's access to others' runs is read-only). Someone else's run returns
-404, not 403. <code>GET /api/rollout/decisions</code> applies no owner at all: <code>workshop_decisions</code> is shared organisational memory, readable by every signed-in user, and its <code>user_id</code> only records who decided.</li>
+404, not 403. <code>GET /api/rollout/decisions</code> applies no owner at all:
+<code>workshop_decisions</code> is shared organisational memory, readable by every
+signed-in user, and its <code>user_id</code> only records who decided.</li>
 <li><code>reassign_legacy(conn, username, tables=None)</code> moves <code>legacy</code>'s rows in the
 given owned tables (default all; a table not yet created is skipped) to an
 account in one transaction; CLI <code>python -m backend.auth.store reassign-legacy &lt;username&gt; [table …]</code> (<code>:344-365</code>, <code>:410-418</code>). Other CLI:
@@ -7575,7 +7676,7 @@ everyone's) runs across the four tools, <code>LEFT JOIN users</code>, paged by
 <li>test_ask_store: recorded before answered; excerpts survive unanswered; failed keeps partial; abandoned reported not rewritten; list omits excerpts; retention trims oldest; delete one; filter matches question text only; schema once. DB <code>docling_test_ask</code>.</li>
 <li>test_evaluation (47, stubs <code>evaluate</code>/<code>push_scores</code>): weighted mean; failed judge dropped; nothing scored → None; safety cap; weights sum 1; reference-only don't run without reference &amp; never in overall; working numbering; score_id stable; safety → BOOLEAN; skipped when unavailable; evaluate refuses running loop; sampling 0/1; re-score replaces; skipped≠failed; abandoned after 10 min; cascades; quality filters.</li>
 <li>test_ownership (DB <code>docling_test_ownership</code>): a user lists only their own; someone else's run is not found; reviews are signed by the account; an Admin reads everyone's but changes only their own; pre-account runs go to <code>legacy</code>; legacy runs can be handed to an account; retention is per account; clear history clears only one's own; usage counts each account; an Admin lists one account's runs across tools; conversions belong to the uploader (a shared one is readable by others, not deletable); decisions are shared memory (every account, Admin or not, sees everyone's); copied old decisions get the run's owner.</li>
-<li>test_auth (DB <code>docling_test_auth</code>): password hashing; bad Admin settings do not stop start-up; bootstrap Admin; API and pages need a session; sign in/out; <code>legacy</code> cannot sign in; forged/expired tokens; roles and account management; change own password; activity is logged.</li>
+<li>test_auth (DB <code>docling_test_auth</code>): password hashing; bad Admin settings do not stop start-up; bootstrap Admin; API and pages need a session; sign in/out; <code>legacy</code> cannot sign in; forged/expired tokens; roles and account management (a new or reset account is held at 403 <code>password_change_required</code>, is sent from pages to <code>/login</code>, cannot &quot;change&quot; to the same password, and is free once it has its own — <code>choose_own_password</code>); change own password; activity is logged.</li>
 <li>test_quality / test_coverage / test_category_durability: as summarised in §9, §10, §4.2–4.3. The review endpoint test now signs in as an Admin who owns the run.</li>
 </ul>
 <h3 id="d04-13-gaps-inconsistencies">13. Gaps / inconsistencies</h3>
@@ -7598,8 +7699,9 @@ everyone's) runs across the four tools, <code>LEFT JOIN users</code>, paged by
 <section class="phase" id="d05" data-nav-label="§05 Agents and knowledge graph" data-subsections="off">
 <span class="phase-tag">Detail §05</span>
 <h2>§05 · Agents and knowledge graph</h2>
-<p>Scope: <code>backend/agents/**</code> (Evidence Agent, InsightLens = <code>fitgap/</code>, Fit-Gap Copilot = <code>rollout/</code>, <code>guardrails/</code>, <code>agent_eval.py</code>) and <code>backend/graph/**</code> (knowledge graph, Neo4j export/load, NL→Cypher, graph eval). Paths are relative to repo root. Line refs are <code>file:line</code>; <code>app.py</code> means <code>backend/api/app.py</code>. <strong>FACT</strong> = read in code/docs; <strong>INFERRED</strong> = my reading, not stated. Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; line numbers are at that working tree.</p>
-<p>Ownership (FACT, applies to all three agents): every run records the signed-in account that started it (<code>user_id</code> on the run row; set by the server from the session, never by the browser — <code>fitgap/schemas.py:141-143</code>, <code>rollout/schemas.py:471-473</code>, <code>app.py:2028-2029,2456,3007</code>). History lists take <code>scope=mine|all</code>; <code>list_owner</code> returns None (everyone's) only for an Admin asking <code>scope=all</code>, else the user's own id; <code>read_owner</code> lets an Admin open any run, others only their own (someone else's run is 404, not 403); <code>write_owner</code> is always the user's own id, so an Admin's access to other people's runs is read-only (<code>backend/auth/deps.py:39-58</code>). Stores filter with <code>auth.store.owned(owner, alias)</code> → <code>&quot; AND [alias.]user_id = %s&quot;</code> or nothing when owner is None (<code>backend/auth/store.py:140-148</code>). Each store's <code>create_schema</code> calls <code>auth.store.own_table(conn, table, column=&quot;started_at&quot;)</code>: <code>ALTER TABLE … ADD COLUMN IF NOT EXISTS user_id bigint REFERENCES users(id)</code>, index <code>&lt;table&gt;_user_idx (user_id, &lt;column&gt; DESC)</code>, and back-fills rows with no owner to the <code>legacy</code> account (<code>backend/auth/store.py:125-137</code>). <code>create_schema</code> now runs its DDL once per process per database URL (a <code>_ready</code> set under a lock), because running <code>ALTER TABLE</code> on every request deadlocked (<code>evidence/store.py:56-68</code>, <code>fitgap/store.py:48-60</code>, <code>rollout/store.py:51-63</code>). History list rows carry <code>user_id</code> and <code>owner</code> (username via <code>LEFT JOIN users</code>).</p>
+<p>Scope: <code>backend/agents/**</code> (Evidence Agent, InsightLens = <code>fitgap/</code>, Fit-Gap Copilot = <code>rollout/</code>, <code>guardrails/</code>, <code>agent_eval.py</code>) and <code>backend/graph/**</code> (knowledge graph, Neo4j export/load, NL→Cypher, graph eval). Paths are relative to repo root. Line refs are <code>file:line</code>; <code>app.py</code> means <code>backend/api/app.py</code>. <strong>FACT</strong> = read in code/docs; <strong>INFERRED</strong> = my reading, not stated. Current as of commit fd5a375 (2026-10-06). The stop handling added in ae1e4eb/21814d6 is cited at <code>fd5a375</code>; other line numbers are at <code>1d37131</code> plus the ownership fixes (agent and orchestrator files have moved by a few lines; <code>app.py</code> by roughly 40–160 lines).</p>
+<p>Ownership (FACT, applies to all three agents): every run records the signed-in account that started it (<code>user_id</code> on the run row; set by the server from the session, never by the browser — <code>fitgap/schemas.py:141-143</code>, <code>rollout/schemas.py:471-473</code>, <code>app.py:2028-2029,2456,3007</code>). History lists take <code>scope=mine|all</code>; <code>list_owner</code> returns None (everyone's) only for an Admin asking <code>scope=all</code>, else the user's own id; <code>read_owner</code> lets an Admin open any run, others only their own (someone else's run is 404, not 403); <code>write_owner</code> is always the user's own id, so an Admin's access to other people's runs is read-only (<code>backend/auth/deps.py:39-58</code>). <strong>Live runs and Stop</strong> (FACT, ae1e4eb + 21814d6): all three agents are now drained on a thread of their own by <code>backend/core/live.py</code> rather than by their HTTP response, so a dropped stream or closed tab no longer ends a run, a stream can be reopened (<code>GET /api/{fitgap,rollout,evidence}/runs/{id}/stream</code>), and a quiet model turn is covered by a <code>: ping</code> keep-alive every 15 s (02 §2a). Each entry point takes <code>stop: threading.Event | None</code> and the page's Stop button sets it through <code>POST …/runs/{id}/stop</code> (owner only). What Stop does differs per agent: §2.4 step 6, §3.6 step 6-7, §4.7.</p>
+<p>Stores filter with <code>auth.store.owned(owner, alias)</code> → <code>&quot; AND [alias.]user_id = %s&quot;</code> or nothing when owner is None (<code>backend/auth/store.py:140-148</code>). Each store's <code>create_schema</code> calls <code>auth.store.own_table(conn, table, column=&quot;started_at&quot;)</code>: <code>ALTER TABLE … ADD COLUMN IF NOT EXISTS user_id bigint REFERENCES users(id)</code>, index <code>&lt;table&gt;_user_idx (user_id, &lt;column&gt; DESC)</code>, and back-fills rows with no owner to the <code>legacy</code> account (<code>backend/auth/store.py:125-137</code>). <code>create_schema</code> now runs its DDL once per process per database URL (a <code>_ready</code> set under a lock), because running <code>ALTER TABLE</code> on every request deadlocked (<code>evidence/store.py:56-68</code>, <code>fitgap/store.py:48-60</code>, <code>rollout/store.py:51-63</code>). History list rows carry <code>user_id</code> and <code>owner</code> (username via <code>LEFT JOIN users</code>).</p>
 <p>Naming trap (FACT): three agents, confusingly named.</p>
 <div class="tablewrap"><table>
 <thead>
@@ -7799,7 +7901,7 @@ Measured on corpus: 116 e-mails, 21 phones removed (docs/agents.md:251-253).</p>
 <li><code>graph_enumerate(node_id, type=&quot;&quot;)</code> type enum <code>spec|document|process|system|stream|&quot;&quot;</code>: all adjacent nodes (either direction) of that type, excludes holdout, sorted by label, <code>{node, type_filter, count, items[:200]:{node_id,label,type,relation}, note: &quot;This count is exact for the graph, which is built by pattern matching over the same Markdown files…&quot; (+ scope sentence)}</code>; unknown → <code>did_you_mean</code> (≤6 substring matches).
 <code>ENGINE_OF</code>: search_corpus/get_chunk→rag; graph_*→graph; get_scope→bpml; web_search→web.</li>
 </ul>
-<h4 id="d05-2-4-orchestration-run-question-holdout-on-event-categories-m">2.4 Orchestration — <code>run(question, holdout, on_event, categories, memory)</code> generator (evidence/agent.py:455-766)</h4>
+<h4 id="d05-2-4-orchestration-run-question-holdout-on-event-categories-m">2.4 Orchestration — <code>run(question, holdout, on_event, categories, memory, stop=None)</code> generator (evidence/agent.py:460-780 at fd5a375)</h4>
 <p>Yields <code>('note'|'memory'|'thinking'|'tool_call'|'answer'|'evaluation'|'error', payload)</code>.</p>
 <ol>
 <li><code>scope_guard.check(question)</code>; refused → note(kind <code>guardrail</code>), Langfuse trace <code>investigate-question</code> tagged <code>guardrail-refused</code>, <code>Answer(state=&quot;not_in_corpus&quot;, answer=REFUSAL, limits=[refusal_detail])</code>, <code>agent_eval.refused</code> scores pushed; yield answer + evaluation; return.</li>
@@ -7807,7 +7909,7 @@ Measured on corpus: 116 e-mails, 21 phones removed (docs/agents.md:251-253).</p>
 <li>If scope: append to prompt &quot;[Only the X document category is in scope … say what these documents do and do not show rather than treating the rest of the corpus as missing.]&quot;.</li>
 <li>Memory: <code>agent_memory.allowed(memory, holdout)</code> (= <code>enabled and not holdout</code>); <code>recall(question)</code>; prefix prompt with <code>MEMORY_PREFACE</code> (&quot;═══ WHAT EARLIER INVESTIGATIONS FOUND ═══ … They are NOT EVIDENCE … Use them for one thing only -- deciding where to look first. … the corpus wins&quot;) + numbered memory texts + &quot;═══ THE QUESTION ═══&quot;. Yield <code>memory</code> event <code>{enabled, used, suppressed_by_holdout, recalled, memories}</code>.</li>
 <li>Yield note <code>prompt</code> with assembled prompt + guardrail verdict.</li>
-<li>Loop until submitted: over-budget if <code>calls&gt;=14 or last_in&gt;=60000 or in_tokens&gt;=240000</code> → note <code>budget</code> + user message &quot;Your tool budget is exhausted. Call submit_answer now … If that is nothing, use state 'not_in_corpus' … Do not guess.&quot; Call model inside <code>run.current()</code>. Token accounting <code>_input_tokens = input + cache_read + cache_creation</code>. Text/thinking blocks → <code>thinking</code> events. No tool_use → (break if over) else <code>calls+=1</code>, user &quot;You did not call a tool. Call submit_answer now.&quot;. <code>submit_answer</code> → <code>Answer(**payload, question=question)</code>; A <code>submit_answer</code> in a response cut off at <code>max_tokens</code> → <code>is_error</code> &quot;Not received: your response reached the output limit before the answer was complete. Call submit_answer again, more briefly.&quot;, <code>calls+=1</code>, <code>rejections+=1</code> (evidence/agent.py:627-637). ValidationError → tool_result <code>is_error</code> &quot;Rejected:\n- loc: msg …\nCorrect it and call submit_answer again.&quot; (first 8 errors), note <code>rejected</code>, <code>calls+=1</code>, <code>rejections+=1</code>. Other tools: <code>calls+=1</code>, dispatch with <code>fn(session, **args)</code> (TypeError → &quot;bad arguments&quot;), Langfuse <code>run.step(name, as_type=OBSERVATION_TYPE)</code>, event <code>{tool, engine, arguments, summary, trace: trace.of(...), sources: describe_sources(...), ms, error, warning}</code>; tool_result content = <code>json.dumps(result)[:24000]</code>. Break if over and (the response was cut off or no result is an error).</li>
+<li>Loop until submitted. <strong>First, every turn</strong>: if <code>stop</code> is set → <code>raise Stopped(&quot;stopped before it finished&quot;)</code> (class <code>Stopped(Exception)</code>, evidence/agent.py:456-457, 573-575). A turn in flight is paid for either way, so the check sits between turns; the API catches the exception, calls <code>fail_run</code> and ends the stream with <code>error {message: &quot;Stopped: stopped before it finished&quot;}</code>. Then: over-budget if <code>calls&gt;=14 or last_in&gt;=60000 or in_tokens&gt;=240000</code> → note <code>budget</code> + user message &quot;Your tool budget is exhausted. Call submit_answer now … If that is nothing, use state 'not_in_corpus' … Do not guess.&quot; Call model inside <code>run.current()</code>. Token accounting <code>_input_tokens = input + cache_read + cache_creation</code>. Text/thinking blocks → <code>thinking</code> events. No tool_use → (break if over) else <code>calls+=1</code>, user &quot;You did not call a tool. Call submit_answer now.&quot;. <code>submit_answer</code> → <code>Answer(**payload, question=question)</code>; A <code>submit_answer</code> in a response cut off at <code>max_tokens</code> → <code>is_error</code> &quot;Not received: your response reached the output limit before the answer was complete. Call submit_answer again, more briefly.&quot;, <code>calls+=1</code>, <code>rejections+=1</code> (evidence/agent.py:627-637). ValidationError → tool_result <code>is_error</code> &quot;Rejected:\n- loc: msg …\nCorrect it and call submit_answer again.&quot; (first 8 errors), note <code>rejected</code>, <code>calls+=1</code>, <code>rejections+=1</code>. Other tools: <code>calls+=1</code>, dispatch with <code>fn(session, **args)</code> (TypeError → &quot;bad arguments&quot;), Langfuse <code>run.step(name, as_type=OBSERVATION_TYPE)</code>, event <code>{tool, engine, arguments, summary, trace: trace.of(...), sources: describe_sources(...), ms, error, warning}</code>; tool_result content = <code>json.dumps(result)[:24000]</code>. Break if over and (the response was cut off or no result is an error).</li>
 <li>No submission → <code>Answer(state=&quot;not_in_corpus&quot;, answer=&quot;No answer was produced: the agent stopped without submitting one.&quot;, open_questions=[&quot;Re-run this question.&quot;])</code>.</li>
 <li><code>finalise()</code> (§2.6) → <code>contact.redact_obj</code> → <code>agent_eval.evidence</code> scores → push; if memory: <code>worth_remembering(final)</code> → note <code>retained</code> → <code>agent_memory.retain(text, context=&quot;Evidence Agent investigation of the Solvay SPARK L2C corpus[ (CATS only)]&quot;, metadata={state, prompt_hash, categories, claims}, tags=[&quot;evidence&quot;, state, *cats lower] + [&quot;user:&lt;username&gt;&quot;] when a user is signed in (</code>tracing.USER<code>; a tag rather than metadata so the shared bank can trace a fact to its source without the filing LLM copying the name into the fact — evidence/agent.py:746-750))</code>; <code>run.end(output)</code>; yield <code>answer</code>, <code>evaluation</code>.</li>
 </ol>
@@ -7934,15 +8036,15 @@ return clamp(round(score,2), 0, 1)
 <p>|expected − claimed| &gt; 0.2 → soft <code>confidence_drift</code> (not repaired). Confidence ≥0.7 with &lt;2 evidence → soft <code>evidence_floor</code>, capped 0.65. UNKNOWN forced to confidence 0. <code>summarise(results)</code> → <code>{entries, evidence_items, hard_issues, soft_issues, entries_repaired, evidence_valid_pct}</code>.</p>
 <h4 id="d05-3-6-orchestrator-fitgap-orchestrator-py-map-reduce">3.6 Orchestrator (fitgap/orchestrator.py) — map-reduce</h4>
 <p><code>preview(req)</code>: scope resolve (<code>bpml.get</code> or <code>resolve_scope</code>), steps_total, planned (≤max_steps), model, max_tool_calls, <code>estimated_input_tokens = steps*25000</code>, <code>estimated_minutes = round(steps*0.75/concurrency,1)</code>.
-<code>run(req)</code> yields <code>scope, step_start, tool_call, entry, verify_fail, step_error, synthesis, done, error</code>:</p>
+<code>run(req, stop=None)</code> yields <code>scope, step_start, tool_call, entry, verify_fail, step_error, synthesis, done, error</code>:</p>
 <ol>
 <li>scope guard on <code>req.question</code> → <code>error {message: REFUSAL + detail, refused: True, guardrail}</code>.</li>
 <li>resolve scope; <code>steps_in_scope(code)[:max_steps]</code>; none → error.</li>
 <li><code>run_id = fg_&lt;10hex&gt;</code>; categories upper-sorted; upload session must <code>exists</code> (else &quot;the attached documents have expired; upload them again&quot;), <code>touch</code>, record <code>{session, documents, schema}</code>.</li>
 <li><code>store.create_schema</code>; <code>start_run(record)</code> where record = id, mode, scope_bpml, scope_label, question, country, model, prompt_hash, holdout, categories, uploads, <code>corpus_fingerprint</code> (scoped), params <code>{max_steps, concurrency, max_tool_calls, asis_dir}</code>, <code>user_id</code> (fitgap/orchestrator.py:107).</li>
 <li>Langfuse <code>classify-scope</code> (session_id = upload session) tags <code>fitgap-copilot</code>, <code>mode-X</code>, [<code>holdout</code>].</li>
-<li><code>ThreadPoolExecutor(max_workers=concurrency)</code>; each step: new <code>Session(holdout, categories, uploads)</code>, span <code>classify-step</code> (as_type agent) → <code>agent.run_step</code> → <code>verifier.verify</code> → hard issues emit <code>verify_fail</code> → <code>store.save_entry</code> → emit <code>entry</code> (entry + issues + evidence_valid + cost). Exceptions → <code>step_error</code>. Events flow through a <code>queue.Queue</code>; a closer thread puts <code>__done__</code>.</li>
-<li><code>synthesis.synthesise(ordered results)</code> → <code>store.finish_run(synth, tokens)</code> → yield <code>synthesis</code>, <code>done {run_id, steps, entries, failed, seconds, tokens, verification}</code>.
+<li><code>ThreadPoolExecutor(max_workers=concurrency)</code>; each step: new <code>Session(holdout, categories, uploads)</code>, span <code>classify-step</code> (as_type agent) → <code>agent.run_step</code> → <code>verifier.verify</code> → hard issues emit <code>verify_fail</code> → <code>store.save_entry</code> → emit <code>entry</code> (entry + issues + evidence_valid + cost). Exceptions → <code>step_error</code>. Events flow through a <code>queue.Queue</code>; a closer thread <code>wait(futures)</code>, shuts the pool and puts <code>__done__</code>. The consumer reads the queue with <code>get(timeout=0.5)</code> so it can notice <code>stop</code>: once set it <code>cancel()</code>s every future not yet started, marks the run <code>stopped</code> and leaves the loop. Steps already in flight are not interrupted; what they produce afterwards is still saved (fitgap/orchestrator.py:51-57, 238-263 at fd5a375).</li>
+<li><code>synthesis.synthesise(ordered results)</code> (results read under the lock) → <code>store.finish_run(synth, tokens, status=&quot;stopped&quot; if stopped else &quot;done&quot;)</code> → yield <code>synthesis</code>, <code>done {run_id, steps, entries, failed, stopped, seconds, tokens, verification}</code>. For a stopped run <code>failed</code> counts the steps that never ran; the page shows them as &quot;not run — stopped&quot;.
 NOTE: <code>country_profile</code> is only injected for Mode B (FACT, agent.py:137); <code>asis_dir</code> is stored in <code>params</code> but never read (FACT by grep; INFERRED unimplemented). InsightLens offers <code>web_search</code> (FACT agent.py:204) but does <strong>not</strong> use Hindsight memory, <code>agent_eval</code> scoring, per-call <code>trace</code>, or lineage (FACT: no calls in fitgap/orchestrator.py / agent.py); its ToolCall has no <code>trace</code>.</li>
 </ol>
 <h4 id="d05-3-7-synthesis-fitgap-synthesis-py-pure-arithmetic">3.7 Synthesis (fitgap/synthesis.py) — pure arithmetic</h4>
@@ -8036,8 +8138,9 @@ Pass <code>compare</code>: shared three + <code>get_scope, search_corpus (filter
 <li><code>sap_bp_indexed(session)</code>: docs in SAP category (0 if excluded). <code>is_sap_bp_chunk(rec)</code>: <code>side==&quot;sap_bp&quot;</code> or <code>category==&quot;SAP&quot;</code>.</li>
 <li><code>ENGINE_OF</code>: rag (search_corpus, search_sap_best_practice, get_chunk, read_sources), graph (graph_entity, graph_neighbors, compare_entities), bpml (get_scope), session (list_sources), web.</li>
 </ul>
-<h4 id="d05-4-7-pass-loop-run-amend-none-rollout-agent-py-369-598-differ">4.7 Pass loop <code>_run(..., amend=None)</code> (rollout/agent.py:369-598) — differences from Evidence loop</h4>
+<h4 id="d05-4-7-pass-loop-run-amend-none-stop-none-rollout-agent-py-369-">4.7 Pass loop <code>_run(..., amend=None, stop=None)</code> (rollout/agent.py:369-598) — differences from Evidence loop</h4>
 <ul>
+<li><strong>Stop</strong> (ae1e4eb): at the top of every turn, <code>stop.is_set()</code> → <code>raise Stopped(&quot;stopped before it finished&quot;)</code> (class <code>Stopped</code>, agent.py:908-909); <code>read_asis(…, stop)</code> and <code>compare(…, stop)</code> pass it through, and <code>orchestrator.run(req, stop=None)</code> hands it to both passes. The turn in flight is not abandoned (the SDK has no clean way to drop a half-streamed turn). The pass's exception reaches the orchestrator's error path, so a stopped Copilot run is recorded as <strong>failed</strong> (not <code>stopped</code>, unlike InsightLens). Test: <code>test_a_stopped_pass_makes_no_further_model_call</code> (exactly one model request).</li>
 <li>Uses <code>messages.stream(...)</code>, <code>max_tokens=MAX_TOKENS_OUT</code> (64000); tool result JSON truncated at <strong>30000</strong> chars. Non-submit tools run through <code>_execute(sess, name, args, stage, on_tool)</code> (agent.py:601-643: Langfuse observation, <code>ToolCall</code> with <code>trace.of</code>, <code>sess.record</code>, <code>on_tool</code>).</li>
 <li>Notes emitted: <code>prompt</code>, <code>budget</code> (on reaching the budget; again when a pass is stopped for repeated cut-offs), <code>thinking</code>, <code>nudged</code>, <code>rejected</code> (send-backs <strong>and</strong> cut-offs), <code>repaired</code>, <code>submitted</code> (title gains &quot; (amended)&quot; when accepted via amend; <code>detail.amended</code>).</li>
 <li><code>compare()</code> passes <code>amend=&quot;amend_analysis&quot;</code>; <code>read_asis()</code> passes none, so pass 1 has no amend path (agent.py:915-916, 939-943).</li>
@@ -8632,7 +8735,7 @@ Persistence: <code>graph_quality_runs(id text PK 'gq_'+10hex, kind text ('struct
 <h2>§06 · Frontend and tests</h2>
 <p>Scope: <code>frontend/</code> (React SPA, three Vite bundles), <code>frontend/test/*</code>, <code>backend/tests/*</code>, <code>loadtest/*</code>, <code>docs/dark-theme.md</code>, <code>docs/demo-video/</code>.
 Notation: <strong>FACT (file:line)</strong> = read directly; <strong>INFERRED</strong> = deduced from names/comments, not verified line by line. Paths are relative to repo root; <code>src/</code> = <code>frontend/src/</code>.
-Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; backend line numbers are at that working tree.</p>
+Current as of commit fd5a375 (2026-10-06). What changed after <code>1d37131</code> (live-run reconnect and Stop on the three agent pages, the change-password step at sign-in, the Admin-only Demo sidebar, the Copilot's removed estimate) is cited at <code>fd5a375</code>; other line numbers are at <code>1d37131</code> plus the ownership fixes, and in <code>RolloutPage.tsx</code>, <code>FitGapPage.tsx</code>, <code>EvidencePage.tsx</code> and <code>api.ts</code> they have since moved down by up to ~70 lines.</p>
 
 <h3 id="d06-1-frontend-build">1. Frontend build</h3>
 <div class="tablewrap"><table>
@@ -8922,7 +9025,8 @@ src/assets/logo.png
 <h4 id="d06-2-2-session-guard-and-history-scope-auth-ts-usehistoryscope-">2.2 Session guard and history scope (<code>auth.ts</code>, <code>useHistoryScope.ts</code>)</h4>
 <ul>
 <li><code>Account {id, username, role: &quot;admin&quot;|&quot;user&quot;}</code>; <code>currentAccount()</code> GETs /api/auth/session, returns <code>null</code> on non-2xx or network error, and reads <code>username ?? user</code> (FACT auth.ts:8-14,45-54).</li>
-<li><code>installSessionGuard(loginPath)</code> wraps <code>window.fetch</code> once per bundle: a 401 from a same-origin <code>/api/*</code> path that is not an auth route (<code>/api/(auth|app|demo)/(login|logout|session|password)</code>) sends the browser to <code>&lt;loginPath&gt;?next=&lt;path+search&gt;</code>, once (<code>leaving</code> flag) (FACT auth.ts:18,26-43).</li>
+<li><code>installSessionGuard(loginPath)</code> wraps <code>window.fetch</code> once per bundle: a 401 from a same-origin <code>/api/*</code> path that is not an auth route (<code>/api/(auth|app|demo)/(login|logout|session|password)</code>) sends the browser to <code>&lt;loginPath&gt;?next=&lt;path+search&gt;</code>, once (<code>leaving</code> flag) (FACT auth.ts:18,26-48 at fd5a375). Since fd5a375 a <strong>403 whose JSON <code>code</code> is <code>password_change_required</code></strong> does the same (read from <code>res.clone()</code>); any other 403 (&quot;not an Admin&quot;) is left to the caller.</li>
+<li><code>changePassword(current, next)</code> (auth.ts:68) POSTs <code>/api/auth/password</code> and returns the server's error text or null; used by the account menu and by the sign-in page's change-password step (§6.1).</li>
 <li>History scope: <code>&quot;mine&quot;</code> (default) or <code>&quot;all&quot;</code>, persisted in <code>localStorage[&quot;history-scope&quot;]</code>, broadcast to listeners (FACT auth.ts:80-100). <code>useHistoryScope()</code> subscribes via <code>useSyncExternalStore</code> (FACT useHistoryScope.ts:7-9). History lists re-fetch when it changes (AskHistoryDrawer, EvidencePage, FitGapPage, RolloutPage).</li>
 <li><code>ownerLabel(owner)</code> returns <code>&quot;by &lt;owner&gt;&quot;</code> only when scope is <code>all</code> and the run has an owner; shown in history rows of all four tools (FACT auth.ts:103-105; AskHistoryDrawer.tsx:338; EvidencePage.tsx:865; FitGapPage.tsx:1727; RolloutPage.tsx:1180).</li>
 <li>The scope is only a request parameter; a User's lists are restricted by the server regardless (FACT comment auth.ts:73-78).</li>
@@ -8976,7 +9080,8 @@ src/assets/logo.png
 <h4 id="d06-3-5-agent-evidence-agent-evidencepage-tsx-1412-lines">3.5 Agent / Evidence Agent (<code>EvidencePage.tsx</code>, 1412 lines)</h4>
 <ul>
 <li>UI: question box + <code>EVIDENCE_SAMPLES</code> picker, <code>holdout</code> toggle, <strong>memory</strong> toggle (<code>useMemory</code>, default off) with memory panel open state persisted in <code>localStorage[&quot;evidence.memoryOpen&quot;]</code> (FACT :604,796); KPI strip Claims / Weakest claim / Evidence / Investigation / Time (FACT :984-988); answer state badge (supported, conflicted, documented_unknown, not_in_corpus, false_premise, unrepresentable) (FACT :42-53); tabs <strong>Answer · Claims (n) · Traceability (calls) · Memory (n) · Evaluation</strong>, shown conditionally; live log drawer (<code>AgentLogDrawer</code>), tool-call trace drawer (<code>AgentTraceDrawer</code>, renders rag/graph/bpml traces), document inspector (fetches chunk via <code>api.chunk</code>), <code>MemoryReflectDrawer</code> (POST /api/evidence/memory/reflect <code>{question}</code>), <code>RunHistoryDrawer</code>, <code>AgentEvaluationView</code>.</li>
-<li>API: GET /api/evidence/status; <code>askEvidence()</code> POST /api/evidence/ask <code>{question, holdout?, categories?, memory?}</code> SSE events <code>run, log, memory, tool_call, answer, evaluation, error</code> (FACT api.ts:1554-1597); GET /api/evidence/runs?limit=50&amp;scope=; GET /api/evidence/runs/{id}; DELETE /api/evidence/runs/{id}; GET /api/evidence/runs/{id}/lineage (+ <code>?format=md|json</code> download); GET /api/rag/chunk/{chunkId}.</li>
+<li><strong>Live run, reconnect and Stop</strong> (21814d6, EvidencePage.tsx:41-44, 813-896, 947-975 at fd5a375): <code>liveRun</code> ref holds the investigation id from the first <code>run</code> event. <code>follow(first)</code> opens the stream (<code>askEvidence</code>) or, with <code>first=null</code>, reopens <code>liveRun</code> via <code>followEvidence</code>; <code>liveHandlers(ended)</code> marks the stream as properly ended on <code>answer</code> or <code>error</code>. A stream that closes or throws without either is reopened up to <code>RECONNECTS = 5</code> times with a 1 s, 2 s … 5 s back-off, each time clearing the panels (<code>clearLive</code>) and replaying from the first event; when <code>followEvidence</code> answers 404 the stored run is loaded instead (<code>open(id, false)</code>); after 5 attempts: &quot;Lost the connection to this investigation. It is still running on the server: reopen it from History.&quot; <strong>Stop</strong> POSTs <code>evidence.stop(id)</code> and aborts the stream. Opening a history card whose run is <code>running</code> skips the detail pane (<code>RunHistoryDrawer opensInPage</code>) and follows it live on the page.</li>
+<li>API: GET /api/evidence/status; <code>askEvidence()</code> POST /api/evidence/ask <code>{question, holdout?, categories?, memory?}</code> SSE events <code>run, log, memory, tool_call, answer, evaluation, error</code> (FACT api.ts:1554-1597); GET /api/evidence/runs?limit=50&amp;scope=; GET /api/evidence/runs/{id}; DELETE /api/evidence/runs/{id}; GET /api/evidence/runs/{id}/lineage (+ <code>?format=md|json</code> download); GET /api/rag/chunk/{chunkId}; <code>followEvidence</code> GET /api/evidence/runs/{id}/stream (false on 404); <code>evidence.stop</code> POST /api/evidence/runs/{id}/stop.</li>
 <li>History reloads when the scope changes (FACT :623,772-775).</li>
 </ul>
 <h4 id="d06-3-6-insightlens-fitgappage-tsx-2164-lines">3.6 InsightLens (<code>FitGapPage.tsx</code>, 2164 lines)</h4>
@@ -8984,13 +9089,16 @@ src/assets/logo.png
 <li>Purpose: per-BPML-step fit/gap register. Classes FIT_STANDARD, FIT_CONFIG, GAP_DEVELOPMENT, REUSE, ADAPT, CHALLENGE, SIMPLIFY, REPLACE, RETIRE, UNKNOWN with labels/hues; materiality high/medium/low weights 3/2/1.</li>
 <li>Form: question (+ <code>QuestionPicker</code> over the 27 <code>evalQuestions.ts</code> items, which sets question and scope), scope text default <code>&quot;4.5.1&quot;</code> resolved via debounced (220 ms) <code>fitgap.search</code> (FACT :1475,1571-1574), mode toggle <strong>A · Template baseline / B · Country delta</strong> (FACT :1987-1988), holdout, country profile JSON (validated, only in mode B), <code>maxSteps</code> 4 (slider 1–20), <code>concurrency</code> 3 (FACT :1491-1492,1998); preview card from POST /api/fitgap/preview recomputed on change (FACT :1580-1583). Attachments panel (session uploads, stored in <code>localStorage[&quot;fitgap.uploads&quot;]</code>) with entity comparison vs corpus. Reviewer = signed-in account (read-only &quot;Reviewing as&quot;) (FACT :872).</li>
 <li>Run: <code>runFitGap</code> POST /api/fitgap/run SSE <code>scope, step_start, tool_call, entry, verify_fail, step_error, synthesis, done, error</code> (FACT api.ts:952-995); live StepCards per step (waiting/running/done/failed). Results tabs: <strong>Reuse assessment · Gap register (n) · Decisions (n) · Integrations (n) · Agenda (n)</strong> (FACT :2113ff). Entry detail with evidence, issues, review (accept/reject/refine + corrected class) → POST /api/fitgap/entries/{id}/review. Exports: <code>/api/fitgap/runs/{id}/export?format=md|json|xlsx</code>. &quot;Show in graph&quot; → KG page.</li>
-<li>Other API: GET /api/fitgap/status, GET /api/fitgap/runs?scope=, GET /api/fitgap/runs/{id}, session uploads (§4). History reloads when the scope changes.</li>
+<li><strong>Live run and Stop</strong> (ae1e4eb, FitGapPage.tsx:1603-1682, 1780-1793 at fd5a375): one <code>handlers: FitGapHandlers</code> object serves a run started here and one reopened from History; <code>stream(follow)</code> wraps either. A stream is <strong>not</strong> reconnected automatically on this page (unlike Evidence and Copilot). <strong>Stop</strong> with a known <code>runId</code> POSTs <code>fitgap.stop(runId)</code> (falling back to aborting the stream if that fails); before the <code>scope</code> event it only aborts. A <code>done</code> with <code>stopped:true</code> turns every waiting/running step card into failed &quot;Stopped before it finished&quot;, and the summary reads &quot;· N step(s) not run — stopped&quot;. Loading a history run whose status is <code>running</code> follows it live with <code>followFitGap</code>; on 404 it reloads the stored entries. History cards of running runs open straight onto the page (<code>opensInPage</code>).</li>
+<li>Other API: GET /api/fitgap/status, GET /api/fitgap/runs?scope=, GET /api/fitgap/runs/{id}, <code>followFitGap</code> GET /api/fitgap/runs/{id}/stream, <code>fitgap.stop</code> POST /api/fitgap/runs/{id}/stop, session uploads (§4). History reloads when the scope changes.</li>
 </ul>
 <h4 id="d06-3-7-fit-gap-copilot-rollout-rolloutpage-tsx-2329-lines-compo">3.7 Fit-Gap Copilot / Rollout (<code>RolloutPage.tsx</code>, 2329 lines; components/rollout/*)</h4>
 <ul>
 <li>Purpose: Fit-to-Standard analysis: subject documents (country As-Is or SAP Best Practice) vs Global Template; three-way comparison with roles <code>as_is | template | sap_bp | localization | other</code> (FACT api.ts RolloutRole; RolloutPage.tsx role labels).</li>
 <li>Setup (&quot;New analysis&quot; composer, 3-step indicator: attach → ready → run, FACT :1351): subject select (<code>country_as_is</code> default, follows uploaded roles until touched), scope (optional; debounced <code>fitgap.search</code>), country, country context, SAP release, GT version, question; upload panel → <code>uploadSessionDocuments</code> POST /api/uploads SSE (<code>session, start, stage, done_file, file_error, done, error</code>), retag PATCH, remove DELETE, clear DELETE session; session id in <code>localStorage[&quot;rollout.uploads&quot;]</code> (FACT :898,994-995). Preview POST /api/rollout/preview recomputed on change.</li>
-<li>Run: <code>runRollout</code> POST /api/rollout/run SSE <code>scope, stage, tool_call, asis, gate, analysis, scores, sources, evaluation, done, error, log</code> (FACT api.ts:2008-2030). Live stages + log auto-scroll unless user scrolled up.</li>
+<li>Run: <code>runRollout</code> POST /api/rollout/run SSE <code>scope, stage, tool_call, asis, gate, analysis, scores, sources, evaluation, done, error, log</code> (FACT api.ts:2046-2050 at fd5a375). Live stages + log auto-scroll unless user scrolled up.</li>
+<li><strong>Live run, reconnect and Stop</strong> (ae1e4eb, RolloutPage.tsx:86-88, 1077-1170, 1254-1283 at fd5a375): the same pattern as the Evidence page — <code>liveRun</code> ref set by <code>scope</code>, <code>follow(first)</code> with <code>RECONNECTS = 5</code> and a 1–5 s back-off, <code>clearLive()</code> before each replay, <code>done</code>/<code>error</code> mark a clean end, a 404 from <code>followRollout</code> loads the stored run (<code>loadRun(id, false)</code>), and after 5 attempts &quot;Lost the connection to this run. It is still running on the server: reopen it from History.&quot; <strong>Stop</strong> POSTs <code>rollout.stop(id)</code> and aborts the stream. A history run with status <code>running</code> is followed live (<code>opensInPage</code>).</li>
+<li><strong>Review and run</strong> step (the composer's last step) lists Scope, Passes and, only with tech details on, Model. The token/time <strong>Estimate</strong> line (&quot;~Nk input tokens · ~N min&quot;) was removed in 92405bc; <code>RolloutPreview</code> still carries <code>estimated_input_tokens</code>/<code>estimated_minutes</code> but this page no longer shows them (InsightLens's preview card still does, FitGapPage.tsx:2085).</li>
 <li><strong>Run timing</strong>: the header line ends &quot;· Completed in &lt;d&gt; (reading &lt;d&gt;, comparing &lt;d&gt;)&quot;, computed by <code>runTiming(log)</code> from the log's <code>stage</code> notes (one per pass) and the <code>gates</code> note; returns <code>null</code> (no duration shown) for a run that is still going, failed, or has no gates note (FACT RolloutPage.tsx:1371-1373; components/rollout/timing.ts:1-49). History rows of finished runs add &quot;took &lt;d&gt;&quot; from <code>started_at</code>/<code>finished_at</code> (FACT RolloutPage.tsx:1185-1186).</li>
 <li>Workspace tabs (FACT :1333-1347): <strong>Summary · Brief · Workshop agenda (n, ✓ when every MUST_DISCUSS item decided) · Deviations (n) · Process alignment (n, if As-Is) · Localization (n | &quot;— n/a&quot;) · Dimensions · Backlog (n) · <code>&lt;subject&gt;</code> model (n) · Sources (n docs) · Quality gates · Traceability (calls) · Evaluation</strong> (13). <code>PANEL_TABS = [localization, dimensions, backlog, asis, gates, sources, evaluation]</code> lists the tabs drawn inside the shared outlined panel; a panel tab missing from it renders blank (the Evaluation tab did, before the fix) (FACT :862-866). Components: SummaryView, BriefView, ScoreCards (+FormulaTooltip), WorkshopAgendaView, DeviationRegisterView, DeviationRiskView, ProcessAlignmentView, FacilitatorView (1 s countdown timer, FACT FacilitatorView.tsx:111), ObjectHeader, OutcomeDownloads, MaterialityPill.</li>
 <li>Decisions: <code>rollout.decide(runId, {gap_id, reviewer, verdict: accept|reject|defer, disposition?, comment?, option_index?, rationale?, session_id?})</code> → POST /api/rollout/runs/{id}/decisions; append-only log; reviewer field read-only, filled from the account (FACT :1415). Facilitator mode collects drafts (persisted per run in <code>localStorage[&quot;fitgap.drafts.&lt;runId&gt;&quot;]</code>, FACT :1228-1253) then <code>submitWorkshop</code> POST /api/rollout/runs/{id}/workshop <code>{facilitator, attendees[], answers[]}</code>.</li>
@@ -9046,7 +9154,7 @@ src/assets/logo.png
 <li><strong>DailyBars</strong> (<code>components/quality/charts.tsx:261ff</code>): d3 band/linear scales, SVG 720×160, gridlines, at most ~10 date labels; hovering or tabbing to a day highlights its column, dims other days and opens an HTML card (date, total runs, per-tool rows busiest first with share bars and %, &quot;No runs: …&quot; footer); each column is focusable with an <code>aria-label</code>.</li>
 <li><strong>User × tool view</strong> (&quot;Who uses what&quot;, <code>MatrixView</code>, FACT :308-682): measure toggle <strong>Runs · Tokens · Run time · Cost</strong>, remembered in <code>localStorage[&quot;admin.matrix.measure&quot;]</code> (FACT :318-335,365-376). Values are exact (run time as <code>Hh MMm SSs</code>, cost held in whole cents) so totals add up by eye. Rows = accounts with a non-zero total, sorted by total desc then name; idle accounts are counted in the legend note, not shown (FACT :379-387,668). Three insight cards: Top account, Most used tool, In the period (FACT :495-508). Columns: #, Account (avatar initials, run-history link), one per tool (plain numbers with a grey length bar), <strong>Total</strong> (the only heat-mapped column, one colour from 0.08 to 0.9 alpha of primary), <strong>Share</strong> (% to one decimal, <code>&lt;0.1%</code>/<code>&gt;99.9%</code>); footer row &quot;All accounts&quot; with per-tool sums, grand total, 100% (FACT :341-345,393-400,523-648). Interactions: hovering a cell lights its row and column (crosshair); hovering an account's Total <strong>outlines the cells that add up to it</strong> (and the Total itself) and fades the rest; hovering a footer total outlines its column; tooltips spell out the sum (<code>&lt;whole&gt; = a + b + … (names)</code>) (FACT :413-440). Legend under the table: colour scale for the Total column (FACT :658-678).</li>
 <li><strong>Run history view</strong> (<code>RunsView</code>, FACT :697-805): GET /api/admin/runs (50 per page, <code>user_id</code>, <code>tool</code>, keyset <code>before=&lt;started_at&gt;</code>), tool filter &quot;Every tool&quot;; columns When, Account, Tool (colour dot), Question or scope, Status chip, Time, Tokens, and <strong>Open</strong> — calls <code>onOpenRun(tool, id)</code>; if the front end has no page for that tool, shows &quot;&lt;tool&gt; is not part of this view&quot;; <strong>Load older</strong> while <code>more</code>.</li>
-<li><strong>Users view</strong> (<code>UsersView</code>, FACT :807-891): &quot;Accounts&quot; table with <strong>New account</strong> button; per row: username (&quot;(you)&quot; for self), role select (disabled for self: &quot;You cannot change your own role&quot;), Active switch (disabled for self; &quot;Deactivate: signs them out and stops sign-in&quot; / &quot;Reactivate&quot;), last sign-in, created, <strong>Reset password</strong>. New account dialog: Username (&quot;No spaces. Not case-sensitive.&quot;), Temporary password (&quot;At least 8 characters. They can change it from the account menu.&quot;), always created with role <code>user</code> (FACT :893-938, :905). Reset password dialog (FACT :940-980). All via <code>admin.createUser</code> / <code>admin.updateUser</code>.</li>
+<li><strong>Users view</strong> (<code>UsersView</code>, FACT :807-891): &quot;Accounts&quot; table with <strong>New account</strong> button; per row: username (&quot;(you)&quot; for self), role select (disabled for self: &quot;You cannot change your own role&quot;), Active switch (disabled for self; &quot;Deactivate: signs them out and stops sign-in&quot; / &quot;Reactivate&quot;), last sign-in, created, <strong>Reset password</strong>. New account dialog: Username (&quot;No spaces. Not case-sensitive.&quot;), Temporary password (&quot;At least 8 characters. They must choose their own at first sign-in.&quot;), always created with role <code>user</code> (FACT :893-938, :905). Reset password dialog: &quot;This signs &lt;name&gt; out everywhere. Give them the new password yourself; they will be asked to choose their own when they next sign in.&quot; (FACT :940-980). An account still on an Admin's password shows a warning chip <strong>password not yet changed</strong> beside its name (tooltip &quot;Still on the password an Admin set; they choose their own at their next sign-in&quot;; AdminPage.tsx:847-852 at fd5a375). All via <code>admin.createUser</code> / <code>admin.updateUser</code>.</li>
 <li><strong>Activity view</strong> (<code>ActivityView</code>, FACT :983-1068): GET /api/admin/activity (100 per page, <code>before=&lt;id&gt;</code>, <code>user_id</code>, <code>action</code>), action filter from server-provided <code>actions</code>; labels: login &quot;Signed in&quot;, login_failed &quot;Sign-in failed&quot; (warning colour), logout, run &quot;Started a run&quot;, review, decision, workshop, export, delete, clear_history, password_changed, user_created, user_updated; detail column = tool · run id · details; <strong>Load older</strong>.</li>
 <li>Legacy runs: the UI only displays the <code>legacy</code> owner. Handing its runs to a real account is a backend CLI, <code>python -m backend.auth.store reassign-legacy &lt;username&gt; [table ...]</code>; there is no button for it (FACT backend/auth/store.py:24,344,410).</li>
 </ul>
@@ -9235,10 +9343,16 @@ src/assets/logo.png
 <td>vector</td>
 </tr>
 <tr>
-<td>runFitGap(body, on, signal) (:952)</td>
+<td>runFitGap(body, on, signal) (:954)</td>
 <td>POST /api/fitgap/run</td>
 <td><code>FitGapRunBody {mode?, scope_bpml, country_profile?, holdout?, max_steps?, concurrency?, question?, categories?, upload_session?}</code></td>
-<td>scope, step_start, tool_call, entry (<code>FitGapEntry</code>), verify_fail, step_error, synthesis (<code>FitGapSynthesis</code>), done, error</td>
+<td>scope, step_start, tool_call, entry (<code>FitGapEntry</code>), verify_fail, step_error, synthesis (<code>FitGapSynthesis</code>), done (<code>stopped?</code>), error</td>
+</tr>
+<tr>
+<td>followFitGap(id, on, signal) (:968)</td>
+<td>GET /api/fitgap/runs/{id}/stream</td>
+<td>–</td>
+<td>as runFitGap (shared <code>dispatchFitGap</code>); resolves <code>false</code> on 404</td>
 </tr>
 <tr>
 <td>uploadSessionDocuments(files, session, role, on, signal?) (:1079)</td>
@@ -9247,35 +9361,43 @@ src/assets/logo.png
 <td>session, start, stage, done_file, file_error, done (<code>UploadSession &amp; {added,total}</code>), error</td>
 </tr>
 <tr>
-<td>askEvidence(body, on, signal) (:1554)</td>
+<td>askEvidence(body, on, signal) (:1573)</td>
 <td>POST /api/evidence/ask</td>
 <td><code>{question, holdout?, categories?, memory?}</code></td>
 <td>run, log, memory, tool_call, answer (<code>EvidenceAnswer</code>), evaluation (<code>AgentEvaluation</code>), error</td>
 </tr>
 <tr>
-<td>runRollout(body, on, signal) (:2008)</td>
+<td>followEvidence(id, on, signal) (:1592)</td>
+<td>GET /api/evidence/runs/{id}/stream</td>
+<td>–</td>
+<td>as askEvidence (shared <code>dispatchEvidence</code>); <code>false</code> on 404</td>
+</tr>
+<tr>
+<td>runRollout(body, on, signal) (:2046)</td>
 <td>POST /api/rollout/run</td>
 <td><code>RolloutRunBody {scope_bpml?, subject?, country?, country_context?, sap_release?, gt_version?, question?, upload_session, categories?}</code></td>
 <td>scope, stage, tool_call, asis, gate, analysis, scores, sources, evaluation, done, error, log</td>
 </tr>
 <tr>
-<td>(BatchConvertPage, direct)</td>
-<td>POST /api/batch/upload; POST /api/batch/convert/{id}; POST /api/batch/{id}/embed; GET /api/batch/{id}/download</td>
-<td>see §3.9</td>
-<td>progress, file_done, file_error, batch_done</td>
+<td>followRollout(id, on, signal) (:2060)</td>
+<td>GET /api/rollout/runs/{id}/stream</td>
+<td>–</td>
+<td>as runRollout (shared <code>rolloutEvents</code>); <code>false</code> on 404</td>
 </tr>
 </tbody>
 </table></div>
+<p>The <code>: ping</code> keep-alive comment lines the server sends during quiet model turns are ignored by the SSE readers (they are not <code>event:</code> lines).
+| (BatchConvertPage, direct) | POST /api/batch/upload; POST /api/batch/convert/{id}; POST /api/batch/{id}/embed; GET /api/batch/{id}/download | see §3.9 | progress, file_done, file_error, batch_done |</p>
 <h4 id="d06-4-3-sessionuploads-also-fitgap-uploads-1104-1120">4.3 <code>sessionUploads</code> (also <code>fitgap.uploads</code>) (:1104-1120)</h4>
 <p>status GET /api/uploads/{s} → <code>UploadSession {session, exists, created_at?, used_at?, expires_at?, ttl_hours?, max_files?, database?, schema?, files: UploadedFile[], documents, chunks, tokens?, graph?}</code>; entities GET /api/uploads/{s}/entities[?roles=…] → <code>UploadComparison {documents[], entities: UploadEntity[], shared, new}</code>; retag PATCH /api/uploads/{s}/files/{name}?role=; remove DELETE /api/uploads/{s}/files/{name}; drop DELETE /api/uploads/{s} → <code>{dropped}</code>.</p>
 <h4 id="d06-4-4-fitgap-1122-1146">4.4 <code>fitgap</code> (:1122-1146)</h4>
-<p>status GET /api/fitgap/status → <code>FitGapStatus</code>; roots GET /api/fitgap/scope → <code>{roots}</code>; search GET /api/fitgap/scope?q= → <code>{query, matches: BpmlProcess[]}</code>; node GET /api/fitgap/scope?code= → <code>{process, ancestry, children, steps}</code>; preview POST /api/fitgap/preview (FitGapRunBody) → <code>FitGapPreview</code>; runs GET /api/fitgap/runs?scope= → <code>FitGapRunSummary[]</code> (each with optional <code>owner</code>); run GET /api/fitgap/runs/{id} → <code>FitGapRunDetail</code>; exportUrl /api/fitgap/runs/{id}/export?format=md|json|xlsx; review POST /api/fitgap/entries/{entryId}/review <code>{reviewer, verdict, corrected_classification?, comment?}</code> (server signs it with the account).</p>
+<p>status GET /api/fitgap/status → <code>FitGapStatus</code>; roots GET /api/fitgap/scope → <code>{roots}</code>; search GET /api/fitgap/scope?q= → <code>{query, matches: BpmlProcess[]}</code>; node GET /api/fitgap/scope?code= → <code>{process, ancestry, children, steps}</code>; preview POST /api/fitgap/preview (FitGapRunBody) → <code>FitGapPreview</code>; runs GET /api/fitgap/runs?scope= → <code>FitGapRunSummary[]</code> (each with optional <code>owner</code>); run GET /api/fitgap/runs/{id} → <code>FitGapRunDetail</code>; exportUrl /api/fitgap/runs/{id}/export?format=md|json|xlsx; stop POST /api/fitgap/runs/{id}/stop → <code>{stopping}</code>; review POST /api/fitgap/entries/{entryId}/review <code>{reviewer, verdict, corrected_classification?, comment?}</code> (server signs it with the account).</p>
 <h4 id="d06-4-5-askhistory-1645-1669">4.5 <code>askHistory</code> (:1645-1669)</h4>
 <p>runs GET /api/ask/runs?limit=&amp;scope=&amp;search=&amp;quality= (quality ∈ &quot;&quot;, low, unfaithful, unsafe, unscored) → <code>{runs: AskRunSummary[] (optional owner), retention, filters, low_quality_below}</code>; evaluation GET /api/ask/runs/{id}/evaluation → <code>AskEvaluation {status none|running|done|failed|skipped|abandoned, metrics: Record&lt;string, MetricScore&gt;, overall, safety, terms, …}</code>; rescore POST same → <code>{status, run_id, judge_model}</code>; run GET /api/ask/runs/{id} → <code>AskRunDetail</code> (answer, sources, terms, corpus_changed, evaluation?, review?); deleteRun DELETE /api/ask/runs/{id}; clear DELETE /api/ask/runs → <code>{status, removed}</code>.</p>
 <h4 id="d06-4-6-evidence-1692-1716">4.6 <code>evidence</code> (:1692-1716)</h4>
-<p>status GET /api/evidence/status → <code>EvidenceStatus</code> (model, prompt_hash, max_tool_calls, anthropic_key, tools, categories, duplicate_groups, hubs, graph, history?, memory?: MemoryStatus); runs GET /api/evidence/runs?limit=&amp;scope= (optional <code>owner</code> per row); run GET /api/evidence/runs/{id}; lineage GET /api/evidence/runs/{id}/lineage → <code>Lineage</code>; lineageExportUrl …/lineage?format=md|json; deleteRun DELETE; reflect POST /api/evidence/memory/reflect <code>{question}</code> → <code>MemoryReflection {text, based_on[], searched[], usage, error}</code>.</p>
+<p>status GET /api/evidence/status → <code>EvidenceStatus</code> (model, prompt_hash, max_tool_calls, anthropic_key, tools, categories, duplicate_groups, hubs, graph, history?, memory?: MemoryStatus); runs GET /api/evidence/runs?limit=&amp;scope= (optional <code>owner</code> per row); run GET /api/evidence/runs/{id}; lineage GET /api/evidence/runs/{id}/lineage → <code>Lineage</code>; lineageExportUrl …/lineage?format=md|json; stop POST /api/evidence/runs/{id}/stop; deleteRun DELETE; reflect POST /api/evidence/memory/reflect <code>{question}</code> → <code>MemoryReflection {text, based_on[], searched[], usage, error}</code>.</p>
 <h4 id="d06-4-7-rollout-2036-2093-clientexports-on-2034">4.7 <code>rollout</code> (:2036-2093) + <code>clientExports(on)</code> (:2034)</h4>
-<p>status GET /api/rollout/status → <code>RolloutStatus</code> (pdf?, bpml, model, prompt_hash, max_tool_calls, anthropic_key, runs, decisions, vocabulary{deviation_types, dispositions, localization_states, dimensions{label,weight}, ratings}, subjects: RolloutSubject[], uploads{ttl_hours,max_files,accepted,database,roles}); preview POST /api/rollout/preview → <code>RolloutPreview</code>; runs GET /api/rollout/runs?scope= (optional <code>owner</code> per row); run GET /api/rollout/runs/{id} → <code>RolloutRunDetail</code>; deleteRun DELETE; exportUrl /api/rollout/runs/{id}/export?format=md|json|pdf[&amp;client=1]; sourceUrl (see §3.7); decide POST …/decisions → <code>RolloutDecision</code>; lineage GET …/lineage; lineageExportUrl; workshopExportUrl …/workshop/export?format=&amp;session=; submitWorkshop POST …/workshop → <code>{session: WorkshopSession, decisions[]}</code>.
+<p>status GET /api/rollout/status → <code>RolloutStatus</code> (pdf?, bpml, model, prompt_hash, max_tool_calls, anthropic_key, runs, decisions, vocabulary{deviation_types, dispositions, localization_states, dimensions{label,weight}, ratings}, subjects: RolloutSubject[], uploads{ttl_hours,max_files,accepted,database,roles}); preview POST /api/rollout/preview → <code>RolloutPreview</code>; runs GET /api/rollout/runs?scope= (optional <code>owner</code> per row); run GET /api/rollout/runs/{id} → <code>RolloutRunDetail</code>; stop POST /api/rollout/runs/{id}/stop; deleteRun DELETE; exportUrl /api/rollout/runs/{id}/export?format=md|json|pdf[&amp;client=1]; sourceUrl (see §3.7); decide POST …/decisions → <code>RolloutDecision</code>; lineage GET …/lineage; lineageExportUrl; workshopExportUrl …/workshop/export?format=&amp;session=; submitWorkshop POST …/workshop → <code>{session: WorkshopSession, decisions[]}</code>.
 Enumerations (FACT :1725-1745): DeviationType PF BR AP RO LC CT DT IN RP UX EX TM TC SEC VOL POL; Disposition ADOPT_GT CONFIGURE_STANDARD USE_SAP_LOCALIZATION ADOPT_SAP_BP EXTEND_STANDARD RETAIN_LOCAL_EXCEPTION REDESIGN_GT RETIRE_LEGACY REQUIRES_DECISION OUT_OF_SCOPE; LocalizationState CONFIRMED_STATUTORY SAP_DELIVERED CORPORATE_POLICY LOCAL_PREFERENCE SUSPECTED NOT_LOCALIZATION; Materiality Critical/High/Medium/Low/Informational; WorkshopBucket MUST_DISCUSS/CONFIRM/NO_WORKSHOP_TIME; Dimension flow/rules/governance/data/integration/controls/reporting; evidence_class E1–E4; side as_is/template/sap_bp/localization.</p>
 <h4 id="d06-4-8-quality-2310-2333-experimentitem-2349">4.8 <code>quality</code> (:2310-2333) + <code>experimentItem</code> (:2349)</h4>
 <p>overview GET /api/quality/overview?days=&amp;half=&amp;mode= → <code>QualityOverview</code>; explorer GET /api/quality/explorer?… → <code>QualityExplorer</code>; judge GET /api/quality/judge → <code>JudgeTrust</code>; experiments GET /api/quality/experiments → <code>{experiments}</code>; compare GET /api/quality/experiments/compare?base=&amp;cand= → <code>ExperimentComparison</code>; setBaseline POST /api/quality/experiments/{id}/baseline; deleteExperiment DELETE /api/quality/experiments/{id}; review POST /api/ask/runs/{runId}/review <code>{verdict, note, reviewer}</code>; experimentItem GET /api/quality/experiments/{expId}/items/{itemId} → <code>ExperimentItem</code>.
@@ -9301,7 +9423,7 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 <td>users()</td>
 <td>/api/admin/users</td>
 <td>–</td>
-<td><code>{users: AdminUser[] {id, username, role, active, created_at, last_login_at, last_seen_at, runs}}</code></td>
+<td><code>{users: AdminUser[] {id, username, role, active, created_at, last_login_at, last_seen_at, must_change_password, runs}}</code></td>
 </tr>
 <tr>
 <td>createUser(username, password, role)</td>
@@ -9340,7 +9462,7 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 </ul>
 <p><strong>Defined but not called from UI (FACT grep):</strong> <code>askHistory.clear</code>, <code>fitgap.roots</code>, <code>fitgap.node</code>, <code>quality.deleteExperiment</code>. <code>graphData/rebuildGraph/graphModel</code> are always called without categories. Every <code>admin.*</code> function is used by AdminPage.</p>
 <h4 id="d06-4-11-localstorage-keys-fact-grep">4.11 localStorage keys (FACT grep)</h4>
-<p><code>theme</code>, <code>quality.view</code>, <code>evidence.memoryOpen</code>, <code>fitgap.uploads</code>, <code>rollout.uploads</code>, <code>fitgap.drafts.&lt;runId&gt;</code>, <code>demo-sidebar-v2</code>, <code>history-scope</code> (auth.ts:81), <code>admin.view</code>, <code>admin.matrix.measure</code>. <code>fitgap.reviewer</code> is gone: the reviewer is the signed-in account. All wrapped in try/catch (&quot;private mode&quot;).</p>
+<p><code>theme</code>, <code>quality.view</code>, <code>evidence.memoryOpen</code>, <code>fitgap.uploads</code>, <code>rollout.uploads</code>, <code>fitgap.drafts.&lt;runId&gt;</code>, <code>demo-sidebar-v3</code> (was <code>-v2</code>; renamed in df034c9 when the default became hidden), <code>history-scope</code> (auth.ts:81), <code>admin.view</code>, <code>admin.matrix.measure</code>. <code>fitgap.reviewer</code> is gone: the reviewer is the signed-in account. All wrapped in try/catch (&quot;private mode&quot;).</p>
 
 <h3 id="d06-5-theme-and-branding-src-theme-ts-docs-dark-theme-md">5. Theme and branding (<code>src/theme.ts</code>, docs/dark-theme.md)</h3>
 <ul>
@@ -9366,19 +9488,20 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 <li>One set of accounts (Postgres, <code>backend/auth/</code>) opens both the application and Demo Mode (FACT login/main.tsx:1-3; test_auth.py:17). Roles: <code>admin</code>, <code>user</code>.</li>
 <li><strong>/login</strong> (<code>login/main.tsx</code>): <code>SignInForm</code> with <code>endpoint=&quot;/api/auth/login&quot;</code>, subtitle &quot;Sign in to continue&quot;; <code>next</code> param accepted only if it starts with <code>/</code>, not <code>//</code>, not <code>/login</code>, no backslash; default <code>/</code> — same rule as server <code>app_login.safe_next</code> (FACT login/main.tsx:20-41). Theme toggle on form.</li>
 <li><strong>SignInForm</strong>: username + password (show/hide), empty → &quot;Enter a username and a password.&quot;, POST JSON, on success <code>location.replace(nextTarget())</code>, error shows server <code>detail</code> or <code>Sign-in failed (&lt;status&gt;).</code> (FACT SignInForm.tsx:31-56). No credentials in the bundle.</li>
-<li>After sign-in the app reads <code>/api/auth/session</code> for username and role (§2). A session ending mid-page (expiry, password reset, deactivation) triggers the session guard → <code>/login?next=…</code> (§2.2). Sign out and password change live in the account menu (§2.1).</li>
+<li><strong>Change-password step</strong> (fd5a375, SignInForm.tsx:7-12, 38-47, 63-86, 187-264): when the login response has <code>must_change_password: true</code> the form is replaced by <code>ChangePasswordStep</code> (heading subtitle &quot;Choose your own password&quot;; info alert &quot;You signed in with a temporary password. For your security, create a new password to continue.&quot;; fields <strong>New password</strong> (helper &quot;At least 8 characters&quot;) and <strong>New password again</strong>; a hidden <code>username</code> input for password managers; button &quot;Set password and continue&quot; / &quot;Saving…&quot;; a <strong>Sign out</strong> button). Mismatch → &quot;The new passwords differ.&quot;; otherwise <code>changePassword(current, new)</code> and, on success, on to <code>next</code>. The temporary password typed a moment ago is reused as <code>current</code>. On mount the form also GETs <code>/api/auth/session</code>; a held account arriving already signed in (a reload, or redirected by the server or the session guard) gets the same step plus a <strong>Current password</strong> field, since the page no longer knows it. The server enforces the step (02 §3c); both <code>/login</code> and <code>/demo/login</code> use this component.</li>
+<li>After sign-in the app reads <code>/api/auth/session</code> for username and role (§2). A session ending mid-page (expiry, password reset, deactivation), or a 403 <code>password_change_required</code>, triggers the session guard → <code>/login?next=…</code> (§2.2). Sign out and password change live in the account menu (§2.1).</li>
 </ul>
 <h4 id="d06-6-2-demo-mode">6.2 Demo Mode</h4>
 <ul>
 <li><strong>/demo</strong> (<code>demo/main.tsx</code> → DemoApp): installs <code>installSessionGuard(&quot;/demo/login&quot;)</code>, then calls <code>clientExports()</code> so every Copilot export URL gets <code>&amp;client=1</code> (model name omitted) (FACT demo/main.tsx:7-12, api.ts:2034-2052). DemoApp chooses <code>DemoLogin</code> if path starts <code>/demo/login</code>, else <code>DemoShell</code> (server redirects unauthenticated <code>/demo</code> → <code>/demo/login</code>) (FACT DemoApp.tsx:1-7,28). DemoLogin posts to <strong>/api/auth/login</strong> (same accounts), subtitle &quot;Sign in to the client demo&quot;; <code>next</code> must match <code>^/demo(/[\w-]*)?$</code> and not <code>/demo/login</code>, default <code>/demo</code> (FACT DemoLogin.tsx:8-16).</li>
 <li><strong>DemoShell</strong> (FACT DemoShell.tsx):
 <ul>
-<li>Header tabs only: <strong>Spine</strong> (<code>/demo/graph</code>) and <strong>Fit-Gap Copilot</strong> (<code>/demo/fit-gap-copilot</code>). Sidebar &quot;Answer engines&quot;: <strong>Ask RAG</strong> (<code>/demo/ask</code>), <strong>Agent</strong> (<code>/demo/agent</code>). Landing <code>/demo/home</code> (default after sign-in, HOME = landing). <strong>Admin</strong> (<code>/demo/admin</code>) reached from a button beside the account menu, shown to Admins only (FACT :46-87,275-285). Any other slug → landing (Convert, Batch, Add-KB, Coverage, Doc vs MD, MD Viewer, InsightLens, RAG Metrics are unroutable in demo) (FACT :57-62,91-94).</li>
+<li>Header tabs only: <strong>Spine</strong> (<code>/demo/graph</code>) and <strong>Fit-Gap Copilot</strong> (<code>/demo/fit-gap-copilot</code>). Sidebar &quot;Answer engines&quot;: <strong>Ask RAG</strong> (<code>/demo/ask</code>), <strong>Agent</strong> (<code>/demo/agent</code>) — <strong>Admins only</strong> since df034c9: for anyone else the sidebar and the header menu button are not rendered (<code>shownSidebar = isAdmin ? sidebar : &quot;hidden&quot;</code>, so nothing flashes before the session loads), and an effect sends a non-Admin who reaches a sidebar page (<code>SIDEBAR_PAGES</code>) to HOME with <code>replaceState</code> (DemoShell.tsx:15-21, 123-125, 175-183 at fd5a375). This only hides the pages; the APIs behind them stay open to every signed-in user. Landing <code>/demo/home</code> (default after sign-in, HOME = landing). <strong>Admin</strong> (<code>/demo/admin</code>) reached from a button beside the account menu, shown to Admins only (FACT :46-87,275-285). Any other slug → landing (Convert, Batch, Add-KB, Coverage, Doc vs MD, MD Viewer, InsightLens, RAG Metrics are unroutable in demo) (FACT :57-62,91-94).</li>
 <li>Address bar canonicalised with <code>replaceState</code> on arrival; <code>pushState</code> on navigation; popstate supported (FACT :122-172).</li>
 <li>Pages mount lazily on first visit (<code>visited</code> set) then stay mounted; rendered with <code>showTechDetails={false}</code> (Rollout, Ask, Evidence) and KG with <code>incomingQuery={null}</code>; Ask/Evidence/Rollout accept <code>openRun</code> from the Admin page; <code>AdminPage</code> gets <code>canOpen={(t) =&gt; t in DEMO_TOOL}</code> so InsightLens runs are listed but not openable (FACT :181-202).</li>
-<li>Sidebar states <code>rail</code> (60px, default) / <code>expanded</code> (240px) / <code>hidden</code>, persisted <code>localStorage[&quot;demo-sidebar-v2&quot;]</code> (FACT :96-111).</li>
+<li>Sidebar states (Admin) <code>hidden</code> (default since df034c9) / <code>rail</code> (60px) / <code>expanded</code> (240px), persisted <code>localStorage[&quot;demo-sidebar-v3&quot;]</code>; the key was renamed so browsers that saved the old default start hidden (FACT DemoShell.tsx:101-116 at fd5a375).</li>
 <li>On mount GET /api/auth/session; 401 → <code>/demo/login?next=&lt;path&gt;</code>; otherwise sets the account for the shared <code>AccountMenu</code> (<code>loginPath=&quot;/demo/login&quot;</code>) (FACT :153-165,284-285).</li>
-<li>DemoLanding: 4 story steps (Knowledge Graph, Fit-Gap Copilot, Ask RAG, Evidence Agent) with buttons to those pages, plus LandingPage's <code>ArchitectureSection</code> (FACT DemoLanding.tsx:1-40).</li>
+<li>DemoLanding: 4 story steps (Knowledge Graph, Fit-Gap Copilot, Ask RAG, Evidence Agent) with buttons to those pages, plus LandingPage's <code>ArchitectureSection</code> (FACT DemoLanding.tsx:1-40). Prop <code>showEngines</code> (= isAdmin): without it <code>ask</code> and <code>evidence</code> (<code>ADMIN_ONLY</code>) are filtered out, the step grid uses <code>repeat(&lt;n&gt;, 1fr)</code>, and the heading counts the steps (&quot;Two Steps, One Organizational Memory&quot; vs &quot;Four Steps, …&quot;) (DemoLanding.tsx:85-91, 159).</li>
 </ul>
 </li>
 <li>Known leak: Demo Mode still shows model name on Copilot Traceability tab (FACT docs/demo-video/README.md &quot;Things to know&quot;).</li>
@@ -9436,7 +9559,7 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 <tr>
 <td>test_auth.py</td>
 <td>12</td>
-<td>Accounts, roles and the session: hashed passwords, a short <code>ADMIN_PASSWORD</code>, <code>ADMIN_USERNAME=legacy</code> or a username with a space only logs a WARNING and creates no Admin (start-up goes on), bootstrap admin, API and pages need a session, sign in/out, old static credentials gone, <code>legacy</code> cannot sign in, forged/expired/revoked tokens (password reset and deactivation revoke at once), Admin-only Admin API, last Admin cannot be removed or self-demoted, change own password, traces opened while streaming, activity logged; one account opens app and demo</td>
+<td>Accounts, roles and the session (a new or reset account must choose its own password before anything else answers — helper <code>choose_own_password</code>): hashed passwords, a short <code>ADMIN_PASSWORD</code>, <code>ADMIN_USERNAME=legacy</code> or a username with a space only logs a WARNING and creates no Admin (start-up goes on), bootstrap admin, API and pages need a session, sign in/out, old static credentials gone, <code>legacy</code> cannot sign in, forged/expired/revoked tokens (password reset and deactivation revoke at once), Admin-only Admin API, last Admin cannot be removed or self-demoted, change own password, traces opened while streaming, activity logged; one account opens app and demo</td>
 <td>Postgres</td>
 </tr>
 <tr>
@@ -9471,14 +9594,14 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 </tr>
 <tr>
 <td>test_evidence.py</td>
-<td>81</td>
-<td>Evidence Agent provenance, independence, hub filtering, scoring; store bookkeeping in throwaway DB; fake Anthropic</td>
+<td>82</td>
+<td>Evidence Agent provenance, independence, hub filtering, scoring; store bookkeeping in throwaway DB; fake Anthropic; a stopped investigation makes no model call</td>
 <td>Postgres + the indexed corpus (<code>solvay-spark/pkg/markdown/</code>)</td>
 </tr>
 <tr>
 <td>test_fitgap.py</td>
-<td>41</td>
-<td>InsightLens verifier, rubric arithmetic, BPML parsing, holdout masking</td>
+<td>46</td>
+<td>InsightLens verifier, rubric arithmetic, BPML parsing, holdout masking; <code>core/live.py</code> (a late reader replays from the first event, someone else's live run is not found but an Admin sees it, a raising run ends with <code>error</code>, a quiet run sends keep-alives, the live thread sees the signed-in user)</td>
 <td>nothing (no Claude, no DB)</td>
 </tr>
 <tr>
@@ -9543,8 +9666,8 @@ FailureType keys: safety, wrong_sources, buried, ignored, invented, off_question
 </tr>
 <tr>
 <td>test_rollout.py</td>
-<td>115</td>
-<td>Copilot scoring, quality gates, alignment-vs-empty-register invariant, store via throwaway DB; output-limit cut-offs refused, combined send-backs, <code>amend</code> corrections changing only what they name, over-long quotes cut to a verbatim prefix, list-as-text parsing, fixed calls pre-made</td>
+<td>116</td>
+<td>Copilot scoring, quality gates, a stopped pass makes no further model call, alignment-vs-empty-register invariant, store via throwaway DB; output-limit cut-offs refused, combined send-backs, <code>amend</code> corrections changing only what they name, over-long quotes cut to a verbatim prefix, list-as-text parsing, fixed calls pre-made</td>
 <td>mostly nothing; store tests need Postgres</td>
 </tr>
 <tr>
@@ -9739,7 +9862,8 @@ None of the backend tests require a live Anthropic key or Ollama (all stub them 
 <p>Accounts and sign-in
 6. Signed out, <code>/</code> (and any app page) redirects to <code>/login?next=…</code> and <code>/api/*</code> returns 401; bad creds show the server message; good creds land on <code>next</code> (only same-site paths). The same account signs in to <code>/demo/login</code>.
 7. Account menu shows username and role chip; Change password validates the two new values, reports server errors and signs out other browsers; Sign out POSTs /api/auth/logout and returns to the right sign-in page.
-8. Expiring the session, resetting the password or deactivating the account while a page is open sends the next API call's 401 to the sign-in page with <code>next</code>, once.</p>
+8. Expiring the session, resetting the password or deactivating the account while a page is open sends the next API call's 401 to the sign-in page with <code>next</code>, once.
+8b. An account an Admin creates or resets signs in and is asked at once to choose its own password (new + again; the same password is refused); until then every other <code>/api/*</code> call is 403 <code>password_change_required</code> and every app or demo page sends it back to sign in; reloading the sign-in page shows the step again with a Current password field. Accounts that existed before the column, the start-up Admin and <code>loadtest-*</code> accounts are never asked.</p>
 <p>Ownership
 9. A User's histories (Ask, Agent, InsightLens, Copilot) show only their runs; opening, deleting, exporting or reading the lineage of another account's run by id returns &quot;not found&quot;. Another account's conversion or batch id (Convert, Batch Convert) is &quot;not found&quot; too, for an Admin as well, while <code>GET /api/rollout/decisions</code> returns every account's decisions to every signed-in user (shared organisational memory; each row shows who decided it).
 10. An Admin's account menu has the History switch; &quot;everyone's runs&quot; re-fetches every history list, rows say <code>by &lt;owner&gt;</code>, and the choice survives reload (<code>history-scope</code>). An Admin can open but not delete or decide on another's run.
@@ -9749,7 +9873,7 @@ None of the backend tests require a live Anthropic key or Ollama (all stub them 
 13. Usage: stacked runs-per-day bars with a hover/focus card per day; By-account table with per-tool runs, failed, tokens, run time, est. cost, last seen; clicking an account opens its Run history.
 14. User × tool: measure toggle Runs/Tokens/Run time/Cost (remembered); rows ranked by total; only Total is heat-mapped with a legend; hovering an account's Total outlines exactly the cells it sums, hovering a footer total outlines its column; tooltips spell the sum; numbers are exact so totals add up.
 15. Run history: every account or one account, tool filter, Load older; Open jumps to the run in its tool page (in Demo, InsightLens rows are marked not openable).
-16. Users: create (role user, ≥8-char temporary password), change role, activate/deactivate, reset password; own role and active switch disabled. Activity: newest first, action filter, Load older, failed sign-ins highlighted.</p>
+16. Users: create (role user, ≥8-char temporary password), change role, activate/deactivate, reset password; own role and active switch disabled; accounts still on a temporary password carry a &quot;password not yet changed&quot; chip. Activity: newest first, action filter, Load older, failed sign-ins highlighted.</p>
 <p>Convert / index / inspect
 17. Convert: upload each accepted extension, see page previews, convert with and without &quot;Read images with AI&quot; (provider claude/openai/qwen), toggle rendered/raw, copy, download, Add to knowledge base reports added/updated/unchanged + duplicates; &quot;Ask&quot; jumps to Ask tab.
 18. Batch Convert: add files/folder (skips <code>~$</code>, dotfiles, unsupported), stream per-file progress/done/error, tool breakdown, download zip, embed batch with streamed progress and summary.
@@ -9760,11 +9884,11 @@ None of the backend tests require a live Anthropic key or Ollama (all stub them 
 22. Ask RAG: stepper advances embed→vector→keyword→fuse→answer (keyword/vector modes skip steps), sources arrive before tokens, citations <code>[n]</code> open the document inspector at the passage; evaluation shows &quot;scoring…&quot; then a score (poll every 2.5 s stops when terminal); rescore works; history drawer filters by search and quality segment, reopen and delete work; aborting a question does not re-run it.
 23. RAG Metrics (Admin): six tabs, filters (days/half/mode), drill into an answer opens the metric drawer with judge working; human review verdict saves; experiments compare and set baseline; view remembered.
 24. Spine: graph renders with type legend (specs hidden by default), filters, search, zoom/fullscreen, node drawer; NL query highlights path/subgraph and shows answer; 5 presets work; Rebuild works; Model, Process, Cypher (status, sync, generate, run read-only query; writes rejected) and Quality (structure check, background question check polled every 3 s) views work; InsightLens &quot;show in graph&quot; runs the query on arrival.
-25. Agent: ask with/without memory and holdout; live log; answer state badge, claims with scores and stance-tagged sources, Traceability lineage, Memory tab only when used, Evaluation; open a quote in its document highlighted; reflect drawer; history drawer open/delete; lineage md/json download.
-26. InsightLens: scope search resolves (default 4.5.1), preview updates with mode/steps/concurrency/holdout, eval-question picker sets question+scope, mode B validates country JSON, run streams step cards and synthesis tabs (Reuse/Gaps/Decisions/Integrations/Agenda), entry review accept/reject/refine persists, exports md/json/xlsx, attachments upload/remove with corpus comparison; session persists across reload until expiry.
-27. Fit-Gap Copilot: upload documents with roles (retag/remove/clear), subject auto-follows roles, preview shows readiness/blocker/estimate, run streams stages + log, all 13 workspace tabs populate (Evaluation not blank), header shows &quot;Completed in … (reading …, comparing …)&quot; for a finished run and history rows &quot;took …&quot;, decisions (accept/reject/defer with option + rationale) append, facilitator mode drafts survive reload and submit atomically, agenda tab gets ✓ when all MUST_DISCUSS decided, exports md/json/pdf (pdf hidden when server says unavailable), workshop export md/pdf/docx/xlsx, cited sources open (attachments served from the run), history open/delete.</p>
+25. Agent: ask with/without memory and holdout; live log; a dropped stream reconnects and replays; Stop ends the investigation on the server (recorded failed); a running investigation reopens live from History; answer state badge, claims with scores and stance-tagged sources, Traceability lineage, Memory tab only when used, Evaluation; open a quote in its document highlighted; reflect drawer; history drawer open/delete; lineage md/json download.
+26. InsightLens: scope search resolves (default 4.5.1), preview updates with mode/steps/concurrency/holdout, eval-question picker sets question+scope, mode B validates country JSON, run streams step cards and synthesis tabs (Reuse/Gaps/Decisions/Integrations/Agenda), Stop finishes the register with the steps done (status <code>stopped</code>, the rest &quot;not run — stopped&quot;), a running run reopens live from History, entry review accept/reject/refine persists, exports md/json/xlsx, attachments upload/remove with corpus comparison; session persists across reload until expiry.
+27. Fit-Gap Copilot: upload documents with roles (retag/remove/clear), subject auto-follows roles, preview shows readiness/blocker (no token/time estimate on Review and run), run streams stages + log, survives a proxy idle timeout (keep-alives) and reconnects a dropped stream up to 5 times, Stop ends it on the server, a running run reopens live from History, all 13 workspace tabs populate (Evaluation not blank), header shows &quot;Completed in … (reading …, comparing …)&quot; for a finished run and history rows &quot;took …&quot;, decisions (accept/reject/defer with option + rationale) append, facilitator mode drafts survive reload and submit atomically, agenda tab gets ✓ when all MUST_DISCUSS decided, exports md/json/pdf (pdf hidden when server says unavailable), workshop export md/pdf/docx/xlsx, cited sources open (attachments served from the run), history open/delete.</p>
 <p>Demo
-28. <code>/demo</code> without session → <code>/demo/login</code>; an account signs in to <code>/demo/home</code>; only Spine &amp; Fit-Gap Copilot tabs + Ask RAG/Agent in sidebar (+ Admin button for Admins); other slugs land on home; sidebar rail/expanded/hidden persists; model names hidden (except known Traceability leak); Copilot downloads carry <code>client=1</code>; session expiry redirects to <code>/demo/login</code>; account menu sign out returns to <code>/demo/login</code>.</p>
+28. <code>/demo</code> without session → <code>/demo/login</code>; an account signs in to <code>/demo/home</code>; only Spine &amp; Fit-Gap Copilot tabs; for an Admin, Ask RAG/Agent in a sidebar that starts hidden (hidden/rail/expanded persists) plus the Admin button; for a User no sidebar or menu button, a two-step landing page, and <code>/demo/ask</code> / <code>/demo/agent</code> land on home; other slugs land on home; model names hidden (except known Traceability leak); Copilot downloads carry <code>client=1</code>; session expiry redirects to <code>/demo/login</code>; account menu sign out returns to <code>/demo/login</code>.</p>
 <p>Load tests
 29. <code>seed_users.py --admin</code> creates/resets only <code>loadtest-*</code> accounts; Locust refuses a non-<code>loadtest-*</code> <code>LOADTEST_USERNAME</code>, an unlisted host and a missing password; a plain <code>locust</code> run makes no Claude calls; QualityUser stops for a non-admin account.</p>
 

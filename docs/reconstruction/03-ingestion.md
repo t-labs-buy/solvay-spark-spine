@@ -1,7 +1,7 @@
 # 03 — Document Ingestion / Conversion (documents → Markdown)
 
 Scope: `backend/ingestion/*` (converter.py, pptx_ocr.py, pptx_flow.py, flow_cv.py, table_cv.py, vlm_ocr.py, vlm_api.py, xlsx_tables.py, xml_tables.py, bpml_markdown.py, md_chunker.py, mail_reader.py, preview.py, pptx_to_md.py, folder_to_md.py) plus the API callers that drive it (`backend/api/app.py`, `backend/core/uploads.py`).
-Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; `app.py` line numbers are at that working tree.
+Current as of commit fd5a375 (2026-10-06); nothing in `backend/ingestion/` changed after `1d37131`. `app.py` line numbers are at `1d37131` plus the ownership fixes; from ~line 800 on they have since moved down by roughly 40–160 lines.
 Legend: **FACT (file:line)** = read from the code. **INFERRED** = deduced or taken from docs but not confirmed in code. Paths are relative to the repo root, and `ingestion/` means `backend/ingestion/`.
 
 ---
@@ -483,7 +483,7 @@ folder_to_md `FORMATS = {.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.xlsm,.html,.htm,
 | `POST /api/docs/{doc_id}/embed?category=` | — | — | copied to `knowledge_base/{stem}{_ext}.md`, with category front matter added via `rag.declare_category`, then `rag.index_path` (FACT app.py:302-344) |
 | Batch `POST /api/batch/upload` → `POST /api/batch/convert/{batch_id}` (body `{vlm=False, provider="claude"}`, SSE events `progress`/`file_done`…) | `.workdir/batches/{batch_id}/sources/{name}` + `owner.txt` (the uploader's user id; only that account can convert, download or embed the batch, others get 404) | temp dir | `.workdir/batches/{batch_id}/markdown/{stem}{_ext}.md` (FACT app.py:1264-1434) |
 | Upload sessions (`backend/core/uploads.py:add_file`). Since accounts, each session belongs to the user who created it (`new_session(user_id)`), and another user's session id is refused (§04 §2.9) | `.workdir/uploads/{sid}/` | `{session}/media` | `{session}/{stem}{_ext}.md` (`md_name`), then `rag.index_file` (FACT uploads.py:59, 357, 398-415, 479-487) |
-| Corpus convention | originals in `solvay-spark/<code>/` | — | `solvay-spark/<code>/markdown/{stem}_{ext}.md`. The category is the folder name (docs/ingesting-markdown.md) |
+| Corpus convention | originals in `solvay-spark/<code>/` | — | `solvay-spark/<code>/markdown/{stem}_{ext}.md`. The category is the folder name (docs/ingesting-markdown.md). `rag_documents.source` stores the **absolute** path indexed from; a database restored on another machine is matched back to its files from the `solvay-spark/` or `knowledge_base/` path segment on (`_in_this_project`, bd153f1; 02 §8), and `GET /api/kb/files/{name}` searches every `solvay-spark/*/markdown/` folder |
 
 Filename convention: `{stem}{suffix.lower().replace('.', '_')}.md`, so `Pricing.xlsx` becomes `Pricing_xlsx.md`. The review page reverses it to locate the original (tests/test_originals.py).
 

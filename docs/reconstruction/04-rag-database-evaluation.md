@@ -5,7 +5,7 @@ Scope: `backend/rag/*.py`, every Postgres DDL statement in `backend/`
 API path in `backend/api/app.py`, Ragas evaluation, the Answer-Quality
 workspace arithmetic. Paths are repo-relative. **FACT** = read in code
 (file:line). **INFERRED** = deduced, not directly stated. **DOC** = from docs only.
-Current as of commit 1d37131 (2026-10-05) plus the uncommitted ownership and start-up fixes in the working tree; line numbers are at that working tree.
+Current as of commit fd5a375 (2026-10-06). The `users.must_change_password` column and the `fitgap_runs.status = 'stopped'` value were added after `1d37131`; their line numbers are at `fd5a375`, the rest at `1d37131` plus the ownership fixes (`auth/store.py` lines after ~85 have moved down by 4–20).
 
 ---
 
@@ -368,6 +368,11 @@ ALTER TABLE fitgap_runs ADD COLUMN IF NOT EXISTS uploads jsonb NOT NULL DEFAULT 
 -- fitgap_reviews.reviewer stays the free text that was typed; user_id is the signed-in account.
 ```
 
+`fitgap_runs.status` values: `running` → `done` | `failed`, and since ae1e4eb
+`stopped` (a run stopped from the page: `finish_run(..., status="stopped")` with the
+synthesis of the steps that finished; fitgap/store.py:208-214, orchestrator.py). There
+is no CHECK constraint on the column.
+
 ### 2.7 Rollout (Fit-Gap Copilot) + workshops — owner `backend/agents/rollout/store.py:66-230`
 
 ```sql
@@ -568,6 +573,10 @@ CREATE TABLE IF NOT EXISTS users (                              -- auth/store.py
 );
 -- Case-insensitive uniqueness without citext: "Alice" and "alice" are one account.
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_idx ON users (lower(username));   -- :89-90
+-- Added after accounts shipped (fd5a375, auth/store.py:93-96): an existing account is
+-- not asked to change a password it may already have changed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS
+    must_change_password boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS activity_events (                    -- :93-103
     id        bigserial PRIMARY KEY,
@@ -596,6 +605,14 @@ ON CONFLICT (lower(username)) DO NOTHING;
   deactivation, which signs the account out everywhere; a role change does not
   bump it (`update_user`, `:239-280`). `bootstrap_admin` also bumps it when it
   re-activates an existing account (`:323-329`), which it does only after `ADMIN_PASSWORD` passes the strength check and `ADMIN_USERNAME` passes `_clean_username` (so never for `legacy`); a refused setting is a WARNING line, not an error (`:312-334`).
+* `must_change_password` (fd5a375) is true while the password is one an Admin
+  chose: `create_user(must_change=…)` sets it (the Admin API passes true by default;
+  the CLI and `bootstrap_admin` leave it false), `update_user(password=…)` sets it to
+  its `must_change` argument (default true, an Admin reset), and `change_own_password`
+  clears it and refuses a new password equal to the current one. `bootstrap_admin`
+  sets it false when it re-activates an existing account. While it is true the
+  middleware answers every `/api/*` route except the auth routes and
+  `/api/auth/password` with 403 `password_change_required` (02 §3c).
 * Username rules (`_clean_username`, `:171-177`): 1-64 characters, no whitespace,
   no `|`, not `legacy` (case-insensitive). Roles `("admin","user")` (`:38`).
   Duplicate names are caught by `ON CONFLICT (lower(username)) DO NOTHING
@@ -1003,7 +1020,7 @@ Compares disk (`knowledge_graph.source_folders()` `*.md`, skipping `.`/`~$` name
 * test_ask_store: recorded before answered; excerpts survive unanswered; failed keeps partial; abandoned reported not rewritten; list omits excerpts; retention trims oldest; delete one; filter matches question text only; schema once. DB `docling_test_ask`.
 * test_evaluation (47, stubs `evaluate`/`push_scores`): weighted mean; failed judge dropped; nothing scored → None; safety cap; weights sum 1; reference-only don't run without reference & never in overall; working numbering; score_id stable; safety → BOOLEAN; skipped when unavailable; evaluate refuses running loop; sampling 0/1; re-score replaces; skipped≠failed; abandoned after 10 min; cascades; quality filters.
 * test_ownership (DB `docling_test_ownership`): a user lists only their own; someone else's run is not found; reviews are signed by the account; an Admin reads everyone's but changes only their own; pre-account runs go to `legacy`; legacy runs can be handed to an account; retention is per account; clear history clears only one's own; usage counts each account; an Admin lists one account's runs across tools; conversions belong to the uploader (a shared one is readable by others, not deletable); decisions are shared memory (every account, Admin or not, sees everyone's); copied old decisions get the run's owner.
-* test_auth (DB `docling_test_auth`): password hashing; bad Admin settings do not stop start-up; bootstrap Admin; API and pages need a session; sign in/out; `legacy` cannot sign in; forged/expired tokens; roles and account management; change own password; activity is logged.
+* test_auth (DB `docling_test_auth`): password hashing; bad Admin settings do not stop start-up; bootstrap Admin; API and pages need a session; sign in/out; `legacy` cannot sign in; forged/expired tokens; roles and account management (a new or reset account is held at 403 `password_change_required`, is sent from pages to `/login`, cannot "change" to the same password, and is free once it has its own — `choose_own_password`); change own password; activity is logged.
 * test_quality / test_coverage / test_category_durability: as summarised in §9, §10, §4.2–4.3. The review endpoint test now signs in as an Admin who owns the run.
 
 ## 13. Gaps / inconsistencies

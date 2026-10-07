@@ -1,0 +1,4 @@
+clips/
+pass1/
+*.mp4
+__pycache__/

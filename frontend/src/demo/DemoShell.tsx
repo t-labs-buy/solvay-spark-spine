@@ -43,6 +43,7 @@ import type { Mode } from "../theme";
 import BrandLogo from "../components/BrandLogo";
 import type { Account } from "../auth";
 import AccountMenu from "../components/AccountMenu";
+import { TechStackButton } from "../components/TechStackDialog";
 
 const PRODUCT = "Spark AI Spine";
 
@@ -292,6 +293,7 @@ export default function DemoShell({ mode, onToggleMode }: { mode: Mode; onToggle
               </AnimatePresence>
             </IconButton>
           </Tooltip>
+          {isAdmin && page === "admin" && <TechStackButton />}
           {account?.role === "admin" && (
             <Tooltip title="Usage dashboard, accounts and the activity log">
               <Button size="small" onClick={() => go("admin")} startIcon={<ShieldCheck size={16} />}

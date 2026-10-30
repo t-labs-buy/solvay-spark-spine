@@ -15,12 +15,6 @@
     <!-- One sentence: shown under the link when the page is shared in chat or
          email, and in search results. -->
     <meta name="description" content="Step-by-step guide for new team members: build the container image, push it to reg.ivolve.cloud, and run Solvay Spark Spine AI on the AWS EC2 server — every command explained, with troubleshooting." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400;1,700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Noto+Sans+Elbasan&display=swap"
-      rel="stylesheet"
-    />
     <script>
       // Runs before first paint so a saved theme and the tabbed layout are
       // applied without a flash of the wrong one.
@@ -323,7 +317,7 @@
         border: 1px solid var(--border);
         border-radius: 999px;
         padding: 0.35rem 0.85rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.78rem;
         font-weight: 600;
         letter-spacing: 0.04em;
@@ -363,7 +357,7 @@
       body {
         background: var(--bg);
         color: var(--ink);
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 17px;
         line-height: 1.65;
         margin: 0;
@@ -380,12 +374,12 @@
       .label,
       nav,
       .phase-tag {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
       }
       /* The page title alone is set in the condensed sans: it reads as a
          masthead and fits long titles on fewer lines than the mono. */
       h1 {
-        font-family: "IBM Plex Sans Condensed", "IBM Plex Mono", sans-serif;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 2.1rem;
         line-height: 1.15;
         letter-spacing: -0.015em;
@@ -499,7 +493,7 @@
         margin-bottom: 1.75rem;
       }
       .eyebrow {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         text-transform: uppercase;
         letter-spacing: 0.14em;
         font-size: 0.72rem;
@@ -518,7 +512,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem 1.75rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.85rem;
         color: var(--muted);
         border-top: 1px solid var(--border);
@@ -555,7 +549,7 @@
       .doc-search {
         position: relative;
         width: 22rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
       }
       .doc-search-field {
         display: flex;
@@ -723,10 +717,8 @@
       html:not(.js) nav.sidebar {
         display: none;
       }
-      /* The sidebar is the one place that breaks from IBM Plex Mono: a
-         proportional face here separates navigation from document content at a
-         glance. Noto Sans Elbasan ships regular only, so the 600/700 weights
-         below are synthesised by the browser — intentional, do not "fix". */
+      /* The sidebar uses the same JetBrainsMono Nerd Font as the document;
+         its card, smaller size and uppercase label set it apart. */
       nav.sidebar {
         position: sticky;
         top: 1.25rem;
@@ -736,13 +728,13 @@
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 0.9rem;
-        font-family: "Noto Sans Elbasan", sans-serif;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.87rem;
       }
       /* .label matches the shared mono rule directly, so inheriting from
          nav.sidebar is not enough — it needs the family restated here. */
       nav.sidebar .label {
-        font-family: "Noto Sans Elbasan", sans-serif;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         text-transform: uppercase;
         letter-spacing: 0.12em;
         font-size: 0.7rem;
@@ -845,7 +837,7 @@
         margin-top: 1.5rem;
       }
       .pager button {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.85rem;
         font-weight: 600;
         color: var(--accent);
@@ -1187,8 +1179,7 @@
         padding: 0.9rem 1.1rem;
         background: var(--code-bg);
         color: var(--code-ink);
-        font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas,
-          monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.85rem;
         line-height: 1.5;
         /* Command output is column-aligned; wrapping destroys the alignment,
@@ -1254,8 +1245,7 @@
       }
       code,
       pre {
-        font-family:
-          ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
       }
       p code,
       li code,
@@ -1288,7 +1278,7 @@
         border: 1px solid var(--accent);
         border-radius: 6px;
         padding: 0.35rem 0.85rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.85rem;
         font-weight: 600;
         cursor: pointer;
@@ -1386,7 +1376,7 @@
         border: 1px solid var(--border);
         border-radius: 6px;
         padding: 0.18rem 0.5rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.68rem;
         font-weight: 600;
         letter-spacing: 0.08em;
@@ -1475,7 +1465,7 @@
         vertical-align: top;
       }
       th {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.1em;
@@ -1509,7 +1499,7 @@
         align-items: stretch;
         gap: 0.6rem;
         margin: 1.25rem 0 1.75rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.85rem;
         line-height: 1.45;
       }
@@ -1605,7 +1595,7 @@
         margin: -0.4rem 0 1.3rem;
       }
       .chip {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.72rem;
         font-weight: 600;
         letter-spacing: 0.05em;
@@ -1623,7 +1613,7 @@
         display: flex;
         align-items: center;
         gap: 0.65rem;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 1rem;
         font-weight: 700;
         margin: 2.1rem 0 0.8rem;
@@ -1658,7 +1648,7 @@
       }
       .card .card-title {
         display: block;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.82rem;
         font-weight: 700;
         text-transform: uppercase;
@@ -1675,7 +1665,7 @@
         margin: 2rem 0 1.5rem;
       }
       .qa .q {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 1.05rem;
         font-weight: 700;
         margin: 0 0 0.6rem;
@@ -1714,7 +1704,7 @@
       }
       .choice-box .ct {
         display: block;
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, Menlo, monospace;
         font-size: 0.82rem;
         font-weight: 700;
         text-transform: uppercase;
@@ -3061,7 +3051,7 @@ curl localhost:8040/api/health</pre>
             <p>To confirm the update landed, still on the server:</p>
             <pre class="language-bash">
 docker compose ps app
-curl -fsS http://127.0.0.1:${APP_PORT:-8000}/api/health
+curl -fsS http://127.0.0.1:8040/api/health
 docker compose exec solvay-postgres psql -U spark -d solvay -c \
   "SELECT username, must_change_password FROM users ORDER BY username;"</pre>
             <div class="tablewrap">
@@ -3069,7 +3059,7 @@ docker compose exec solvay-postgres psql -U spark -d solvay -c \
                 <thead><tr><th>Command</th><th>What it tells you</th></tr></thead>
                 <tbody>
                   <tr><td><code>docker compose ps app</code></td><td>The app container is <em>Up</em> and, after its first health check, <em>healthy</em>.</td></tr>
-                  <tr><td><code>curl -fsS …/api/health</code></td><td>The app answers on the port set by <code>APP_PORT</code> in <code>.env</code> (8000 if unset). Expect <code>{"ok":true,…}</code>; <code>-f</code> makes it fail loudly on an error status.</td></tr>
+                  <tr><td><code>curl -fsS …/api/health</code></td><td>The app answers on port 8040, the host port <code>APP_PORT</code> publishes it on. Write the port out: <code>APP_PORT</code> lives in <code>.env</code>, which Compose reads and your shell does not, so <code>${APP_PORT:-8000}</code> falls back to 8000, where another team's app answers <code>404</code>. Expect <code>{"ok":true,…}</code>; <code>-f</code> makes it fail loudly on an error status.</td></tr>
                   <tr><td><code>psql … must_change_password</code></td><td>The new app started against the database and added the <code>must_change_password</code> column. Existing accounts show <code>f</code>; an account an Admin has just created or reset shows <code>t</code> until its user picks a new password.</td></tr>
                 </tbody>
               </table>

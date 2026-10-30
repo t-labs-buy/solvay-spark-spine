@@ -5,6 +5,7 @@ import { Columns2, DatabaseZap, FileText, FlaskConical, FolderArchive, Gauge, Gl
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { currentAccount, type Account } from "./auth";
 import AccountMenu from "./components/AccountMenu";
+import { TechStackButton } from "./components/TechStackDialog";
 import BrandLogo from "./components/BrandLogo";
 import AdminPage from "./pages/AdminPage";
 import type { UsageTool } from "./api";
@@ -351,6 +352,7 @@ export default function App() {
                   </AnimatePresence>
                 </IconButton>
               </Tooltip>
+              {isAdmin && page === "admin" && <TechStackButton />}
               {isAdmin && (
                 <Tooltip title="Usage dashboard, accounts and the activity log">
                   <Button size="small" onClick={() => go("admin")} startIcon={<ShieldCheck size={16} />}

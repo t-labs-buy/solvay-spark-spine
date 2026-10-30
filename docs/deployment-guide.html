@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Noto+Sans+Elbasan&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,600;0,700;1,400;1,700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Noto+Sans+Elbasan&display=swap"
       rel="stylesheet"
     />
     <script>
@@ -382,7 +382,10 @@
       .phase-tag {
         font-family: "IBM Plex Mono", monospace;
       }
+      /* The page title alone is set in the condensed sans: it reads as a
+         masthead and fits long titles on fewer lines than the mono. */
       h1 {
+        font-family: "IBM Plex Sans Condensed", "IBM Plex Mono", sans-serif;
         font-size: 2.1rem;
         line-height: 1.15;
         letter-spacing: -0.015em;

@@ -136,7 +136,11 @@ export default function AdminPage({ active, account, onOpenRun, canOpen = () => 
   const tokenTotal = t ? t.input_tokens + t.output_tokens : 0;
 
   return (
-    <Box sx={{ height: "100%", overflow: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+    // Children must not shrink: a Panel clips (overflow: hidden), so a flex
+    // item would squash a long table to the window and hide its last rows
+    // instead of letting this box scroll.
+    <Box sx={{ height: "100%", overflow: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5,
+               "& > *": { flexShrink: 0 } }}>
       <Paper variant="outlined" sx={{ px: 2.5, pt: 1.5, borderRadius: RADIUS }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
           <Box sx={{ flex: 1 }}>
